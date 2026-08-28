@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model TournamentConfig {
+  id           String    @id @default("default")
+  status       String    @default("setup") // setup | active | completed
+  format       String    @default("compass") // compass | round-robin
+  bestOfSets   Int       @default(3)
+  tiebreakMode String    @default("standard") // standard | match-tiebreak | advantage
+  pin          String    @default("1234")
+  startedAt    DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  name      String
+  seed      Int
+  createdAt DateTime @default(now())
+
+  matchesAsP1 Match[] @relation("MatchP1")
+  matchesAsP2 Match[] @relation("MatchP2")
+  wonMatches  Match[] @relation("MatchWinner")
+  lostMatches Match[] @relation("MatchLoser")
+}
+
+model Court {
+  id    Int    @id
+  label String
+}
+
+model Match {
+  id       String @id @default(cuid())
+  bracket  String // E | W | N | S | NE | SE | NW | SW
+  round    Int
+  posIndex Int // 0-based position within this bracket+round, deterministic
+
+  player1Id String?
+  player2Id String?
+  player1   Player? @relation("MatchP1", fields: [player1Id], references: [id])
+  player2   Player? @relation("MatchP2", fields: [player2Id], references: [id])
+
+  winnerId String?
+  loserId  String?
+  winner   Player? @relation("MatchWinner", fields: [winnerId], references: [id])
+  loser    Player? @relation("MatchLoser", fields: [loserId], references: [id])
+
+  status  String    @default("pending") // pending | ready | scheduled | in_progress | completed
+  readyAt DateTime? // set the moment both players become known; drives FIFO court queue order
+
+  courtId   Int?
+  courtSlot String? // current | next
+
+  // deterministic feed-forward wiring, set at skeleton-generation time
+  feedWinnerMatchId String?
+  feedWinnerSlot    Int?
+  feedLoserMatchId  String?
+  feedLoserSlot     Int?
+
+  isBracketFinal Boolean @default(false)
+
+  forcedEnd       Boolean @default(false)
+  forcedEndReason String?
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  points PointEvent[]
+
+  @@index([bracket, round])
+  @@index([courtId])
+}
+
+model PointEvent {
+  id        String   @id @default(cuid())
+  matchId   String
+  match     Match    @relation(fields: [matchId], references: [id])
+  seq       Int
+  slot      Int // 1 or 2
+  createdAt DateTime @default(now())
+
+  @@index([matchId, seq])
+}
+
+// ---------------------------------------------------------------------------
+// Compass v2 — per-court TV control and the awards ceremony.
+//
+// Both tables are additive: v1 never reads them, so the existing display,
+// scorer and control screens behave exactly as before. They live in Postgres
+// rather than process memory (the way v1's TV scene control does) because on
+// Vercel each request can land in a different lambda — a coach's "go live" tap
+// has to be visible to the TV, which is a different device on a different
+// request path.
+// ---------------------------------------------------------------------------
+
+model CourtStage {
+  courtId Int @id
+
+  /// "idle" = the TV shows upcoming + standings; "live" = the coach has put the
+  /// court on air. The winner screen is NOT stored: it is derived from "live" +
+  /// a completed active match, so it can never get stuck out of sync with the
+  /// actual result (see lib/v2/stage.ts).
+  stage String @default("idle")
+
+  /// The match the TV is dedicated to while live. Kept after the match
+  /// completes so the winner screen still knows what to celebrate — the match
+  /// row itself loses its courtSlot the moment it finishes.
+  activeMatchId String?
+
+  coachName String?
+
+  rev       Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model Ceremony {
+  id String @id @default("default")
+
+  /// idle | standby | revealing | complete
+  stage String @default("idle")
+
+  /// Places to announce, in reveal order — e.g. [3,2,1], or [2,1] when there
+  /// are no third-place medals. Chosen by the organiser before the ceremony.
+  places Json @default("[]")
+
+  /// Index into `places` of the award currently on screen. -1 = nothing
+  /// revealed yet (the "standby" holding screen).
+  cursor Int @default(-1)
+
+  /// Frozen podium, captured when the ceremony starts, so a late score
+  /// correction can't reshuffle the names mid-presentation.
+  awards Json @default("[]")
+
+  rev       Int      @default(0)
+  updatedAt DateTime @updatedAt
+}

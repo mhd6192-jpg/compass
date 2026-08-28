@@ -1,0 +1,12 @@
+node_modules
+.next
+# unanchored, so nested copies (e.g. under restore/) are caught too
+**/dev.db
+**/dev.db-journal
+*.local
+.env.local
+
+.vercel
+.env*
+tsconfig.tsbuildinfo
+.DS_Store

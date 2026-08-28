@@ -1,0 +1,21 @@
+{
+  "name": "Alhayat Compass Draw",
+  "short_name": "Scorer",
+  "description": "Live tournament scoring, standings and TV display for Alhayat Padel & Tennis.",
+  "start_url": "/scorer",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#040906",
+  "theme_color": "#040906",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Scorer", "url": "/scorer" },
+    { "name": "Standings", "url": "/standings" },
+    { "name": "TV Display", "url": "/display" }
+  ]
+}

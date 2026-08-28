@@ -1,0 +1,97 @@
+/* Compass v3 presentation styles.
+   Scoped to the /v2 route group by being imported from its layout, so nothing
+   here can change how the v1 screens look. */
+
+/* Slow rotating light rays behind a celebration. */
+.v3-rays {
+  background: repeating-conic-gradient(from 0deg, rgba(201, 217, 53, 0.2) 0deg 5deg, transparent 5deg 16deg);
+  -webkit-mask-image: radial-gradient(circle, black 12%, transparent 68%);
+  mask-image: radial-gradient(circle, black 12%, transparent 68%);
+  animation: v3-spin 26s linear infinite;
+}
+
+@keyframes v3-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A light sweep across a name, so the winner's card never looks static on a TV. */
+.v3-shine {
+  background-image: linear-gradient(100deg, transparent 35%, rgba(255, 255, 255, 0.85) 50%, transparent 65%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: v3-sweep 3.6s ease-in-out infinite;
+}
+
+@keyframes v3-sweep {
+  0%,
+  55% {
+    background-position: 190% 0;
+  }
+  100% {
+    background-position: -60% 0;
+  }
+}
+
+/* Breathing glow for the "on air" and "waiting" holding screens. */
+.v3-breathe {
+  animation: v3-breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes v3-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+/* Vignette + spotlight for the ceremony, so the podium reads as a stage. */
+.v3-stage-light {
+  background:
+    radial-gradient(70% 60% at 50% 0%, rgba(201, 217, 53, 0.16), transparent 70%),
+    radial-gradient(90% 70% at 50% 110%, rgba(27, 138, 62, 0.22), transparent 70%);
+}
+
+.v3-vignette::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 50%, transparent 45%, rgba(0, 0, 0, 0.72) 100%);
+}
+
+/* Big scoreboard digits: tabular, tight, and never wrapping. */
+.v3-digits {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+/*
+ * Slide-in for the idle spotlight.
+ *
+ * Only the rise is animated — never opacity. A TV browser that backgrounds the
+ * tab pauses animations at their first keyframe, so anything starting from
+ * `opacity: 0` stays invisible for as long as the tab is hidden. Animating
+ * transform alone means the worst case is a card sitting 12px low, still
+ * perfectly readable, instead of a blank panel.
+ */
+.v3-fade-up {
+  animation: v3-fade-up 0.5s ease-out;
+}
+
+@keyframes v3-fade-up {
+  from {
+    transform: translateY(12px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}

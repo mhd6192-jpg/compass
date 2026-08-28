@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background:
+    radial-gradient(1100px 640px at 12% -8%, rgba(27, 138, 62, 0.16), transparent 60%),
+    radial-gradient(900px 560px at 108% 112%, rgba(201, 217, 53, 0.07), transparent 60%),
+    #040906;
+  color: #f4f6fb;
+  overscroll-behavior: none;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.text-shadow-glow {
+  text-shadow: 0 0 24px rgba(201, 217, 53, 0.55);
+}
+
+/* Rotating celebration rays (masked conic gradient) */
+.celebration-rays {
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(201, 217, 53, 0.16) 0deg 6deg,
+    transparent 6deg 18deg
+  );
+  -webkit-mask-image: radial-gradient(circle, black 18%, transparent 62%);
+  mask-image: radial-gradient(circle, black 18%, transparent 62%);
+}
