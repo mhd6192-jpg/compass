@@ -13,6 +13,7 @@ export interface SeedOptions {
   tiebreakMode: TiebreakMode;
   pin: string;
   format?: TournamentFormat;
+  discipline?: string;
   /** Court numbers this tournament runs on, e.g. [1,2] or [2,3,4]. */
   courtIds?: number[];
 }
@@ -106,6 +107,7 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
         update: {
           status: "active",
           format,
+          discipline: opts.discipline === "singles" ? "singles" : "doubles",
           bestOfSets: opts.bestOfSets,
           tiebreakMode: opts.tiebreakMode,
           pin: opts.pin,
@@ -115,6 +117,7 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
           id: "default",
           status: "active",
           format,
+          discipline: opts.discipline === "singles" ? "singles" : "doubles",
           bestOfSets: opts.bestOfSets,
           tiebreakMode: opts.tiebreakMode,
           pin: opts.pin,

@@ -7,12 +7,16 @@ import { ClubMark } from "@/components/shared/ClubLogo";
 import { useScoreBeat } from "./useScoreBeat";
 import { serveInfo } from "@/lib/scoring/serve";
 import { ServeBadge, ServeHandover, useServeHandover } from "./ServeIndicator";
+import { useNow } from "./useNow";
+import { formatDuration } from "@/lib/v3/venue";
 
 /** TV type sizes: scale with the screen, but never collapse on a laptop preview. */
 const NAME_SIZE = "clamp(2.2rem, 6.4vw, 7.5rem)";
 const POINT_SIZE = "clamp(3rem, 10.5vw, 12rem)";
 const SET_SIZE = "clamp(1.6rem, 4.4vw, 5rem)";
 const RACE_SIZE = "clamp(4rem, 16vw, 18rem)";
+/** Each half of a doubles pair, stacked. Smaller than a single name, far bigger than a truncated one. */
+const PAIR_NAME_SIZE = "clamp(1.5rem, 4.2vw, 4.8rem)";
 
 function formatLabel(bestOfSets: number, tiebreakMode: string): string {
   if (tiebreakMode === "race-to-16") return "First to 16 points";
@@ -23,18 +27,71 @@ function formatLabel(bestOfSets: number, tiebreakMode: string): string {
   return base;
 }
 
+
+/**
+ * An entrant's name, sized for the far side of a court.
+ *
+ * A short pair fits one line at full size, and one big line beats two smaller
+ * ones every time — so it is left alone. Only a pair too long for the row gets
+ * split across two lines, which is far better than the alternative of shrinking
+ * it to nothing or clipping it mid-name. Measured against the real screen: at
+ * 1920 wide a name of about sixteen characters is the point where the single
+ * line runs out of room beside the score.
+ */
+const ONE_LINE_LIMIT = 16;
+function EntrantName({
+  name,
+  leading,
+  doubles,
+}: {
+  name: string;
+  leading: boolean;
+  doubles: boolean;
+}) {
+  const split = doubles ? name.split(/\s*[/&+]\s*/).map((x) => x.trim()).filter(Boolean) : [name];
+  const parts = split.length === 2 && name.length > ONE_LINE_LIMIT ? split : [name];
+  const tone = leading ? "text-gold" : "text-white";
+
+  if (parts.length < 2) {
+    return (
+      <p
+        className={`flex-1 min-w-0 truncate font-display uppercase font-bold tracking-tight ${tone}`}
+        style={{ fontSize: NAME_SIZE, lineHeight: 1 }}
+      >
+        {parts[0] ?? name}
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex-1 min-w-0">
+      {parts.slice(0, 2).map((part, i) => (
+        <p
+          key={i}
+          className={`truncate font-display uppercase font-bold tracking-tight ${tone}`}
+          style={{ fontSize: PAIR_NAME_SIZE, lineHeight: 1.02 }}
+        >
+          {part}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function SideRow({
   match,
   slot,
   leading,
   race,
   serve,
+  doubles,
 }: {
   match: MatchDTO;
   slot: 1 | 2;
   leading: boolean;
   race: boolean;
   serve: ReturnType<typeof serveInfo>;
+  doubles: boolean;
 }) {
   const i = slot - 1;
   const st = match.state;
@@ -50,12 +107,7 @@ function SideRow({
     return (
       <div className="flex-1 min-h-0 flex items-center gap-[3vw] px-[3vw] relative">
         {leading && <span className={`absolute left-0 top-[12%] bottom-[12%] w-[0.6vw] rounded-r-full ${style.solidBg}`} />}
-        <p
-          className={`flex-1 min-w-0 truncate font-display uppercase font-bold tracking-tight ${leading ? "text-gold" : "text-white"}`}
-          style={{ fontSize: NAME_SIZE, lineHeight: 1 }}
-        >
-          {player?.name ?? "TBD"}
-        </p>
+        <EntrantName name={player?.name ?? "TBD"} leading={leading} doubles={doubles} />
         <ServeBadge serve={serve} slot={slot} size="clamp(0.7rem, 1.4vw, 1.5rem)" ballSize={30} />
         <motion.span
           key={`race-${slot}-${points}`}
@@ -75,12 +127,7 @@ function SideRow({
     <div className="flex-1 min-h-0 flex items-center gap-[2vw] px-[3vw] relative">
       {leading && <span className={`absolute left-0 top-[12%] bottom-[12%] w-[0.6vw] rounded-r-full ${style.solidBg}`} />}
 
-      <p
-        className={`flex-1 min-w-0 truncate font-display uppercase font-bold tracking-tight ${leading ? "text-gold" : "text-white"}`}
-        style={{ fontSize: NAME_SIZE, lineHeight: 1 }}
-      >
-        {player?.name ?? "TBD"}
-      </p>
+      <EntrantName name={player?.name ?? "TBD"} leading={leading} doubles={doubles} />
 
       <ServeBadge serve={serve} slot={slot} showPips={false} ballSize={20} />
 
@@ -131,13 +178,24 @@ export default function Scoreboard({
   nextMatch,
   bestOfSets,
   tiebreakMode,
+  discipline,
 }: {
   courtLabel: string;
   match: MatchDTO;
   nextMatch: MatchDTO | null;
   bestOfSets: number;
   tiebreakMode: string;
+  discipline?: string;
 }) {
+  const doubles = discipline !== "singles";
+
+  // How long they have been out there. The question every spectator asks, and
+  // nothing on the court answers it.
+  const now = useNow(1000);
+  const elapsed =
+    now && match.startedAt && match.status !== "completed"
+      ? Math.max(0, now - Date.parse(match.startedAt))
+      : null;
   const beat = useScoreBeat(match);
   const style = BRACKET_STYLE[match.bracket];
   const race = isPointsRace(tiebreakMode);
@@ -204,6 +262,14 @@ export default function Scoreboard({
           >
             {formatLabel(bestOfSets, tiebreakMode)}
           </p>
+          {elapsed !== null && (
+            <p
+              className="font-display tabular-nums text-white/55"
+              style={{ fontSize: "clamp(0.75rem, 1.6vw, 1.7rem)" }}
+            >
+              {formatDuration(elapsed)}
+            </p>
+          )}
           <span
             className={`flex items-center gap-[0.6vw] rounded-full border px-[1.2vw] py-[0.5vh] font-display font-bold uppercase tracking-[0.2em] ${
               started ? "border-live/50 bg-live/15 text-live" : "border-white/20 bg-white/5 text-white/60"
@@ -220,9 +286,9 @@ export default function Scoreboard({
       </header>
 
       <main className="relative flex-1 min-h-0 flex flex-col justify-center">
-        <SideRow match={match} slot={1} leading={lead1} race={race} serve={serve} />
+        <SideRow match={match} slot={1} leading={lead1} race={race} serve={serve} doubles={doubles} />
         <div className="h-px bg-white/10 mx-[3vw]" />
-        <SideRow match={match} slot={2} leading={lead2} race={race} serve={serve} />
+        <SideRow match={match} slot={2} leading={lead2} race={race} serve={serve} doubles={doubles} />
       </main>
 
       {handoverName && <ServeHandover key={`serve-${handedTo}-${match.state.totalPoints}`} name={handoverName} />}

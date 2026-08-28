@@ -95,6 +95,7 @@ export async function getFullSnapshot(prisma: PrismaClient) {
     tournament: {
       status: configRow?.status ?? "setup",
       format: configRow?.format ?? "compass",
+      discipline: configRow?.discipline ?? "doubles",
       bestOfSets: config.bestOfSets,
       tiebreakMode: config.tiebreakMode,
     },

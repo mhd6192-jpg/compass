@@ -10,7 +10,7 @@ import { getIO, EVENTS } from "@/lib/socket";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { names, bestOfSets, tiebreakMode, pin, seeds, arrange, format } = body;
+    const { names, bestOfSets, tiebreakMode, pin, seeds, arrange, format, discipline } = body;
     const fmt: TournamentFormat = format === "round-robin" || format === "two-group" ? format : "compass";
 
     const minTeams = fmt === "two-group" ? MIN_TWO_GROUP_TEAMS : 3;
@@ -54,6 +54,7 @@ export async function POST(req: Request) {
       tiebreakMode,
       pin,
       format: fmt,
+      discipline: discipline === "singles" ? "singles" : "doubles",
       courtIds: courtIds.length ? courtIds : undefined,
     });
     await broadcastSnapshot();

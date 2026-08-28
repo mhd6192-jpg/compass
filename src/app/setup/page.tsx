@@ -62,6 +62,10 @@ const GROUP_DRAW = ["Alpha/Bravo", "Charlie/Delta", "Echo/Foxtrot", "Golf/Hotel"
 
 export default function SetupPage() {
   const [status, setStatus] = useState<"loading" | "setup" | "active" | "completed">("loading");
+  const [discipline, setDiscipline] = useState<"singles" | "doubles">("doubles");
+  // Wording only: an entrant is one row in the draw either way.
+  const entrantLabel = discipline === "singles" ? "Player" : "Team";
+  const entrantsLabel = discipline === "singles" ? "Players" : "Teams";
   const [format, setFormat] = useState<TournamentFormat>("compass");
   const [names, setNames] = useState<string[]>(Array(16).fill(""));
   const [rrNames, setRrNames] = useState<string[]>(Array(7).fill(""));
@@ -167,6 +171,7 @@ export default function SetupPage() {
         body: JSON.stringify({
           courtIds,
           format,
+          discipline,
           names: format === "compass" ? trimmed : trimmed.filter(Boolean),
           seeds: seeds.map((s) => (s === "" ? 0 : s)),
           arrange,
@@ -282,9 +287,36 @@ export default function SetupPage() {
         <ClubLogo size={44} />
         <div>
           <h1 className="font-display text-3xl sm:text-4xl font-bold uppercase">Tournament Setup</h1>
-          <p className="text-white/50 mt-2 text-sm">Enter the 16 players. Add seeds (1 = strongest) so top seeds meet late.</p>
+          <p className="text-white/50 mt-2 text-sm">
+            Enter the 16 {entrantsLabel.toLowerCase()}. Add seeds (1 = strongest) so top seeds meet late.
+          </p>
         </div>
       </header>
+
+      <section className="mb-6">
+        <h2 className="font-display uppercase text-lg text-white/80 mb-3">Singles or doubles</h2>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { value: "doubles", title: "Doubles", desc: "Entrants are pairs — enter both names, e.g. Alpha/Bravo" },
+            { value: "singles", title: "Singles", desc: "Entrants are individuals — one name each" },
+          ] as { value: "singles" | "doubles"; title: string; desc: string }[]).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setDiscipline(opt.value)}
+              className={`rounded-xl border p-3 text-left ${
+                discipline === opt.value ? "border-gold bg-gold/10" : "border-court-line bg-court-panel"
+              }`}
+            >
+              <p className="font-display uppercase font-bold">{opt.title}</p>
+              <p className="text-white/45 text-xs mt-1">{opt.desc}</p>
+            </button>
+          ))}
+        </div>
+        <p className="text-white/30 text-xs mt-2">
+          Changes the wording across the screens. The draw itself is the same either way.
+        </p>
+      </section>
 
       <section className="mb-6">
         <h2 className="font-display uppercase text-lg text-white/80 mb-3">Draw type</h2>
@@ -340,7 +372,7 @@ export default function SetupPage() {
                 <input
                   value={names[i]}
                   onChange={(e) => updateName(i, e.target.value)}
-                  placeholder={`Player ${i + 1}`}
+                  placeholder={`${entrantLabel} ${i + 1}`}
                   className="flex-1 min-w-0 bg-court-panel2 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 ring-gold/50"
                 />
                 <input
@@ -369,9 +401,9 @@ export default function SetupPage() {
       ) : (
         <section className="mb-6">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h2 className="font-display uppercase text-lg text-white/80">Teams</h2>
+            <h2 className="font-display uppercase text-lg text-white/80">{entrantsLabel}</h2>
             <button onClick={loadGroupDraw} type="button" className="text-xs text-gold underline underline-offset-4">
-              Load example group (7 teams)
+              Load example group (7 {entrantsLabel.toLowerCase()})
             </button>
           </div>
 
@@ -382,7 +414,7 @@ export default function SetupPage() {
                 <input
                   value={n}
                   onChange={(e) => updateRrName(i, e.target.value)}
-                  placeholder={`Team ${i + 1} (e.g. Alpha/Bravo)`}
+                  placeholder={`${entrantLabel} ${i + 1}${discipline === "doubles" ? " (e.g. Alpha/Bravo)" : ""}`}
                   className="flex-1 min-w-0 bg-court-panel2 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 ring-gold/50"
                 />
                 {rrNames.length > 3 && (
@@ -403,7 +435,7 @@ export default function SetupPage() {
             onClick={() => setRrNames((prev) => [...prev, ""])}
             className="mt-2 text-xs text-white/50 underline underline-offset-4 hover:text-white/80"
           >
-            + Add team
+            + Add {entrantLabel.toLowerCase()}
           </button>
           {format === "two-group" ? (
             <p className="text-white/40 text-xs mt-3">

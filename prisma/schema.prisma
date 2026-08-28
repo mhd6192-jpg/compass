@@ -11,7 +11,12 @@ datasource db {
 model TournamentConfig {
   id           String    @id @default("default")
   status       String    @default("setup") // setup | active | completed
-  format       String    @default("compass") // compass | round-robin
+  format       String    @default("compass") // compass | round-robin | two-group
+
+  /// singles | doubles. Purely how the entrants are described and drawn on
+  /// screen — the draw itself is identical either way, since an entrant is one
+  /// Player row whether that is a person or a pair.
+  discipline   String    @default("doubles")
   bestOfSets   Int       @default(3)
   tiebreakMode String    @default("standard") // standard | match-tiebreak | advantage
   pin          String    @default("1234")

@@ -64,6 +64,7 @@ function TvContent({ courtId }: { courtId: number }) {
           nextMatch={nextOnCourt(snapshot.matches, courtId)}
           bestOfSets={snapshot.tournament.bestOfSets}
           tiebreakMode={snapshot.tournament.tiebreakMode}
+          discipline={snapshot.tournament.discipline}
         />
       );
 

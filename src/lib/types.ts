@@ -11,6 +11,15 @@ export type MatchStatus =
   | "in_progress" // at least one point scored
   | "completed";
 
+export type Discipline = "singles" | "doubles";
+
+/** What one entrant is called, for screens that address the players directly. */
+export function entrantWord(discipline: string | undefined, plural = false): string {
+  const singles = discipline === "singles";
+  if (plural) return singles ? "players" : "teams";
+  return singles ? "player" : "team";
+}
+
 export type TiebreakMode = "standard" | "match-tiebreak" | "advantage" | "race-to-9" | "race-to-16";
 
 /** Formats with no games or sets — the whole match is one race of points. */
