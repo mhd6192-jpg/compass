@@ -72,7 +72,7 @@ for (const name of pros) {
 
 // Predicted SF pairings if seeds hold: quarters 0&1 -> SF top, 2&3 -> SF bottom.
 // The quarter winners (by seed) meet: Q0 vs Q1, Q2 vs Q3.
-const seedOf: Record<string, number> = { "Player Six": 1, "Player Nine": 2, Player Thirteen: 3, Player Eleven: 4 };
+const seedOf: Record<string, number> = { "Player Six": 1, "Player Nine": 2, "Player Thirteen": 3, "Player Eleven": 4 };
 const topSF = [pros.find((p) => proQuarter[pros.indexOf(p)] === 0), pros.find((p) => proQuarter[pros.indexOf(p)] === 1)];
 const botSF = [pros.find((p) => proQuarter[pros.indexOf(p)] === 2), pros.find((p) => proQuarter[pros.indexOf(p)] === 3)];
 console.log("Predicted SF (if seeds hold):", topSF.join(" vs "), "|", botSF.join(" vs "));
