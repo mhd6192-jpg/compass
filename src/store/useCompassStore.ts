@@ -12,7 +12,7 @@ export interface TvControl {
 }
 
 export interface Snapshot {
-  tournament: { status: string; format: string; bestOfSets: number; tiebreakMode: string };
+  tournament: { status: string; format: string; bestOfSets: number; tiebreakMode: string; raceTarget?: number; serveEvery?: number };
   courts: { id: number; label: string }[];
   matches: MatchDTO[];
   progress: { completed: number; total: number };

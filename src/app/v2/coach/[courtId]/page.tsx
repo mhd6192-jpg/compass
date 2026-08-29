@@ -161,8 +161,13 @@ function CoachConsole({ courtId }: { courtId: number }) {
   const match = view.screen === "winner" || view.screen === "live" ? view.match : onCourt;
 
   const config = useMemo(
-    () => ({ bestOfSets: snapshot.tournament.bestOfSets, tiebreakMode: snapshot.tournament.tiebreakMode as TiebreakMode }),
-    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode]
+    () => ({
+      bestOfSets: snapshot.tournament.bestOfSets,
+      tiebreakMode: snapshot.tournament.tiebreakMode as TiebreakMode,
+      raceTarget: snapshot.tournament.raceTarget || undefined,
+      serveEvery: snapshot.tournament.serveEvery || undefined,
+    }),
+    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode, snapshot.tournament.raceTarget, snapshot.tournament.serveEvery]
   );
 
   const liveStateRef = useRef<{ matchId: string; state: ReturnType<typeof stateFromDTO> } | null>(null);

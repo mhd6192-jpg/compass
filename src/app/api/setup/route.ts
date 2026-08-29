@@ -31,6 +31,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "bestOfSets must be 1, 3, or 5" }, { status: 400 });
     }
 
+    // The race knobs only mean anything for the points-race formats; for the
+    // set-based formats they are stored as 0 ("not configured") so a later
+    // switch of format can't inherit a stale target.
+    let raceTarget = 0;
+    let serveEvery = 0;
+    if (isPointsRace(tiebreakMode)) {
+      raceTarget = Number(body.raceTarget) || 0;
+      serveEvery = Number(body.serveEvery) || 0;
+      if (raceTarget !== 0 && (!Number.isInteger(raceTarget) || raceTarget < 4 || raceTarget > 99)) {
+        return NextResponse.json({ error: "The race target must be a whole number between 4 and 99" }, { status: 400 });
+      }
+      if (serveEvery !== 0 && (!Number.isInteger(serveEvery) || serveEvery < 1 || serveEvery > 10)) {
+        return NextResponse.json({ error: "Serve change must be every 1 to 10 points" }, { status: 400 });
+      }
+    }
+
     // Optionally arrange by seed so top seeds land in separate quarters (they only
     // meet in the semis/final). `seeds[i]` is the 1-based seed for `names[i]`; 0/null = unseeded.
     let orderedNames: string[] = names;
@@ -52,6 +68,8 @@ export async function POST(req: Request) {
     await seedTournament(prisma, orderedNames, {
       bestOfSets: effectiveBestOf,
       tiebreakMode,
+      raceTarget,
+      serveEvery,
       pin,
       format: fmt,
       discipline: discipline === "singles" ? "singles" : "doubles",

@@ -67,6 +67,22 @@
   background: radial-gradient(120% 90% at 50% 50%, transparent 45%, rgba(0, 0, 0, 0.72) 100%);
 }
 
+/* Match point / sudden death ribbon: a slow, insistent breathing glow.
+   Transform-only for the same background-tab reason as v3-fade-up below. */
+.v3-pressure {
+  animation: v3-pressure 1.6s ease-in-out infinite;
+}
+
+@keyframes v3-pressure {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.045);
+  }
+}
+
 /* Big scoreboard digits: tabular, tight, and never wrapping. */
 .v3-digits {
   font-variant-numeric: tabular-nums;

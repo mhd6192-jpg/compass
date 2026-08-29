@@ -9,7 +9,7 @@ import PinBar from "@/components/scorer/PinBar";
 import { findMatch, useCompassStore } from "@/store/useCompassStore";
 import { usePinStore } from "@/store/usePinStore";
 import { applyPoint, stateFromDTO, toDTO } from "@/lib/scoring/engine";
-import { TiebreakMode, isPointsRace } from "@/lib/types";
+import { TiebreakMode, isPointsRace, raceTargetOf, raceTotalPoints } from "@/lib/types";
 
 function ScoringContent() {
   const params = useParams<{ matchId: string }>();
@@ -41,16 +41,23 @@ function ScoringContent() {
   const [namesSubmitting, setNamesSubmitting] = useState(false);
 
   const config = useMemo(
-    () => ({ bestOfSets: snapshot.tournament.bestOfSets, tiebreakMode: snapshot.tournament.tiebreakMode as TiebreakMode }),
-    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode]
+    () => ({
+      bestOfSets: snapshot.tournament.bestOfSets,
+      tiebreakMode: snapshot.tournament.tiebreakMode as TiebreakMode,
+      raceTarget: snapshot.tournament.raceTarget || undefined,
+      serveEvery: snapshot.tournament.serveEvery || undefined,
+    }),
+    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode, snapshot.tournament.raceTarget, snapshot.tournament.serveEvery]
   );
 
   // The points-race formats are a single race, not sets and games: the score
-  // editor needs to reach 16 (a 16-0 whitewash is legal) and must drop the
-  // set-based controls, which have no meaning in these formats.
+  // editor needs to reach the race target (a whitewash is legal) and must drop
+  // the set-based controls, which have no meaning in these formats.
   const pointsRace = isPointsRace(config.tiebreakMode);
-  const firstTo16 = config.tiebreakMode === "race-to-16";
-  const maxScore = pointsRace ? 16 : 15;
+  const firstTo = config.tiebreakMode === "race-to-16";
+  const target = raceTargetOf(config);
+  const targetTotal = raceTotalPoints(config);
+  const maxScore = pointsRace ? (firstTo ? target : targetTotal) : 15;
   const raceTotal = (completedRows[0]?.a ?? 0) + (completedRows[0]?.b ?? 0);
   const raceScoreValid =
     !pointsRace ||
@@ -59,9 +66,9 @@ function ScoringContent() {
       const b = completedRows[0]?.b ?? 0;
       const hi = Math.max(a, b);
       const lo = Math.min(a, b);
-      // first to 16: the winner has exactly 16, no win-by-2 (16-15 is legal)
-      if (firstTo16) return hi === 16 && lo <= 15;
-      return (hi + lo === 16 && hi !== lo) || (hi + lo === 17 && hi - lo === 1);
+      // first to T: the winner has exactly T, no win-by-2 (T-(T-1) is legal)
+      if (firstTo) return hi === target && lo <= target - 1;
+      return (hi + lo === targetTotal && hi !== lo) || (hi + lo === targetTotal + 1 && hi - lo === 1);
     })();
 
   // Serializes point POSTs in the background so rapid taps can't race each
@@ -359,13 +366,13 @@ function ScoringContent() {
 
         {pointsRace ? (
           <p className={`text-[11px] mb-4 leading-relaxed ${raceScoreValid ? "text-white/35" : "text-live"}`}>
-            {firstTo16
+            {firstTo
               ? raceScoreValid
-                ? `${completedRows[0].a}-${completedRows[0].b} — ${Math.min(completedRows[0].a, completedRows[0].b) === 15 ? "sudden-death finish" : "first to 16"}. Winner is the higher score.`
-                : `First to 16 wins: the winner must have exactly 16 and the loser 0-15 (16-15 is a legal sudden-death finish). Currently ${completedRows[0].a}-${completedRows[0].b}.`
+                ? `${completedRows[0].a}-${completedRows[0].b} — ${Math.min(completedRows[0].a, completedRows[0].b) === target - 1 ? "sudden-death finish" : `first to ${target}`}. Winner is the higher score.`
+                : `First to ${target} wins: the winner must have exactly ${target} and the loser 0-${target - 1} (${target}-${target - 1} is a legal sudden-death finish). Currently ${completedRows[0].a}-${completedRows[0].b}.`
               : raceScoreValid
-              ? `${completedRows[0].a}-${completedRows[0].b} — ${raceTotal === 17 ? "sudden-death decider" : "16 points"}. Winner is the higher score.`
-              : `Must total 16 points (e.g. 9-7, 16-0), or 17 with a 1-point margin if it reached 8-8 (e.g. 9-8). Currently ${completedRows[0].a}-${completedRows[0].b} = ${raceTotal}.`}
+              ? `${completedRows[0].a}-${completedRows[0].b} — ${raceTotal === targetTotal + 1 ? "sudden-death decider" : `${targetTotal} points`}. Winner is the higher score.`
+              : `Must total ${targetTotal} points (e.g. ${target}-${target - 2}, ${targetTotal}-0), or ${targetTotal + 1} with a 1-point margin if it reached ${target - 1}-${target - 1} (e.g. ${target}-${target - 1}). Currently ${completedRows[0].a}-${completedRows[0].b} = ${raceTotal}.`}
           </p>
         ) : (
           <p className="text-white/35 text-[11px] mb-4 leading-relaxed">

@@ -90,7 +90,7 @@ function CeremonyRemote() {
     const expectedRev = action === "next" || action === "back" ? ceremony.rev : undefined;
 
     const out = await postWithRetry(
-      "/api/v3/ceremony",
+      "/api/v2/ceremony",
       { action, places, soundOn, pin, expectedRev },
       () => setRetrying(true)
     );

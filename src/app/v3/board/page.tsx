@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { matchFormatLabel } from "@/lib/types";
 import V3Gate from "@/components/v3/V3Gate";
 import CeremonyScreen from "@/components/v3/CeremonyScreen";
 import V3Standings from "@/components/v3/V3Standings";
@@ -14,11 +15,10 @@ import { serveInfo } from "@/lib/scoring/serve";
 import { Ball } from "@/components/v3/ServeIndicator";
 
 /** ClubLogo already prints the club name, so the headline says what is being played. */
-function formatLabel(tiebreakMode: string): string {
-  if (tiebreakMode === "race-to-16") return "First to 16 points";
-  if (tiebreakMode === "race-to-9") return "16 points total";
-  if (tiebreakMode === "match-tiebreak") return "Match tiebreak";
-  if (tiebreakMode === "advantage") return "Advantage sets";
+function formatLabel(t: { tiebreakMode: string; raceTarget?: number }): string {
+  if (t.tiebreakMode === "race-to-16" || t.tiebreakMode === "race-to-9") return matchFormatLabel(1, t);
+  if (t.tiebreakMode === "match-tiebreak") return "Match tiebreak";
+  if (t.tiebreakMode === "advantage") return "Advantage sets";
   return "Live scores";
 }
 
@@ -146,7 +146,7 @@ function Board() {
               Live now
             </p>
             <h1 className="font-display uppercase font-bold truncate" style={{ fontSize: "clamp(1.1rem, 2.6vw, 2.8rem)" }}>
-              {formatLabel(snapshot.tournament.tiebreakMode)}
+              {formatLabel(snapshot.tournament)}
             </h1>
           </div>
         </div>

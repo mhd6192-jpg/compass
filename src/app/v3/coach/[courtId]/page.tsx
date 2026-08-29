@@ -20,7 +20,8 @@ import { useV3CoachStore } from "@/store/useV3CoachStore";
 import { usePinStore } from "@/store/usePinStore";
 import { applyPoint, stateFromDTO, toDTO } from "@/lib/scoring/engine";
 import { formatMatchScoreLine } from "@/lib/scoring/format";
-import { MatchDTO, TiebreakMode } from "@/lib/types";
+import { MatchDTO, TiebreakMode, isPointsRace, matchFormatLabel } from "@/lib/types";
+import { pressureInfo } from "@/lib/scoring/pressure";
 import { currentOnCourt, emptyCourtStage, nextOnCourt, resolveCourtScreen } from "@/lib/v2/stage";
 
 /**
@@ -35,36 +36,51 @@ function TapSide({
   onTap,
   disabled,
   serve,
+  pressure,
 }: {
   match: MatchDTO;
   slot: 1 | 2;
   onTap: (slot: 1 | 2) => void;
   disabled: boolean;
   serve: ReturnType<typeof serveInfo>;
+  pressure: ReturnType<typeof pressureInfo>;
 }) {
   const st = match.state;
   const i = slot - 1;
   const player = slot === 1 ? match.player1 : match.player2;
   const games = st.currentSet?.games[i] ?? 0;
   const points = st.currentGame?.display[i] ?? "—";
+  const race = isPointsRace(st.config.tiebreakMode);
+  // In a race there are no sets or games to report — say what the race is instead.
+  const caption = race ? matchFormatLabel(1, st.config) : `Sets ${st.setsWon[i]} · Games ${games}`;
+  const onMatchPoint = !!pressure && (pressure.suddenDeath || pressure.matchPointFor === slot);
 
   return (
     <button
       onClick={() => onTap(slot)}
       disabled={disabled}
-      className={`flex-1 min-h-0 rounded-3xl border-2 bg-court-panel active:border-gold active:bg-court-panel2 disabled:opacity-40 flex flex-col items-center justify-center gap-1 px-4 py-6 ${
+      className={`flex-1 min-h-0 rounded-3xl border-2 bg-court-panel active:border-gold active:bg-court-panel2 disabled:opacity-40 flex flex-col items-center justify-center gap-1 px-4 py-6 relative ${
         serve?.slot === slot ? "border-gold/70" : "border-court-line"
       }`}
     >
+      {onMatchPoint && (
+        <motion.span
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className={`absolute top-2.5 right-2.5 rounded-full border px-2.5 py-1 text-[10px] font-display font-bold uppercase tracking-widest ${
+            pressure!.suddenDeath ? "border-live/60 bg-live/15 text-live" : "border-gold/60 bg-gold/15 text-gold"
+          }`}
+        >
+          {pressure!.suddenDeath ? "Sudden death" : "Match point"}
+        </motion.span>
+      )}
       {/* Only on the serving side, so a glance at the phone answers "who serves?"
           without counting points back. */}
       <ServeBadge serve={serve} slot={slot} size="0.6rem" ballSize={18} />
       <span className="font-display uppercase font-bold text-2xl text-center leading-tight break-words">
         {player?.name ?? "TBD"}
       </span>
-      <span className="text-white/40 text-xs uppercase tracking-widest">
-        Sets {st.setsWon[i]} · Games {games}
-      </span>
+      <span className="text-white/40 text-xs uppercase tracking-widest">{caption}</span>
       {/* Animates only when the displayed point actually changes — no `key` on a
           poll-varying value, so a re-render with the same score is silent. */}
       <motion.span
@@ -116,11 +132,12 @@ function ScorePad({ match, onTap, disabled }: { match: MatchDTO; onTap: (slot: 1
   const serve = serveInfo(match.state);
   const handedTo = useServeHandover(serve, match.id);
   const handoverName = handedTo === 1 ? match.player1?.name : handedTo === 2 ? match.player2?.name : null;
+  const pressure = match.status === "in_progress" ? pressureInfo(match.state, match.state.config) : null;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-3 relative">
-      <TapSide match={match} slot={1} onTap={onTap} disabled={disabled} serve={serve} />
-      <TapSide match={match} slot={2} onTap={onTap} disabled={disabled} serve={serve} />
+      <TapSide match={match} slot={1} onTap={onTap} disabled={disabled} serve={serve} pressure={pressure} />
+      <TapSide match={match} slot={2} onTap={onTap} disabled={disabled} serve={serve} pressure={pressure} />
       {handoverName && <ServeHandover key={`serve-${handedTo}-${match.state.totalPoints}`} name={handoverName} />}
     </div>
   );
@@ -161,8 +178,13 @@ function CoachConsole({ courtId }: { courtId: number }) {
   const match = view.screen === "winner" || view.screen === "live" ? view.match : onCourt;
 
   const config = useMemo(
-    () => ({ bestOfSets: snapshot.tournament.bestOfSets, tiebreakMode: snapshot.tournament.tiebreakMode as TiebreakMode }),
-    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode]
+    () => ({
+      bestOfSets: snapshot.tournament.bestOfSets,
+      tiebreakMode: snapshot.tournament.tiebreakMode as TiebreakMode,
+      raceTarget: snapshot.tournament.raceTarget || undefined,
+      serveEvery: snapshot.tournament.serveEvery || undefined,
+    }),
+    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode, snapshot.tournament.raceTarget, snapshot.tournament.serveEvery]
   );
 
   const liveStateRef = useRef<{ matchId: string; state: ReturnType<typeof stateFromDTO> } | null>(null);
@@ -290,6 +312,10 @@ function CoachConsole({ courtId }: { courtId: number }) {
     const base =
       liveStateRef.current && liveStateRef.current.matchId === match.id ? liveStateRef.current.state : stateFromDTO(match.state);
     const { state: newState, tier } = applyPoint(base, slot, config);
+    // A tap the coach can feel land — outdoors, mid-match, nobody watches the screen.
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(tier === "match" ? [40, 60, 80] : tier === "point" ? 12 : 30);
+    }
     if (tier === "match") {
       // Read the winner off the resulting state, not from who tapped — under the
       // points-race formats the deciding point is often scored by the losing side.

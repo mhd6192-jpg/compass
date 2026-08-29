@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "node server.js",
+    "dev:db": "node scripts/devDb.mjs",
+    "dev:local": "cross-env POSTGRES_PRISMA_URL=postgresql://postgres:postgres@127.0.0.1:5433/postgres?connection_limit=1 POSTGRES_URL_NON_POOLING=postgresql://postgres:postgres@127.0.0.1:5433/postgres DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/postgres node server.js",
+    "dev:local:push": "cross-env POSTGRES_PRISMA_URL=postgresql://postgres:postgres@127.0.0.1:5433/postgres POSTGRES_URL_NON_POOLING=postgresql://postgres:postgres@127.0.0.1:5433/postgres prisma db push",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
     "start": "cross-env NODE_ENV=production node server.js",
@@ -26,6 +29,8 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.5",
+    "@electric-sql/pglite-socket": "^0.2.8",
     "@types/node": "^20.16.10",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",

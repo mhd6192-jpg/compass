@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { MatchDTO, isPointsRace } from "@/lib/types";
+import { MatchDTO, isPointsRace, matchFormatLabel } from "@/lib/types";
 import { BRACKET_STYLE } from "@/lib/bracketStyle";
 import { ClubMark } from "@/components/shared/ClubLogo";
 import { useScoreBeat } from "./useScoreBeat";
@@ -13,15 +13,6 @@ const NAME_SIZE = "clamp(2.2rem, 6.4vw, 7.5rem)";
 const POINT_SIZE = "clamp(3rem, 10.5vw, 12rem)";
 const SET_SIZE = "clamp(1.6rem, 4.4vw, 5rem)";
 const RACE_SIZE = "clamp(4rem, 16vw, 18rem)";
-
-function formatLabel(bestOfSets: number, tiebreakMode: string): string {
-  if (tiebreakMode === "race-to-16") return "First to 16 points";
-  if (tiebreakMode === "race-to-9") return "16 points total";
-  const base = `Best of ${bestOfSets}`;
-  if (tiebreakMode === "match-tiebreak") return `${base} · match tiebreak`;
-  if (tiebreakMode === "advantage") return `${base} · advantage sets`;
-  return base;
-}
 
 function SideRow({
   match,
@@ -202,7 +193,7 @@ export default function Scoreboard({
             className="font-display uppercase tracking-[0.2em] text-white/40 hidden sm:block"
             style={{ fontSize: "clamp(0.6rem, 1.1vw, 1.1rem)" }}
           >
-            {formatLabel(bestOfSets, tiebreakMode)}
+            {matchFormatLabel(bestOfSets, match.state.config)}
           </p>
           <span
             className={`flex items-center gap-[0.6vw] rounded-full border px-[1.2vw] py-[0.5vh] font-display font-bold uppercase tracking-[0.2em] ${

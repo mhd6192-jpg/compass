@@ -1,8 +1,12 @@
-import { AnimationTier, MatchStateDTO, TiebreakMode, isPointsRace } from "../types";
+import { AnimationTier, MatchStateDTO, TiebreakMode, isPointsRace, raceTargetOf, raceTotalPoints } from "../types";
 
 export interface ScoringConfig {
   bestOfSets: number; // e.g. 3 or 5 (always odd)
   tiebreakMode: TiebreakMode;
+  /** Points target for the race formats, e.g. 16 or 18. 0/undefined = the historical default. */
+  raceTarget?: number;
+  /** Serve changes hands every N points in a race. 0/undefined = the house default of 4. */
+  serveEvery?: number;
 }
 
 interface CompletedSet {
@@ -81,16 +85,18 @@ export function applyPoint(
     s.curGamePoints[i] += 1;
     const a = s.curGamePoints[i];
     const b = s.curGamePoints[j];
-    // race-to-9 ("16 points total"): every point is played out until the combined
-    // total reaches 16, then whoever has more wins (e.g. 9-7). An 8-8 tie at 16
-    // doesn't end it — one further sudden-death point decides it (9-8, total 17).
-    // race-to-16 ("first to 16"): no win-by-2 at all — 16 ends it, so 15-15 is
-    // sudden death and the next point takes it 16-15.
+    // race-to-9 (points total, target T): every point is played out until the
+    // combined total reaches 2T-2, then whoever has more wins (T=9: totals 16,
+    // e.g. 9-7). A tie at that total doesn't end it — one further sudden-death
+    // point decides it (9-8, total 17).
+    // race-to-16 (first to T): no win-by-2 at all — T ends it, so (T-1)-(T-1)
+    // is sudden death and the next point takes it.
+    const target = raceTargetOf(config);
     const won =
       config.tiebreakMode === "race-to-16"
-        ? a >= 16
+        ? a >= target
         : config.tiebreakMode === "race-to-9"
-        ? a + b >= 16 && a !== b
+        ? a + b >= raceTotalPoints(config) && a !== b
         : a >= 10 && a - b >= 2;
     if (won) {
       // The winner is whoever HAS MORE POINTS — not whoever scored the last one.
@@ -238,7 +244,12 @@ export function toDTO(state: EngineState, config: ScoringConfig): MatchStateDTO 
       };
 
   return {
-    config: { bestOfSets: config.bestOfSets, tiebreakMode: config.tiebreakMode },
+    config: {
+      bestOfSets: config.bestOfSets,
+      tiebreakMode: config.tiebreakMode,
+      ...(config.raceTarget ? { raceTarget: config.raceTarget } : {}),
+      ...(config.serveEvery ? { serveEvery: config.serveEvery } : {}),
+    },
     setsWon: state.setsWon,
     completedSets: state.sets,
     currentSet: state.matchWinnerSlot ? null : { games: state.curSetGames },

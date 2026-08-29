@@ -1,4 +1,4 @@
-import { isPointsRace } from "../types";
+import { isPointsRace, raceTargetOf, raceTotalPoints } from "../types";
 import { computeMatchState, ScoringConfig, setsToWin } from "./engine";
 
 export interface SetInput {
@@ -77,11 +77,11 @@ export function synthPoints(input: ScoreInput, config: ScoringConfig): { slots: 
   const slots: (1 | 2)[] = [];
 
   // The points-race formats play every point out, so a match is described as a
-  // single "completed set" whose (a,b) *is* the final score.
-  //   race-to-9  ("16 points total"): totals 16 (e.g. 9-7, 16-0), or 17 with a
-  //              1-point margin if it reached 8-8 (the sudden-death decider, 9-8).
-  //   race-to-16 ("first to 16"): the winner has exactly 16 and the loser 0-15;
-  //              there is no win-by-2, so 16-15 is a legal sudden-death finish.
+  // single "completed set" whose (a,b) *is* the final score. With target T:
+  //   race-to-9  (points total): totals 2T-2 (T=9: 16, e.g. 9-7, 16-0), or one
+  //              more with a 1-point margin if it reached the sudden-death decider.
+  //   race-to-16 (first to T): the winner has exactly T and the loser 0..T-1;
+  //              there is no win-by-2, so T-(T-1) is a legal sudden-death finish.
   if (isPointsRace(config.tiebreakMode)) {
     if (input.completedSets.length !== 1 || input.currentSetGames) {
       throw new Error("A points-race match is described as a single final score, e.g. 9-7");
@@ -90,16 +90,20 @@ export function synthPoints(input: ScoreInput, config: ScoringConfig): { slots: 
     if (a < 0 || b < 0 || !Number.isInteger(a) || !Number.isInteger(b)) throw new Error("Scores must be whole numbers");
     const hi = Math.max(a, b);
     const lo = Math.min(a, b);
+    const target = raceTargetOf(config);
     if (config.tiebreakMode === "race-to-16") {
-      if (hi !== 16 || lo > 15) {
-        throw new Error(`First to 16 wins — the winner must have exactly 16 and the loser 0-15 (got ${a}-${b})`);
+      if (hi !== target || lo > target - 1) {
+        throw new Error(`First to ${target} wins — the winner must have exactly ${target} and the loser 0-${target - 1} (got ${a}-${b})`);
       }
     } else {
+      const raceTotal = raceTotalPoints(config);
       const total = hi + lo;
-      const validTotal16 = total === 16 && hi !== lo;
-      const validDecider = total === 17 && hi - lo === 1;
-      if (!validTotal16 && !validDecider) {
-        throw new Error(`Score must total 16 points (e.g. 9-7), or 17 with a 1-point margin if it reached 8-8 (e.g. 9-8) — got ${a}-${b}`);
+      const validTotal = total === raceTotal && hi !== lo;
+      const validDecider = total === raceTotal + 1 && hi - lo === 1;
+      if (!validTotal && !validDecider) {
+        throw new Error(
+          `Score must total ${raceTotal} points (e.g. ${target}-${target - 2}), or ${raceTotal + 1} with a 1-point margin if it reached ${target - 1}-${target - 1} (e.g. ${target}-${target - 1}) — got ${a}-${b}`
+        );
       }
     }
     const winner: 1 | 2 = a > b ? 1 : 2;

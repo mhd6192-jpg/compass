@@ -36,7 +36,7 @@ function TvContent({ courtId }: { courtId: number }) {
         <h1 className="font-display uppercase text-2xl">Court {courtId} is not in this tournament</h1>
         <p className="text-white/50">Courts in play: {snapshot.courts.map((c) => c.id).join(", ") || "none"}</p>
         <Link href="/v3" className="text-gold underline underline-offset-4 font-display uppercase">
-          Back to v2 hub
+          Back to the hub
         </Link>
       </div>
     );

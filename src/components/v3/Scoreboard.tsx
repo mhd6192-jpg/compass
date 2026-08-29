@@ -1,11 +1,12 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { MatchDTO, isPointsRace } from "@/lib/types";
+import { AnimatePresence, motion } from "framer-motion";
+import { MatchDTO, isPointsRace, matchFormatLabel, raceTargetOf } from "@/lib/types";
 import { BRACKET_STYLE } from "@/lib/bracketStyle";
 import { ClubMark } from "@/components/shared/ClubLogo";
 import { useScoreBeat } from "./useScoreBeat";
 import { serveInfo } from "@/lib/scoring/serve";
+import { pressureInfo } from "@/lib/scoring/pressure";
 import { ServeBadge, ServeHandover, useServeHandover } from "./ServeIndicator";
 import { useNow } from "./useNow";
 import { formatDuration } from "@/lib/v3/venue";
@@ -17,15 +18,6 @@ const SET_SIZE = "clamp(1.6rem, 4.4vw, 5rem)";
 const RACE_SIZE = "clamp(4rem, 16vw, 18rem)";
 /** Each half of a doubles pair, stacked. Smaller than a single name, far bigger than a truncated one. */
 const PAIR_NAME_SIZE = "clamp(1.5rem, 4.2vw, 4.8rem)";
-
-function formatLabel(bestOfSets: number, tiebreakMode: string): string {
-  if (tiebreakMode === "race-to-16") return "First to 16 points";
-  if (tiebreakMode === "race-to-9") return "16 points total";
-  const base = `Best of ${bestOfSets}`;
-  if (tiebreakMode === "match-tiebreak") return `${base} · match tiebreak`;
-  if (tiebreakMode === "advantage") return `${base} · advantage sets`;
-  return base;
-}
 
 
 /**
@@ -103,22 +95,48 @@ function SideRow({
   const points = st.currentGame ? st.currentGame.display[i] : null;
 
   if (race) {
-    // No games, no sets — one number, as big as the screen allows.
+    // No games, no sets — one number, as big as the screen allows, and a track
+    // under the row so how close the race is reads from the back of the hall.
+    const target = raceTargetOf(st.config);
+    const pts = st.currentGame?.points[i] ?? 0;
+    const frac = Math.min(1, pts / target);
     return (
-      <div className="flex-1 min-h-0 flex items-center gap-[3vw] px-[3vw] relative">
+      <div className="flex-1 min-h-0 flex flex-col justify-center px-[3vw] relative">
         {leading && <span className={`absolute left-0 top-[12%] bottom-[12%] w-[0.6vw] rounded-r-full ${style.solidBg}`} />}
-        <EntrantName name={player?.name ?? "TBD"} leading={leading} doubles={doubles} />
-        <ServeBadge serve={serve} slot={slot} size="clamp(0.7rem, 1.4vw, 1.5rem)" ballSize={30} />
-        <motion.span
-          key={`race-${slot}-${points}`}
-          initial={{ scale: 0.55, opacity: 0.2 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", bounce: 0.55, duration: 0.45 }}
-          className={`v3-digits font-display font-bold ${leading ? "text-gold" : "text-white/85"}`}
-          style={{ fontSize: RACE_SIZE, lineHeight: 0.9 }}
-        >
-          {points ?? "0"}
-        </motion.span>
+        <div className="flex items-center gap-[3vw] min-h-0">
+          <EntrantName name={player?.name ?? "TBD"} leading={leading} doubles={doubles} />
+          <ServeBadge serve={serve} slot={slot} size="clamp(0.7rem, 1.4vw, 1.5rem)" ballSize={30} />
+          <span className="relative inline-flex shrink-0">
+            {/* one soft pulse of light each time this side scores */}
+            <motion.span
+              key={`glow-${slot}-${pts}`}
+              initial={{ opacity: 0.55, scale: 0.5 }}
+              animate={{ opacity: 0, scale: 1.7 }}
+              transition={{ duration: 0.9, ease: "easeOut" }}
+              className="absolute inset-[-12%] rounded-full bg-gold/40 blur-2xl pointer-events-none"
+            />
+            <motion.span
+              key={`race-${slot}-${points}`}
+              initial={{ scale: 0.55, opacity: 0.2 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", bounce: 0.55, duration: 0.45 }}
+              className={`v3-digits font-display font-bold relative ${leading ? "text-gold" : "text-white/85"}`}
+              style={{ fontSize: RACE_SIZE, lineHeight: 0.9 }}
+            >
+              {points ?? "0"}
+            </motion.span>
+          </span>
+        </div>
+        {/* Width set as a style, animated by CSS: a backgrounded TV tab pauses
+            rAF-driven (framer) animations at their first frame, and a progress
+            bar stuck on a stale width is misinformation. A CSS transition still
+            lands on the correct final value even when the tab is hidden. */}
+        <div className="shrink-0 h-[0.9vh] rounded-full bg-white/[0.07] overflow-hidden mt-[0.6vh] mb-[1.2vh]">
+          <div
+            className={`h-full rounded-full transition-[width] duration-700 ease-out ${leading ? "bg-gradient-to-r from-gold/40 to-gold" : "bg-white/25"}`}
+            style={{ width: `${frac * 100}%` }}
+          />
+        </div>
       </div>
     );
   }
@@ -206,6 +224,12 @@ export default function Scoreboard({
   const handedTo = useServeHandover(serve, match.id);
   const handoverName = handedTo === 1 ? match.player1?.name : handedTo === 2 ? match.player2?.name : null;
 
+  // Can the next point end the match? The engine answers, so this is right for
+  // every format — including the races, where the trailing side's point can end it.
+  const pressure = started ? pressureInfo(match.state, match.state.config) : null;
+  const pressureName =
+    pressure?.matchPointFor === 1 ? match.player1?.name : pressure?.matchPointFor === 2 ? match.player2?.name : null;
+
   const [a, b] = match.state.setsWon;
   const [ga, gb] = match.state.currentSet?.games ?? [0, 0];
   const [pa, pb] = match.state.currentGame?.points ?? [0, 0];
@@ -260,7 +284,7 @@ export default function Scoreboard({
             className="font-display uppercase tracking-[0.2em] text-white/40 hidden sm:block"
             style={{ fontSize: "clamp(0.6rem, 1.1vw, 1.1rem)" }}
           >
-            {formatLabel(bestOfSets, tiebreakMode)}
+            {matchFormatLabel(bestOfSets, match.state.config)}
           </p>
           {elapsed !== null && (
             <p
@@ -290,6 +314,32 @@ export default function Scoreboard({
         <div className="h-px bg-white/10 mx-[3vw]" />
         <SideRow match={match} slot={2} leading={lead2} race={race} serve={serve} doubles={doubles} />
       </main>
+
+      {/* the stakes of the next point, announced low so it never covers the score */}
+      <AnimatePresence>
+        {pressure && !handoverName && (
+          <motion.div
+            key={pressure.suddenDeath ? "sudden-death" : `match-point-${pressure.matchPointFor}`}
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 14 }}
+            transition={{ type: "spring", bounce: 0.4, duration: 0.6 }}
+            className="absolute inset-x-0 bottom-[11vh] z-30 flex justify-center pointer-events-none"
+          >
+            <span
+              className={`v3-pressure flex items-center gap-[1vw] rounded-full border px-[2.4vw] py-[1vh] backdrop-blur-sm font-display font-bold uppercase whitespace-nowrap ${
+                pressure.suddenDeath
+                  ? "border-live/60 bg-live/15 text-live shadow-[0_0_60px_rgba(255,90,95,0.35)]"
+                  : "border-gold/60 bg-court-panel/92 text-gold shadow-[0_0_60px_rgba(201,217,53,0.3)]"
+              }`}
+              style={{ fontSize: "clamp(0.9rem, 2vw, 2.2rem)", letterSpacing: "0.18em" }}
+            >
+              <span className={`rounded-full animate-ping ${pressure.suddenDeath ? "bg-live" : "bg-gold"}`} style={{ width: "0.5em", height: "0.5em" }} />
+              {pressure.suddenDeath ? "Sudden death · next point wins" : `Match point · ${pressureName ?? ""}`}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {handoverName && <ServeHandover key={`serve-${handedTo}-${match.state.totalPoints}`} name={handoverName} />}
 

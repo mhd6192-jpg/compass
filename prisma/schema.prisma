@@ -18,7 +18,15 @@ model TournamentConfig {
   /// Player row whether that is a person or a pair.
   discipline   String    @default("doubles")
   bestOfSets   Int       @default(3)
-  tiebreakMode String    @default("standard") // standard | match-tiebreak | advantage
+  tiebreakMode String    @default("standard") // standard | match-tiebreak | advantage | race-to-9 | race-to-16
+
+  /// Points target for the race formats (e.g. 16 or 18). 0 = not configured,
+  /// which keeps the historical defaults (9 for the points-total rule, 16 for
+  /// first-to) so tournaments seeded before this existed score unchanged.
+  raceTarget   Int       @default(0)
+
+  /// The serve changes hands every N points in a race. 0 = the house default of 4.
+  serveEvery   Int       @default(0)
   pin          String    @default("1234")
   startedAt    DateTime?
   createdAt    DateTime  @default(now())

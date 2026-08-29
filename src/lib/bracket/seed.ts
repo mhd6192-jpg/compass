@@ -11,6 +11,10 @@ export type { TournamentFormat };
 export interface SeedOptions {
   bestOfSets: number;
   tiebreakMode: TiebreakMode;
+  /** Points target for the race formats. 0/undefined = the historical default. */
+  raceTarget?: number;
+  /** Serve changes hands every N points in a race. 0/undefined = the house default of 4. */
+  serveEvery?: number;
   pin: string;
   format?: TournamentFormat;
   discipline?: string;
@@ -110,6 +114,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
           discipline: opts.discipline === "singles" ? "singles" : "doubles",
           bestOfSets: opts.bestOfSets,
           tiebreakMode: opts.tiebreakMode,
+          raceTarget: opts.raceTarget ?? 0,
+          serveEvery: opts.serveEvery ?? 0,
           pin: opts.pin,
           startedAt: new Date(),
         },
@@ -120,6 +126,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
           discipline: opts.discipline === "singles" ? "singles" : "doubles",
           bestOfSets: opts.bestOfSets,
           tiebreakMode: opts.tiebreakMode,
+          raceTarget: opts.raceTarget ?? 0,
+          serveEvery: opts.serveEvery ?? 0,
           pin: opts.pin,
           startedAt: new Date(),
         },

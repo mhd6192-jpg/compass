@@ -6,5 +6,10 @@ import { TiebreakMode } from "../types";
  * `routing`, which needs `dto` back once the play-off decider is in play. */
 export async function getScoringConfig(client: Prisma.TransactionClient | PrismaClient): Promise<ScoringConfig> {
   const cfg = await client.tournamentConfig.findUniqueOrThrow({ where: { id: "default" } });
-  return { bestOfSets: cfg.bestOfSets, tiebreakMode: cfg.tiebreakMode as TiebreakMode };
+  return {
+    bestOfSets: cfg.bestOfSets,
+    tiebreakMode: cfg.tiebreakMode as TiebreakMode,
+    raceTarget: cfg.raceTarget || undefined,
+    serveEvery: cfg.serveEvery || undefined,
+  };
 }

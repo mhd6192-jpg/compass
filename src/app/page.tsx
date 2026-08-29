@@ -51,17 +51,21 @@ export default function Home() {
       </div>
 
       <Link
-        href="/v2"
+        href="/v3"
         className="group w-full max-w-4xl rounded-2xl border border-gold/40 bg-gold/5 px-6 py-5 flex items-center gap-4 hover:border-gold hover:bg-gold/10 transition-colors"
       >
         <span className="text-3xl">🆕</span>
         <span className="flex-1 min-w-0">
-          <span className="block font-display uppercase tracking-wide text-lg text-gold">Compass v2 — Court Screens</span>
+          <span className="block font-display uppercase tracking-wide text-lg text-gold">Compass v3 — Court Screens</span>
           <span className="block text-white/50 text-sm">
             A TV per court, a coach console per court, and the awards presentation
           </span>
         </span>
         <span className="text-gold/60 text-xl">›</span>
+      </Link>
+
+      <Link href="/v2" className="text-white/35 text-xs underline underline-offset-4 hover:text-white/60 -mt-3">
+        Previous version (v2)
       </Link>
 
       <div className="flex items-center gap-4 flex-wrap justify-center">

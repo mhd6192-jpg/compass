@@ -79,6 +79,8 @@ export async function getFullSnapshot(prisma: PrismaClient) {
   const config: ScoringConfig = {
     bestOfSets: configRow?.bestOfSets ?? 3,
     tiebreakMode: (configRow?.tiebreakMode as ScoringConfig["tiebreakMode"]) ?? "standard",
+    raceTarget: configRow?.raceTarget || undefined,
+    serveEvery: configRow?.serveEvery || undefined,
   };
 
   const matches = await prisma.match.findMany({
@@ -98,6 +100,8 @@ export async function getFullSnapshot(prisma: PrismaClient) {
       discipline: configRow?.discipline ?? "doubles",
       bestOfSets: config.bestOfSets,
       tiebreakMode: config.tiebreakMode,
+      raceTarget: config.raceTarget ?? 0,
+      serveEvery: config.serveEvery ?? 0,
     },
     courts,
     matches: matchDTOs,

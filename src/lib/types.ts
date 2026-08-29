@@ -20,6 +20,10 @@ export function entrantWord(discipline: string | undefined, plural = false): str
   return singles ? "player" : "team";
 }
 
+// The two race modes are parametric since v3: "race-to-16" is *first to N* and
+// "race-to-9" is the *points total* rule, with N carried separately as
+// `raceTarget`. The mode names are stored in the database, so they keep their
+// historical spelling even though the numbers in them no longer mean anything.
 export type TiebreakMode = "standard" | "match-tiebreak" | "advantage" | "race-to-9" | "race-to-16";
 
 /** Formats with no games or sets — the whole match is one race of points. */
@@ -27,6 +31,48 @@ export const POINTS_RACE_MODES: TiebreakMode[] = ["race-to-9", "race-to-16"];
 
 export function isPointsRace(mode: TiebreakMode | string | undefined): boolean {
   return POINTS_RACE_MODES.includes(mode as TiebreakMode);
+}
+
+/** The bits of a scoring config the race helpers need — both the server's
+ * ScoringConfig and the serialized MatchStateDTO.config satisfy it. */
+export interface RaceConfigLike {
+  tiebreakMode: TiebreakMode | string;
+  raceTarget?: number;
+  serveEvery?: number;
+}
+
+/**
+ * The points target of a race, e.g. 16 for "first to 16".
+ *
+ * 0 / undefined means "not configured", which is what every tournament seeded
+ * before the target became configurable has — those keep their historical
+ * numbers (9 for the points-total rule, 16 for first-to) so an old draw's
+ * scores stay legal.
+ */
+export function raceTargetOf(config: RaceConfigLike): number {
+  if (config.raceTarget && config.raceTarget >= 2) return Math.floor(config.raceTarget);
+  return config.tiebreakMode === "race-to-9" ? 9 : 16;
+}
+
+/** Total points on the board when a points-total race runs out (barring the sudden-death decider). */
+export function raceTotalPoints(config: RaceConfigLike): number {
+  return 2 * raceTargetOf(config) - 2;
+}
+
+/** How many points each side serves before it changes hands. 0/undefined = the house default of 4. */
+export function serveEveryOf(config: RaceConfigLike): number {
+  if (config.serveEvery && config.serveEvery >= 1) return Math.floor(config.serveEvery);
+  return 4;
+}
+
+/** One line describing the match format, e.g. "First to 18 points" — every screen shows the same words. */
+export function matchFormatLabel(bestOfSets: number, config: RaceConfigLike): string {
+  if (config.tiebreakMode === "race-to-16") return `First to ${raceTargetOf(config)} points`;
+  if (config.tiebreakMode === "race-to-9") return `${raceTotalPoints(config)} points total`;
+  const base = `Best of ${bestOfSets}`;
+  if (config.tiebreakMode === "match-tiebreak") return `${base} · match tiebreak`;
+  if (config.tiebreakMode === "advantage") return `${base} · advantage sets`;
+  return base;
 }
 
 export const BRACKET_LABELS: Record<BracketCode, string> = {
@@ -115,7 +161,7 @@ export interface PlayerDTO {
 
 export interface MatchStateDTO {
   // derived, event-sourced live score state
-  config: { bestOfSets: number; tiebreakMode: TiebreakMode };
+  config: { bestOfSets: number; tiebreakMode: TiebreakMode; raceTarget?: number; serveEvery?: number };
   setsWon: [number, number];
   completedSets: Array<{ games: [number, number]; tiebreak?: [number, number] }>;
   currentSet: { games: [number, number] } | null;

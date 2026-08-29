@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { SERVES_PER_TURN, type ServeInfo } from "@/lib/scoring/serve";
+import { type ServeInfo } from "@/lib/scoring/serve";
 
 /** A tennis ball, drawn so it stays crisp at TV size. */
 export function Ball({ size = 24, spin = false }: { size?: number; spin?: boolean }) {
@@ -28,11 +28,11 @@ export function Ball({ size = 24, spin = false }: { size?: number; spin?: boolea
   );
 }
 
-/** Four pips, filled for the serves still to come in this turn. */
-function ServePips({ left, size }: { left: number; size: string }) {
+/** One pip per serve in a turn, filled for the serves still to come. */
+function ServePips({ left, total, size }: { left: number; total: number; size: string }) {
   return (
     <span className="inline-flex items-center gap-[0.28em]" style={{ fontSize: size }}>
-      {Array.from({ length: SERVES_PER_TURN }, (_, i) => (
+      {Array.from({ length: total }, (_, i) => (
         <span
           key={i}
           className={`rounded-full ${i < left ? "bg-gold" : "bg-white/20"}`}
@@ -74,7 +74,7 @@ export function ServeBadge({
     >
       <Ball size={ballSize} spin />
       <span className="font-display uppercase tracking-[0.22em] text-gold whitespace-nowrap">Serving</span>
-      {showPips && <ServePips left={serve.servesLeft} size={size} />}
+      {showPips && <ServePips left={serve.servesLeft} total={serve.serveEvery} size={size} />}
     </motion.span>
   );
 }

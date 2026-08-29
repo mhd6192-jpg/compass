@@ -9,33 +9,40 @@ import { arrangeDraw } from "@/lib/bracket/seedArrange";
 import { isPointsRace, type TiebreakMode, type TournamentFormat } from "@/lib/types";
 import { MIN_TWO_GROUP_TEAMS, splitGroups, twoGroupMatchCount } from "@/lib/bracket/twoGroup";
 
-const TIEBREAK_OPTIONS: { value: TiebreakMode; title: string; desc: string }[] = [
-  {
-    value: "standard",
-    title: "Standard tiebreak",
-    desc: "Every set (including the decider) goes to 6 games, win by 2, with a 7-point tiebreak at 6-6.",
-  },
-  {
-    value: "match-tiebreak",
-    title: "Fast deciding set",
-    desc: "Sets 1 & 2 use the standard tiebreak. The deciding set is replaced by a single 10-point match tiebreak to keep things moving.",
-  },
-  {
-    value: "advantage",
-    title: "Advantage sets",
-    desc: "No tiebreaks at all — sets play out to a 2-game lead, however long that takes.",
-  },
-  {
-    value: "race-to-9",
-    title: "16 points total",
-    desc: "No games or sets — every point is played out until 16 total points are in, then whoever has more wins (e.g. 9-7). If it's 8-8, one sudden-death point decides it (9-8).",
-  },
-  {
-    value: "race-to-16",
-    title: "Race to 16",
-    desc: "No games or sets — first side to 16 points wins, no need to lead by two. At 15-15 it's sudden death: the next point takes it 16-15.",
-  },
-];
+/** The set-based options never change; the race options describe themselves with the chosen target. */
+function tiebreakOptions(target: number): { value: TiebreakMode; title: string; desc: string }[] {
+  const total = 2 * target - 2;
+  return [
+    {
+      value: "standard",
+      title: "Standard tiebreak",
+      desc: "Every set (including the decider) goes to 6 games, win by 2, with a 7-point tiebreak at 6-6.",
+    },
+    {
+      value: "match-tiebreak",
+      title: "Fast deciding set",
+      desc: "Sets 1 & 2 use the standard tiebreak. The deciding set is replaced by a single 10-point match tiebreak to keep things moving.",
+    },
+    {
+      value: "advantage",
+      title: "Advantage sets",
+      desc: "No tiebreaks at all — sets play out to a 2-game lead, however long that takes.",
+    },
+    {
+      value: "race-to-9",
+      title: `${total} points total`,
+      desc: `No games or sets — every point is played out until ${total} total points are in, then whoever has more wins (e.g. ${target}-${target - 2}). If it's ${target - 1}-${target - 1}, one sudden-death point decides it (${target}-${target - 1}).`,
+    },
+    {
+      value: "race-to-16",
+      title: `Race to ${target}`,
+      desc: `No games or sets — first side to ${target} points wins, no need to lead by two. At ${target - 1}-${target - 1} it's sudden death: the next point takes it ${target}-${target - 1}.`,
+    },
+  ];
+}
+
+const RACE_TARGET_PRESETS = [9, 11, 16, 18, 21];
+const SERVE_EVERY_PRESETS = [2, 3, 4, 5];
 
 // The Alhayat draw: pros seeded 1-4, beginners 13-16, the rest unseeded.
 const ALHAYAT_DRAW: { name: string; seed: number | "" }[] = [
@@ -73,6 +80,8 @@ export default function SetupPage() {
   const [arrange, setArrange] = useState(true);
   const [bestOfSets, setBestOfSets] = useState(1);
   const [tiebreakMode, setTiebreakMode] = useState<TiebreakMode>("standard");
+  const [raceTarget, setRaceTarget] = useState(16);
+  const [serveEvery, setServeEvery] = useState(4);
   const [pin, setPin] = useState("");
   const [courtIds, setCourtIds] = useState<number[]>([2, 3]);
   const [submitting, setSubmitting] = useState(false);
@@ -177,6 +186,8 @@ export default function SetupPage() {
           arrange,
           bestOfSets,
           tiebreakMode,
+          raceTarget,
+          serveEvery,
           pin: pin.trim(),
         }),
       });
@@ -506,7 +517,7 @@ export default function SetupPage() {
         )}
 
         <div className="grid gap-2">
-          {TIEBREAK_OPTIONS.map((opt) => (
+          {tiebreakOptions(raceTarget).map((opt) => (
             <button
               key={opt.value}
               type="button"
@@ -523,6 +534,85 @@ export default function SetupPage() {
             </button>
           ))}
         </div>
+
+        {isPointsRace(tiebreakMode) && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-3 rounded-xl border border-gold/30 bg-court-panel p-4"
+          >
+            <div>
+              <p className="font-display uppercase text-sm text-white/80 mb-2">Race target</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {RACE_TARGET_PRESETS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setRaceTarget(n)}
+                    className={`rounded-xl px-4 py-2.5 font-display text-sm border ${
+                      raceTarget === n ? "bg-gold text-court-bg border-gold font-bold" : "border-court-line text-white/60"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <label className="flex items-center gap-2 ml-1">
+                  <span className="text-white/40 text-xs uppercase tracking-widest">Custom</span>
+                  <input
+                    value={RACE_TARGET_PRESETS.includes(raceTarget) ? "" : String(raceTarget)}
+                    onChange={(e) => {
+                      const n = parseInt(e.target.value, 10);
+                      if (Number.isInteger(n)) setRaceTarget(Math.max(4, Math.min(99, n)));
+                    }}
+                    placeholder="…"
+                    inputMode="numeric"
+                    className="w-16 bg-court-panel2 border border-court-line rounded-lg px-2 py-2 text-sm text-center outline-none focus:ring-2 ring-gold/50"
+                  />
+                </label>
+              </div>
+              <p className="text-white/40 text-xs mt-2">
+                {tiebreakMode === "race-to-16"
+                  ? `First side to ${raceTarget} points takes the match.`
+                  : `Play stops at ${2 * raceTarget - 2} total points; whoever has more wins (a typical winning score is ${raceTarget}).`}
+              </p>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-court-line">
+              <p className="font-display uppercase text-sm text-white/80 mb-2">Serve changes every</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {SERVE_EVERY_PRESETS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setServeEvery(n)}
+                    className={`rounded-xl px-4 py-2.5 font-display text-sm border ${
+                      serveEvery === n ? "bg-gold text-court-bg border-gold font-bold" : "border-court-line text-white/60"
+                    }`}
+                  >
+                    {n} pts
+                  </button>
+                ))}
+                <label className="flex items-center gap-2 ml-1">
+                  <span className="text-white/40 text-xs uppercase tracking-widest">Custom</span>
+                  <input
+                    value={SERVE_EVERY_PRESETS.includes(serveEvery) ? "" : String(serveEvery)}
+                    onChange={(e) => {
+                      const n = parseInt(e.target.value, 10);
+                      if (Number.isInteger(n)) setServeEvery(Math.max(1, Math.min(10, n)));
+                    }}
+                    placeholder="…"
+                    inputMode="numeric"
+                    className="w-16 bg-court-panel2 border border-court-line rounded-lg px-2 py-2 text-sm text-center outline-none focus:ring-2 ring-gold/50"
+                  />
+                </label>
+              </div>
+              <p className="text-white/40 text-xs mt-2">
+                Each side serves {serveEvery} point{serveEvery === 1 ? "" : "s"} in a row, then it changes hands. The TVs and coach phones
+                show whose serve it is and how many serves are left.
+              </p>
+            </div>
+          </motion.div>
+        )}
       </section>
 
       <section className="mb-6">
