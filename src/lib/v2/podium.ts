@@ -7,7 +7,7 @@
  * final is the closest thing the format has to a third-place match.
  */
 import { computeStandings } from "../standings";
-import { BRACKET_LABELS, BracketCode, MatchDTO } from "../types";
+import { BRACKET_LABELS, BracketCode, MatchDTO, isRotatingPartners } from "../types";
 import type { AwardDTO } from "./stage";
 
 /** How deep the ceremony can go — nobody hands out ninth place. */
@@ -66,10 +66,11 @@ function groupPodium(matches: MatchDTO[]): AwardDTO[] {
 }
 
 /**
- * Americano is won on points, not on wins, so the medals read that way: the
- * headline number is the personal total, with the win/loss record behind it.
+ * The rotating-partner formats are won on points, not on wins, so the medals
+ * read that way: the headline number is the personal total, with the win/loss
+ * record behind it.
  */
-function americanoPodium(matches: MatchDTO[]): AwardDTO[] {
+function rotatingPodium(matches: MatchDTO[]): AwardDTO[] {
   return computeStandings(matches)
     .slice(0, MAX_PLACES)
     .map((row, i) => ({
@@ -113,7 +114,7 @@ function twoGroupPodium(matches: MatchDTO[]): AwardDTO[] {
 
 /** The full ranked podium for this tournament, deepest place last. */
 export function computePodium(matches: MatchDTO[], format: string): AwardDTO[] {
-  if (format === "americano") return americanoPodium(matches);
+  if (isRotatingPartners(format)) return rotatingPodium(matches);
   if (format === "round-robin") return groupPodium(matches);
   if (format === "two-group") return twoGroupPodium(matches);
   return compassPodium(matches);

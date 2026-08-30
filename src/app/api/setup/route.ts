@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { seedTournament } from "@/lib/bracket/seed";
 import { arrangeDraw } from "@/lib/bracket/seedArrange";
 import { broadcastSnapshot } from "@/lib/broadcast";
-import { isPointsRace, type TournamentFormat } from "@/lib/types";
+import { isPointsRace, isRotatingPartners, type TournamentFormat } from "@/lib/types";
 import { MIN_TWO_GROUP_TEAMS } from "@/lib/bracket/twoGroup";
 import { MAX_AMERICANO_PLAYERS, MAX_AMERICANO_ROUNDS, MIN_AMERICANO_PLAYERS } from "@/lib/bracket/americano";
 import { getIO, EVENTS } from "@/lib/socket";
@@ -13,27 +13,30 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { names, bestOfSets, tiebreakMode, pin, seeds, arrange, format, discipline } = body;
     const fmt: TournamentFormat =
-      format === "round-robin" || format === "two-group" || format === "americano" ? format : "compass";
+      format === "round-robin" || format === "two-group" || format === "americano" || format === "mexicano"
+        ? format
+        : "compass";
+    const rotating = isRotatingPartners(fmt);
 
-    const minTeams = fmt === "two-group" ? MIN_TWO_GROUP_TEAMS : fmt === "americano" ? MIN_AMERICANO_PLAYERS : 3;
+    const minTeams = fmt === "two-group" ? MIN_TWO_GROUP_TEAMS : rotating ? MIN_AMERICANO_PLAYERS : 3;
     if (!Array.isArray(names) || (fmt === "compass" ? names.length !== 16 : names.length < minTeams)) {
       return NextResponse.json(
         {
           error:
             fmt === "compass"
               ? "Exactly 16 player names are required"
-              : fmt === "americano"
+              : rotating
               ? `At least ${minTeams} players are required`
               : `At least ${minTeams} teams are required`,
         },
         { status: 400 }
       );
     }
-    if (fmt === "americano" && names.length > MAX_AMERICANO_PLAYERS) {
-      return NextResponse.json({ error: `Americano supports up to ${MAX_AMERICANO_PLAYERS} players` }, { status: 400 });
+    if (rotating && names.length > MAX_AMERICANO_PLAYERS) {
+      return NextResponse.json({ error: `This format supports up to ${MAX_AMERICANO_PLAYERS} players` }, { status: 400 });
     }
 
-    const amRounds = fmt === "americano" ? Number(body.amRounds) || 0 : 0;
+    const amRounds = rotating ? Number(body.amRounds) || 0 : 0;
     if (amRounds !== 0 && (!Number.isInteger(amRounds) || amRounds < 1 || amRounds > MAX_AMERICANO_ROUNDS)) {
       return NextResponse.json({ error: `Rounds must be between 1 and ${MAX_AMERICANO_ROUNDS}` }, { status: 400 });
     }

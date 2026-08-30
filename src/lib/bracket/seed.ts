@@ -2,7 +2,8 @@ import type { PrismaClient } from "@prisma/client";
 import { generateSkeleton } from "./skeleton";
 import { generateRoundRobin } from "./roundRobin";
 import { generateTwoGroup, MIN_TWO_GROUP_TEAMS } from "./twoGroup";
-import { defaultRounds, generateAmericano, MIN_AMERICANO_PLAYERS } from "./americano";
+import { defaultRounds, generateAmericano, playersPerRound, MIN_AMERICANO_PLAYERS } from "./americano";
+import { pairByRank, MIN_MEXICANO_PLAYERS } from "./mexicano";
 import { rebalanceCourts, DEFAULT_COURT_IDS } from "./courts";
 import { TiebreakMode, TournamentFormat } from "../types";
 import { resetV2State } from "../v2/reset";
@@ -40,7 +41,11 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
   if (format === "americano" && trimmed.length < MIN_AMERICANO_PLAYERS) {
     throw new Error(`At least ${MIN_AMERICANO_PLAYERS} players are required for an americano, got ${trimmed.length}`);
   }
-  const amRounds = format === "americano" ? opts.amRounds || defaultRounds(trimmed.length) : 0;
+  if (format === "mexicano" && trimmed.length < MIN_MEXICANO_PLAYERS) {
+    throw new Error(`At least ${MIN_MEXICANO_PLAYERS} players are required for a mexicano, got ${trimmed.length}`);
+  }
+  const rotating = format === "americano" || format === "mexicano";
+  const amRounds = rotating ? opts.amRounds || defaultRounds(trimmed.length) : 0;
 
   return client.$transaction(
     async (tx) => {
@@ -72,14 +77,21 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
         });
       }
 
-      // Americano has no bracket to wire: the whole draw is known up front, as
-      // rounds of four-player matches. Only round 1 opens — later rounds are
-      // held back so the evening is played in the order the rotation intends
-      // (see `openNextAmericanoRound`), rather than the court queue pulling
-      // round 5 forward because those players happen to be free.
-      if (format === "americano") {
-        const schedule = generateAmericano(players.length, amRounds);
-        for (const m of schedule.matches) {
+      // The rotating-partner formats have no bracket to wire — just rounds of
+      // four-player matches. Only round 1 is playable either way, so the
+      // evening runs in the order the format intends rather than the court
+      // queue pulling a later round forward because those players are free
+      // (see `openNextRotatingRound`).
+      if (format === "americano" || format === "mexicano") {
+        // An americano's whole rotation is drawn now and held back. A mexicano
+        // can only know round 1: every later round is built from the standings
+        // once the previous one has been played.
+        const round1 =
+          format === "americano"
+            ? generateAmericano(players.length, amRounds).matches
+            : pairByRank(playersPerRound(players.length)).map((p) => ({ ...p, round: 1 }));
+
+        for (const m of round1) {
           const firstRound = m.round === 1;
           await tx.match.create({
             data: {

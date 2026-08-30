@@ -1,5 +1,5 @@
 import { computeStandings } from "../standings";
-import type { MatchDTO } from "../types";
+import { isRotatingPartners, type MatchDTO } from "../types";
 import { formatDuration } from "./venue";
 
 /**
@@ -61,7 +61,7 @@ export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight
   // In an americano the entrants are people and the table is ranked on points,
   // so the card leads with the points total; a "team of the day" would be
   // naming a pairing that only existed for one round.
-  const americano = format === "americano";
+  const americano = isRotatingPartners(format);
   const table = computeStandings(matches);
   const leader = table[0];
   if (leader && (americano ? leader.pointsFor > 0 : leader.won > 0)) {
@@ -69,7 +69,7 @@ export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight
     cards.push({
       key: "leader",
       icon: "🔥",
-      eyebrow: americano ? "Leading the americano" : "Team of the day",
+      eyebrow: americano ? (format === "mexicano" ? "Leading the mexicano" : "Leading the americano") : "Team of the day",
       headline: leader.name,
       detail: americano
         ? `${leader.pointsFor} points from ${played} ${played === 1 ? "match" : "matches"}`

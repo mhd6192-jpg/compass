@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { computeStandings, findDecider, type StandingsRow } from "@/lib/standings";
-import type { MatchDTO } from "@/lib/types";
+import { isRotatingPartners, type MatchDTO } from "@/lib/types";
 
 /**
  * A two-group draw is two separate tables. Ranking every team in one list would
@@ -177,7 +177,9 @@ export default function V3Standings({
           style={{ fontSize: "clamp(0.55rem, 1vw, 1rem)" }}
         >
           {subtitle ??
-            (format === "americano"
+            (format === "mexicano"
+              ? "Ranked on points won — next round is drawn from this table"
+              : format === "americano"
               ? "Ranked on points won — partners change every round"
               : format === "two-group"
               ? "Top two of each group reach the semifinals"
@@ -202,7 +204,7 @@ export default function V3Standings({
                   row={row}
                   rank={i + 1}
                   ranked={table.rows.some((r) => r.won + r.lost > 0)}
-                  pointsFirst={format === "americano"}
+                  pointsFirst={isRotatingPartners(format)}
                 />
               ))}
             </div>

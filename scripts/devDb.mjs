@@ -8,10 +8,15 @@
 //   node scripts/devDb.mjs        # start the DB on 127.0.0.1:5433
 //   npm run dev:local             # dev server pointed at it
 //
-// One quirk: every connection shares the single underlying PGlite session, so
-// prepared statements outlive the connection that made them. If a schema push
-// fails with `prepared statement "s0" already exists`, restart this process —
-// the state belongs to it, not to the database file.
+// One quirk, worth knowing before it wastes your afternoon: every connection
+// shares ONE underlying PGlite session, so session state outlives the client
+// that created it. Two symptoms, one fix:
+//   - a schema push failing with `prepared statement "s0" already exists`
+//   - a second run of a DB-backed check script dying on connect with
+//     "Server has closed the connection"
+// Restart this process. The state belongs to it, not to the data in
+// .pglite-dev/, so nothing is lost. For the same reason, do not run the dev
+// server and a check script against it at the same time.
 import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 

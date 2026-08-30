@@ -3,15 +3,25 @@
 // AM is the americano rotation: no bracket at all, just numbered rounds.
 export type BracketCode = "E" | "W" | "N" | "S" | "NE" | "SE" | "NW" | "SW" | "RR" | "GA" | "GB" | "SF" | "F" | "AM";
 
-export type TournamentFormat = "compass" | "round-robin" | "two-group" | "americano";
+export type TournamentFormat = "compass" | "round-robin" | "two-group" | "americano" | "mexicano";
 
 /**
- * The one format whose entrants are individuals rather than sides: partners
- * rotate every round, so a match holds four people and nobody's result belongs
- * to a fixed team.
+ * The formats whose entrants are individuals rather than sides: partners rotate
+ * every round, so a match holds four people and nobody's result belongs to a
+ * fixed team. Americano draws the rotation in advance; mexicano builds each
+ * round from the standings. Everything downstream — scoring, tables, podium,
+ * court booking — treats them identically.
  */
+export function isRotatingPartners(format: string | undefined): boolean {
+  return format === "americano" || format === "mexicano";
+}
+
 export function isAmericano(format: string | undefined): boolean {
   return format === "americano";
+}
+
+export function isMexicano(format: string | undefined): boolean {
+  return format === "mexicano";
 }
 
 /** How a side's pairing is written wherever two names share a scoreboard row. */

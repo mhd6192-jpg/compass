@@ -17,6 +17,22 @@ import type { MatchDTO } from "../src/lib/types";
 const URL = "postgresql://postgres:postgres@127.0.0.1:5433/postgres?connection_limit=1";
 const prisma = new PrismaClient({ datasources: { db: { url: URL } } });
 
+/**
+ * RESTART `npm run dev:db` BEFORE EACH RUN of this script.
+ *
+ * PGlite serves every connection from one shared session, and a run of this
+ * size leaves that session unusable: the next connection is closed immediately
+ * with "Server has closed the connection". It is not a connection leak (raising
+ * the server's limit changes nothing) and not the exit path (disconnecting
+ * cleanly and letting node exit on its own changes nothing either) — the WASM
+ * session simply does not survive being hammered and then handed to a new
+ * client. Restarting the database process is the fix; the data in
+ * `.pglite-dev/` is untouched by it.
+ */
+async function finish() {
+  await prisma.$disconnect();
+}
+
 let failures = 0;
 function check(name: string, cond: boolean, extra = "") {
   console.log(`${cond ? "PASS" : "FAIL"}  ${name}${extra ? ` — ${extra}` : ""}`);
@@ -115,13 +131,13 @@ async function main() {
   check("undo reopens the match", reopened.status !== "completed", reopened.status);
   check("undo puts the player back in the table", computeStandings(s.matches).length === PLAYERS.length);
 
-  await prisma.$disconnect();
+  await finish();
   console.log(failures ? `\n${failures} CHECK(S) FAILED` : "\nALL CHECKS PASSED");
   process.exit(failures ? 1 : 0);
 }
 
 main().catch(async (e) => {
   console.error("ERROR:", e instanceof Error ? e.message : e);
-  await prisma.$disconnect();
-  process.exit(1);
+  await finish();
+  process.exitCode = 1;
 });

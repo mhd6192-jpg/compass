@@ -4,7 +4,7 @@ import { ScoreInput, synthPoints } from "../scoring/synth";
 import { rebalanceCourts } from "./courts";
 import { ensureDecider, isDeciderRow, removeUnplayedDecider } from "./decider";
 import { ensureSemifinals, isGroupRow, retractSemifinals } from "./qualify";
-import { closeLaterAmericanoRounds, isAmericanoRow, openNextAmericanoRound } from "./americanoRounds";
+import { closeLaterRotatingRounds, isRotatingRow, openNextRotatingRound } from "./rotatingRounds";
 import { AnimationTier } from "../types";
 
 type Tx = Prisma.TransactionClient;
@@ -92,10 +92,10 @@ async function completeMatch(tx: Tx, matchId: string, winnerSlot: 1 | 2, opts: C
   const config = await getScoringConfig(tx);
   const deciderId = await ensureDecider(tx, config);
   const semiIds = await ensureSemifinals(tx, config);
-  // Finishing the last match of an americano round is what lets the next one
-  // out — also before the rebalance, so those matches are in the pool when the
-  // courts are handed out and the round turns over without a gap.
-  const openedIds = await openNextAmericanoRound(tx);
+  // Finishing the last match of a rotating-partner round is what lets the next
+  // one out — also before the rebalance, so those matches are in the pool when
+  // the courts are handed out and the round turns over without a gap.
+  const openedIds = await openNextRotatingRound(tx);
   const courtChangedIds = await rebalanceCourts(tx);
   // A group format has no championship match — except the play-off or the final,
   // when there is one.
@@ -236,10 +236,10 @@ export async function undoLastPoint(
       if (isGroupRow(match)) {
         affected = affected.concat(await retractSemifinals(tx));
       }
-      // ...and reopening an americano match puts its round back in progress, so
-      // any round this result released has to be held again.
-      if (isAmericanoRow(match)) {
-        affected = affected.concat(await closeLaterAmericanoRounds(tx, match.round));
+      // ...and reopening a rotating-partner match puts its round back in
+      // progress, so any round this result released has to be taken back.
+      if (isRotatingRow(match)) {
+        affected = affected.concat(await closeLaterRotatingRounds(tx, match.round));
       }
       // Must retract propagation before we can safely reopen the match.
       if (match.feedWinnerMatchId && match.feedWinnerSlot) {

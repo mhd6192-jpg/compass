@@ -17,6 +17,7 @@ import {
   MAX_AMERICANO_ROUNDS,
   MIN_AMERICANO_PLAYERS,
 } from "@/lib/bracket/americano";
+import { pairByRank, MIN_MEXICANO_PLAYERS } from "@/lib/bracket/mexicano";
 
 /** The set-based options never change; the race options describe themselves with the chosen target. */
 function tiebreakOptions(target: number): { value: TiebreakMode; title: string; desc: string }[] {
@@ -83,7 +84,9 @@ export default function SetupPage() {
   // Wording only: an entrant is one row in the draw either way. An americano is
   // always entered as individuals, however the club normally plays — the whole
   // point of the format is that the pairs are made up as it goes.
-  const americano = format === "americano";
+  const mexicano = format === "mexicano";
+  // Both rotating-partner formats share this whole section of the form.
+  const americano = format === "americano" || mexicano;
   const entrantLabel = americano || discipline === "singles" ? "Player" : "Team";
   const entrantsLabel = americano || discipline === "singles" ? "Players" : "Teams";
   const [names, setNames] = useState<string[]>(Array(16).fill(""));
@@ -172,6 +175,15 @@ export default function SetupPage() {
     }
   }, [format, amPlayerCount, effectiveRounds]);
 
+  // A mexicano can only be previewed one round deep, and saying so is the
+  // honest thing: every later round is drawn from a table that does not exist
+  // until the night is under way.
+  const mxPreview = useMemo(() => {
+    if (!mexicano || amPlayerCount < MIN_MEXICANO_PLAYERS) return null;
+    const names = rrNames.map((n) => n.trim()).filter(Boolean);
+    return { pairs: pairByRank(amPlayerCount - (amPlayerCount % 4)), names, sitting: names.slice(amPlayerCount - (amPlayerCount % 4)) };
+  }, [mexicano, amPlayerCount, rrNames]);
+
   // Who lands in which group, using the same alternating split the seeder uses.
   const groupPreview = useMemo(() => {
     const teams = rrNames.map((n) => n.trim()).filter(Boolean);
@@ -195,8 +207,8 @@ export default function SetupPage() {
       setError("Enter at least 3 teams.");
       return;
     }
-    if (format === "americano" && trimmed.filter(Boolean).length < MIN_AMERICANO_PLAYERS) {
-      setError(`Enter at least ${MIN_AMERICANO_PLAYERS} players for an americano.`);
+    if (americano && trimmed.filter(Boolean).length < MIN_AMERICANO_PLAYERS) {
+      setError(`Enter at least ${MIN_AMERICANO_PLAYERS} players for ${mexicano ? "a mexicano" : "an americano"}.`);
       return;
     }
     if (pin.trim().length < 4) {
@@ -310,7 +322,9 @@ export default function SetupPage() {
           <h1 className="font-display text-2xl uppercase mb-2">Draw is live!</h1>
           <p className="text-white/50 mb-1">
             {americano
-              ? `Round 1 is on the courts. ${effectiveRounds} rounds of rotating partners are scheduled.`
+              ? `Round 1 is on the courts. ${effectiveRounds} rounds are scheduled${
+                  mexicano ? ", each drawn from the standings as they stand" : ""
+                }.`
               : format === "compass"
               ? "East Round of 16 is seeded and courts are assigned."
               : "The fixtures are generated and courts are assigned."}
@@ -341,7 +355,9 @@ export default function SetupPage() {
         <div>
           <h1 className="font-display text-3xl sm:text-4xl font-bold uppercase">Tournament Setup</h1>
           <p className="text-white/50 mt-2 text-sm">
-            {americano
+            {mexicano
+              ? "Enter everyone playing, strongest first. Partners are drawn from the standings and change every round."
+              : americano
               ? "Enter everyone playing. Partners are drawn for you and change every round."
               : format === "compass"
               ? `Enter the 16 ${entrantsLabel.toLowerCase()}. Add seeds (1 = strongest) so top seeds meet late.`
@@ -391,6 +407,11 @@ export default function SetupPage() {
               title: "Americano (rotating partners)",
               desc: `Enter individuals, not pairs. Every round everyone gets a new partner and a new pair of opponents, and each player keeps their own running points total — the winner is the highest scorer, not a team. Needs at least ${MIN_AMERICANO_PLAYERS} players.`,
             },
+            {
+              value: "mexicano",
+              title: "Mexicano (partners by standing)",
+              desc: `Like the americano, but each round is drawn from the table rather than fixed in advance: the top four play each other, then the next four, and within each four the leader partners the fourth. Win and you move up into tougher company. Needs at least ${MIN_MEXICANO_PLAYERS} players.`,
+            },
           ] as { value: TournamentFormat; title: string; desc: string }[]).map((opt) => (
             <button
               key={opt.value}
@@ -401,9 +422,9 @@ export default function SetupPage() {
                   setTiebreakMode("race-to-16");
                   setBestOfSets(1);
                 }
-                // An americano is always a short race to a points total — that
+                // These are always a short race to a points total — that
                 // running total IS the tournament, so sets would make no sense.
-                if (opt.value === "americano") {
+                if (opt.value === "americano" || opt.value === "mexicano") {
                   setTiebreakMode("race-to-16");
                   setBestOfSets(1);
                   setRaceTarget(16);
@@ -539,7 +560,13 @@ export default function SetupPage() {
         <section className="mb-6">
           <h2 className="font-display uppercase text-lg text-white/80 mb-1">Rounds</h2>
           <p className="text-white/40 text-xs mb-3">
-            How many times everyone changes partners. {MIN_AMERICANO_PLAYERS <= amPlayerCount ? `With ${amPlayerCount} players you can play up to ${amPlayerCount - 1} rounds before anyone has to repeat a partner.` : ""}
+            {mexicano
+              ? "How many times the table is redrawn. Each round is made from the standings at that moment, so partners and opponents follow your results."
+              : `How many times everyone changes partners.${
+                  MIN_AMERICANO_PLAYERS <= amPlayerCount
+                    ? ` With ${amPlayerCount} players you can play up to ${amPlayerCount - 1} rounds before anyone has to repeat a partner.`
+                    : ""
+                }`}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {[4, 5, 6, 7, 8, 10].map((n) => (
@@ -568,6 +595,32 @@ export default function SetupPage() {
               />
             </label>
           </div>
+
+          {mxPreview && (
+            <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">
+              <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+                <p className="font-display uppercase text-sm text-gold">Round 1</p>
+                <p className="text-white/40 text-xs">Drawn from the order above · later rounds follow the table</p>
+              </div>
+              <div className="grid gap-2">
+                {mxPreview.pairs.map((p) => (
+                  <div key={p.posIndex} className="rounded-lg bg-court-panel2 px-3 py-2">
+                    <p className="font-display uppercase text-[10px] tracking-[0.25em] text-white/35 mb-1">
+                      {p.posIndex === 0 ? "Top four" : `Places ${p.posIndex * 4 + 1}–${p.posIndex * 4 + 4}`}
+                    </p>
+                    <p className="text-xs text-white/75 truncate">
+                      {mxPreview.names[p.team1[0]]} &amp; {mxPreview.names[p.team1[1]]}
+                      <span className="text-white/30 mx-1.5">vs</span>
+                      {mxPreview.names[p.team2[0]]} &amp; {mxPreview.names[p.team2[1]]}
+                    </p>
+                  </div>
+                ))}
+                {mxPreview.sitting.length > 0 && (
+                  <p className="text-[11px] text-white/30">Sitting out round 1: {mxPreview.sitting.join(", ")}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {amPreview && (
             <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">
