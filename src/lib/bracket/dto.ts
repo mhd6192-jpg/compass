@@ -2,7 +2,8 @@ import type { Match, Player, PrismaClient } from "@prisma/client";
 import { computeMatchState, ScoringConfig, toDTO } from "../scoring/engine";
 import { getScoringConfig } from "./config";
 import { getTvControl } from "../tvControl";
-import { BracketCode, MatchDTO, MatchStatus, PlayerDTO, ROUND_NAMES, isPointsRace, pairLabel } from "../types";
+import { BracketCode, MatchDTO, MatchStatus, PlayerDTO, ROUND_NAMES, isKingCourt, isPointsRace, pairLabel } from "../types";
+import { courtLevelName } from "./kingCourt";
 import { biggestDeficitRecovered } from "../scoring/comeback";
 import { longestPointGap } from "../scoring/rally";
 
@@ -52,7 +53,12 @@ function toSide(
   };
 }
 
-export function buildMatchDTO(match: MatchWithRelations, config: ScoringConfig): MatchDTO {
+/**
+ * `format` only matters for king of the court, where a match's position IS its
+ * rung on the ladder and the round name has to say so ("Round 3 · King court").
+ * Everything else derives its round name from the bracket alone.
+ */
+export function buildMatchDTO(match: MatchWithRelations, config: ScoringConfig, format?: string): MatchDTO {
   const slots = match.points.map((p) => p.slot as 1 | 2);
   const engineState = computeMatchState(slots, config);
   const stateDTO = toDTO(engineState, config);
@@ -80,7 +86,10 @@ export function buildMatchDTO(match: MatchWithRelations, config: ScoringConfig):
     id: match.id,
     bracket,
     round: match.round,
-    roundName: ROUND_NAMES[bracket]?.[match.round - 1] ?? `Round ${match.round}`,
+    roundName:
+      bracket === "AM" && isKingCourt(format)
+        ? `Round ${match.round} · ${courtLevelName(match.posIndex)}`
+        : ROUND_NAMES[bracket]?.[match.round - 1] ?? `Round ${match.round}`,
     posIndex: match.posIndex,
     player1: side1.side,
     player2: side2.side,
@@ -109,7 +118,8 @@ export async function getMatchDTO(prisma: PrismaClient, matchId: string): Promis
     where: { id: matchId },
     include: MATCH_INCLUDE,
   });
-  return buildMatchDTO(match, config);
+  const cfg = await prisma.tournamentConfig.findUnique({ where: { id: "default" }, select: { format: true } });
+  return buildMatchDTO(match, config, cfg?.format);
 }
 
 export async function getFullSnapshot(prisma: PrismaClient) {
@@ -125,7 +135,7 @@ export async function getFullSnapshot(prisma: PrismaClient) {
     include: MATCH_INCLUDE,
     orderBy: [{ bracket: "asc" }, { round: "asc" }, { posIndex: "asc" }],
   });
-  const matchDTOs = matches.map((m) => buildMatchDTO(m, config));
+  const matchDTOs = matches.map((m) => buildMatchDTO(m, config, configRow?.format));
   const courts = await prisma.court.findMany({ orderBy: { id: "asc" } });
 
   const total = matchDTOs.length;

@@ -6,6 +6,7 @@ import { broadcastSnapshot } from "@/lib/broadcast";
 import { isPointsRace, isRotatingPartners, type TournamentFormat } from "@/lib/types";
 import { MIN_TWO_GROUP_TEAMS } from "@/lib/bracket/twoGroup";
 import { MAX_AMERICANO_PLAYERS, MAX_AMERICANO_ROUNDS, MIN_AMERICANO_PLAYERS } from "@/lib/bracket/americano";
+import { MIN_KING_COURT_PLAYERS } from "@/lib/bracket/kingCourt";
 import { getIO, EVENTS } from "@/lib/socket";
 
 export async function POST(req: Request) {
@@ -13,12 +14,19 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { names, bestOfSets, tiebreakMode, pin, seeds, arrange, format, discipline } = body;
     const fmt: TournamentFormat =
-      format === "round-robin" || format === "two-group" || format === "americano" || format === "mexicano"
+      format === "round-robin" || format === "two-group" || format === "americano" || format === "mexicano" || format === "king-court"
         ? format
         : "compass";
     const rotating = isRotatingPartners(fmt);
 
-    const minTeams = fmt === "two-group" ? MIN_TWO_GROUP_TEAMS : rotating ? MIN_AMERICANO_PLAYERS : 3;
+    const minTeams =
+      fmt === "two-group"
+        ? MIN_TWO_GROUP_TEAMS
+        : fmt === "king-court"
+        ? MIN_KING_COURT_PLAYERS
+        : rotating
+        ? MIN_AMERICANO_PLAYERS
+        : 3;
     if (!Array.isArray(names) || (fmt === "compass" ? names.length !== 16 : names.length < minTeams)) {
       return NextResponse.json(
         {
@@ -34,6 +42,13 @@ export async function POST(req: Request) {
     }
     if (rotating && names.length > MAX_AMERICANO_PLAYERS) {
       return NextResponse.json({ error: `This format supports up to ${MAX_AMERICANO_PLAYERS} players` }, { status: 400 });
+    }
+    // The ladder only works with every rung full — see lib/bracket/kingCourt.ts.
+    if (fmt === "king-court" && names.length % 4 !== 0) {
+      return NextResponse.json(
+        { error: `King of the court needs a multiple of four players (got ${names.length})` },
+        { status: 400 }
+      );
     }
 
     const amRounds = rotating ? Number(body.amRounds) || 0 : 0;

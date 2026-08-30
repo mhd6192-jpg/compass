@@ -3,17 +3,30 @@
 // AM is the americano rotation: no bracket at all, just numbered rounds.
 export type BracketCode = "E" | "W" | "N" | "S" | "NE" | "SE" | "NW" | "SW" | "RR" | "GA" | "GB" | "SF" | "F" | "AM";
 
-export type TournamentFormat = "compass" | "round-robin" | "two-group" | "americano" | "mexicano";
+export type TournamentFormat =
+  | "compass"
+  | "round-robin"
+  | "two-group"
+  | "americano"
+  | "mexicano"
+  | "king-court";
 
 /**
  * The formats whose entrants are individuals rather than sides: partners rotate
  * every round, so a match holds four people and nobody's result belongs to a
- * fixed team. Americano draws the rotation in advance; mexicano builds each
- * round from the standings. Everything downstream — scoring, tables, podium,
- * court booking — treats them identically.
+ * fixed team. They differ only in where the next round's pairings come from —
+ * an americano draws them in advance, a mexicano re-ranks the whole field on
+ * points, king of the court moves people up and down a ladder of courts.
+ * Everything downstream — scoring, tables, podium, court booking — treats all
+ * three identically.
  */
 export function isRotatingPartners(format: string | undefined): boolean {
-  return format === "americano" || format === "mexicano";
+  return format === "americano" || format === "mexicano" || format === "king-court";
+}
+
+/** Formats whose rounds are built as the night goes, so they cannot be previewed in full. */
+export function isDerivedRounds(format: string | undefined): boolean {
+  return format === "mexicano" || format === "king-court";
 }
 
 export function isAmericano(format: string | undefined): boolean {
@@ -22,6 +35,10 @@ export function isAmericano(format: string | undefined): boolean {
 
 export function isMexicano(format: string | undefined): boolean {
   return format === "mexicano";
+}
+
+export function isKingCourt(format: string | undefined): boolean {
+  return format === "king-court";
 }
 
 /** How a side's pairing is written wherever two names share a scoreboard row. */

@@ -4,6 +4,7 @@ import { generateRoundRobin } from "./roundRobin";
 import { generateTwoGroup, MIN_TWO_GROUP_TEAMS } from "./twoGroup";
 import { defaultRounds, generateAmericano, playersPerRound, MIN_AMERICANO_PLAYERS } from "./americano";
 import { pairByRank, MIN_MEXICANO_PLAYERS } from "./mexicano";
+import { isValidKingCourtField, openingLadder, MIN_KING_COURT_PLAYERS } from "./kingCourt";
 import { rebalanceCourts, DEFAULT_COURT_IDS } from "./courts";
 import { TiebreakMode, TournamentFormat } from "../types";
 import { resetV2State } from "../v2/reset";
@@ -44,7 +45,12 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
   if (format === "mexicano" && trimmed.length < MIN_MEXICANO_PLAYERS) {
     throw new Error(`At least ${MIN_MEXICANO_PLAYERS} players are required for a mexicano, got ${trimmed.length}`);
   }
-  const rotating = format === "americano" || format === "mexicano";
+  if (format === "king-court" && !isValidKingCourtField(trimmed.length)) {
+    throw new Error(
+      `King of the court needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS} (got ${trimmed.length}) — every court on the ladder has to be full.`
+    );
+  }
+  const rotating = format === "americano" || format === "mexicano" || format === "king-court";
   const amRounds = rotating ? opts.amRounds || defaultRounds(trimmed.length) : 0;
 
   return client.$transaction(
@@ -82,13 +88,17 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
       // evening runs in the order the format intends rather than the court
       // queue pulling a later round forward because those players are free
       // (see `openNextRotatingRound`).
-      if (format === "americano" || format === "mexicano") {
-        // An americano's whole rotation is drawn now and held back. A mexicano
-        // can only know round 1: every later round is built from the standings
-        // once the previous one has been played.
+      if (rotating) {
+        // An americano's whole rotation is drawn now and held back. The other
+        // two can only know round 1: a mexicano's later rounds come from the
+        // standings and king of the court's from who won on each rung, neither
+        // of which exists until the night is under way.
         const round1 =
           format === "americano"
             ? generateAmericano(players.length, amRounds).matches
+            : format === "king-court"
+            ? // posIndex is the rung: 0 is the king court.
+              openingLadder(trimmed.length).map((r) => ({ round: 1, posIndex: r.level, team1: r.team1, team2: r.team2 }))
             : pairByRank(playersPerRound(players.length)).map((p) => ({ ...p, round: 1 }));
 
         for (const m of round1) {

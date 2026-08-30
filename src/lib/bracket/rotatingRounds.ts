@@ -1,13 +1,14 @@
 import type { Match, Prisma } from "@prisma/client";
 import { computeStandings } from "../standings";
-import { isRotatingPartners } from "../types";
+import { isDerivedRounds, isRotatingPartners } from "../types";
+import { nextLadder, type CourtResult } from "./kingCourt";
 import { chooseSitters, pairByRank } from "./mexicano";
 import { MATCH_INCLUDE, buildMatchDTO } from "./dto";
 import { getScoringConfig } from "./config";
 
 type Tx = Prisma.TransactionClient;
 
-/** A round of a rotating-partner format (americano or mexicano). */
+/** A round of a rotating-partner format (americano, mexicano or king of the court). */
 export function isRotatingRow(m: Pick<Match, "bracket">): boolean {
   return m.bracket === "AM";
 }
@@ -15,15 +16,17 @@ export function isRotatingRow(m: Pick<Match, "bracket">): boolean {
 /**
  * Lets the next round out once the current one is finished.
  *
- * Both rotating formats play strictly one round at a time. Without that gate
- * the court queue would start a round-five match the moment those four players
- * were free, and the round a player is told to watch for would not match what
- * is on the court.
+ * All three rotating formats play strictly one round at a time. Without that
+ * gate the court queue would start a round-five match the moment those four
+ * players were free, and the round a player is told to watch for would not
+ * match what is on the court.
  *
- * The two formats differ only in where the next round comes from: an americano
- * has it sitting there already, drawn at seeding time; a mexicano has to build
- * it from the standings as they stand right now, which is the entire point of
- * that format.
+ * They differ only in where the next round comes from. An americano has it
+ * sitting there already, drawn at seeding time. A mexicano re-ranks the whole
+ * field on points and re-draws. King of the court moves each set of winners up
+ * a rung and each set of losers down one. The last two can only be worked out
+ * once the previous round is in, which is exactly what makes them worth
+ * playing.
  *
  * Idempotent, so it is safe to call after every completed match.
  */
@@ -54,16 +57,57 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
     return opening.map((m) => m.id);
   }
 
-  // --- mexicano: build the next round from the table ------------------------
-  if (cfg?.format !== "mexicano") return [];
+  // --- the derived formats: build the next round from what just happened ----
+  if (!isDerivedRounds(cfg?.format)) return [];
 
   const lastRound = await tx.match.aggregate({ where: { bracket: "AM" }, _max: { round: true } });
   const played = lastRound._max.round ?? 0;
   if (played === 0) return []; // nothing seeded yet
-  if (played >= (cfg.amRounds || 0)) return []; // the night is done
+  if (played >= (cfg?.amRounds || 0)) return []; // the night is done
 
   const rows = await tx.match.findMany({ where: { bracket: "AM" }, include: MATCH_INCLUDE });
   if (rows.some((m) => m.status !== "completed")) return [];
+
+  const round = played + 1;
+
+  // --- king of the court: winners climb a rung, losers drop one -------------
+  if (cfg?.format === "king-court") {
+    const justPlayed = rows
+      .filter((m) => m.round === played)
+      .sort((a, b) => a.posIndex - b.posIndex);
+
+    const results: CourtResult[] = justPlayed.map((m) => {
+      const side1: [string, string] = [m.player1Id!, m.player1PartnerId!];
+      const side2: [string, string] = [m.player2Id!, m.player2PartnerId!];
+      // `winnerId` names the winning side's first player, never the side itself.
+      const side1Won = m.winnerId === m.player1Id;
+      return { winners: side1Won ? side1 : side2, losers: side1Won ? side2 : side1 };
+    });
+    if (results.some((r) => r.winners.some((x) => !x) || r.losers.some((x) => !x))) return [];
+
+    const created: string[] = [];
+    for (const rung of nextLadder(results)) {
+      const row = await tx.match.create({
+        data: {
+          bracket: "AM",
+          round,
+          // The rung IS the position: posIndex 0 is the king court, and the
+          // screens read the court's name back off it.
+          posIndex: rung.level,
+          player1Id: rung.team1[0],
+          player1PartnerId: rung.team1[1],
+          player2Id: rung.team2[0],
+          player2PartnerId: rung.team2[1],
+          status: "ready",
+          readyAt: new Date(),
+        },
+      });
+      created.push(row.id);
+    }
+    return created;
+  }
+
+  // --- mexicano: build the next round from the table ------------------------
 
   const config = await getScoringConfig(tx);
   const table = computeStandings(rows.map((m) => buildMatchDTO(m, config)));
@@ -97,7 +141,6 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
   const sitting = chooseSitters(rankedIds, byes, rankedIds.length % 4);
   const active = rankedIds.filter((id) => !sitting.has(id));
 
-  const round = played + 1;
   const created: string[] = [];
   for (const p of pairByRank(active.length)) {
     const row = await tx.match.create({
@@ -121,10 +164,11 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
 /**
  * Undo support: reopening a match closes any round that was let through by it.
  *
- * For an americano the later round goes back to being held; for a mexicano it
- * is deleted outright, because it was DERIVED from a table that just changed —
- * keeping it would leave the draw showing pairings the standings no longer
- * justify. Either way this refuses once a later round has actually started:
+ * For an americano the later round goes back to being held. For the derived
+ * formats it is deleted outright, because those pairings were worked out FROM a
+ * result that just changed — keeping them would leave the draw showing a ladder
+ * or a table that no longer justifies it. Either way this refuses once a later
+ * round has actually started:
  * those points are somebody's real match, and quietly deleting them to tidy up
  * the rotation would be far worse than telling the organiser they cannot undo.
  */
@@ -139,7 +183,7 @@ export async function closeLaterRotatingRounds(tx: Tx, round: number): Promise<s
   }
 
   const ids = later.map((m) => m.id);
-  if (cfg?.format === "mexicano") {
+  if (isDerivedRounds(cfg?.format)) {
     await tx.match.deleteMany({ where: { id: { in: ids } } });
     return ids;
   }

@@ -177,7 +177,9 @@ export default function V3Standings({
           style={{ fontSize: "clamp(0.55rem, 1vw, 1rem)" }}
         >
           {subtitle ??
-            (format === "mexicano"
+            (format === "king-court"
+              ? "Ranked on points won — winners climb a court each round"
+              : format === "mexicano"
               ? "Ranked on points won — next round is drawn from this table"
               : format === "americano"
               ? "Ranked on points won — partners change every round"

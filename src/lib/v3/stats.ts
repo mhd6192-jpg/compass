@@ -69,7 +69,13 @@ export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight
     cards.push({
       key: "leader",
       icon: "🔥",
-      eyebrow: americano ? (format === "mexicano" ? "Leading the mexicano" : "Leading the americano") : "Team of the day",
+      eyebrow: americano
+        ? format === "mexicano"
+          ? "Leading the mexicano"
+          : format === "king-court"
+          ? "Most points so far"
+          : "Leading the americano"
+        : "Team of the day",
       headline: leader.name,
       detail: americano
         ? `${leader.pointsFor} points from ${played} ${played === 1 ? "match" : "matches"}`

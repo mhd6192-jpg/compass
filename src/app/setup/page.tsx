@@ -18,6 +18,7 @@ import {
   MIN_AMERICANO_PLAYERS,
 } from "@/lib/bracket/americano";
 import { pairByRank, MIN_MEXICANO_PLAYERS } from "@/lib/bracket/mexicano";
+import { courtCount, courtLevelName, isValidKingCourtField, openingLadder, MIN_KING_COURT_PLAYERS } from "@/lib/bracket/kingCourt";
 
 /** The set-based options never change; the race options describe themselves with the chosen target. */
 function tiebreakOptions(target: number): { value: TiebreakMode; title: string; desc: string }[] {
@@ -85,8 +86,9 @@ export default function SetupPage() {
   // always entered as individuals, however the club normally plays — the whole
   // point of the format is that the pairs are made up as it goes.
   const mexicano = format === "mexicano";
-  // Both rotating-partner formats share this whole section of the form.
-  const americano = format === "americano" || mexicano;
+  const kingCourt = format === "king-court";
+  // All three rotating-partner formats share this whole section of the form.
+  const americano = format === "americano" || mexicano || kingCourt;
   const entrantLabel = americano || discipline === "singles" ? "Player" : "Team";
   const entrantsLabel = americano || discipline === "singles" ? "Players" : "Teams";
   const [names, setNames] = useState<string[]>(Array(16).fill(""));
@@ -184,6 +186,14 @@ export default function SetupPage() {
     return { pairs: pairByRank(amPlayerCount - (amPlayerCount % 4)), names, sitting: names.slice(amPlayerCount - (amPlayerCount % 4)) };
   }, [mexicano, amPlayerCount, rrNames]);
 
+  // The opening ladder. Like the mexicano this can only be shown one round
+  // deep: every later round depends on who wins on each rung tonight.
+  const kcPreview = useMemo(() => {
+    if (!kingCourt || !isValidKingCourtField(amPlayerCount)) return null;
+    const names = rrNames.map((n) => n.trim()).filter(Boolean);
+    return { rungs: openingLadder(amPlayerCount), names };
+  }, [kingCourt, amPlayerCount, rrNames]);
+
   // Who lands in which group, using the same alternating split the seeder uses.
   const groupPreview = useMemo(() => {
     const teams = rrNames.map((n) => n.trim()).filter(Boolean);
@@ -207,7 +217,13 @@ export default function SetupPage() {
       setError("Enter at least 3 teams.");
       return;
     }
-    if (americano && trimmed.filter(Boolean).length < MIN_AMERICANO_PLAYERS) {
+    if (kingCourt && !isValidKingCourtField(trimmed.filter(Boolean).length)) {
+      setError(
+        `King of the court needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS} — every court on the ladder has to be full.`
+      );
+      return;
+    }
+    if (americano && !kingCourt && trimmed.filter(Boolean).length < MIN_AMERICANO_PLAYERS) {
       setError(`Enter at least ${MIN_AMERICANO_PLAYERS} players for ${mexicano ? "a mexicano" : "an americano"}.`);
       return;
     }
@@ -324,7 +340,7 @@ export default function SetupPage() {
             {americano
               ? `Round 1 is on the courts. ${effectiveRounds} rounds are scheduled${
                   mexicano ? ", each drawn from the standings as they stand" : ""
-                }.`
+                }${kingCourt ? ", with winners climbing a court after each one" : ""}.`
               : format === "compass"
               ? "East Round of 16 is seeded and courts are assigned."
               : "The fixtures are generated and courts are assigned."}
@@ -355,7 +371,9 @@ export default function SetupPage() {
         <div>
           <h1 className="font-display text-3xl sm:text-4xl font-bold uppercase">Tournament Setup</h1>
           <p className="text-white/50 mt-2 text-sm">
-            {mexicano
+            {kingCourt
+              ? "Enter everyone playing, strongest first — that sets the opening ladder. Win and you climb a court."
+              : mexicano
               ? "Enter everyone playing, strongest first. Partners are drawn from the standings and change every round."
               : americano
               ? "Enter everyone playing. Partners are drawn for you and change every round."
@@ -408,6 +426,11 @@ export default function SetupPage() {
               desc: `Enter individuals, not pairs. Every round everyone gets a new partner and a new pair of opponents, and each player keeps their own running points total — the winner is the highest scorer, not a team. Needs at least ${MIN_AMERICANO_PLAYERS} players.`,
             },
             {
+              value: "king-court",
+              title: "King of the court (climb the ladder)",
+              desc: `Courts are ranked, and the king court is the top one. Each round every court plays its own match: the two winners move up a court, the two losers move down, and your partner is always someone arriving from the other direction. Needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS}.`,
+            },
+            {
               value: "mexicano",
               title: "Mexicano (partners by standing)",
               desc: `Like the americano, but each round is drawn from the table rather than fixed in advance: the top four play each other, then the next four, and within each four the leader partners the fourth. Win and you move up into tougher company. Needs at least ${MIN_MEXICANO_PLAYERS} players.`,
@@ -424,7 +447,7 @@ export default function SetupPage() {
                 }
                 // These are always a short race to a points total — that
                 // running total IS the tournament, so sets would make no sense.
-                if (opt.value === "americano" || opt.value === "mexicano") {
+                if (opt.value === "americano" || opt.value === "mexicano" || opt.value === "king-court") {
                   setTiebreakMode("race-to-16");
                   setBestOfSets(1);
                   setRaceTarget(16);
@@ -534,8 +557,18 @@ export default function SetupPage() {
             + Add {entrantLabel.toLowerCase()}
           </button>
           {americano ? (
-            <p className={`text-xs mt-3 ${amPlayerCount >= MIN_AMERICANO_PLAYERS ? "text-white/40" : "text-live"}`}>
-              {amPlayerCount < MIN_AMERICANO_PLAYERS
+            <p
+              className={`text-xs mt-3 ${
+                (kingCourt ? isValidKingCourtField(amPlayerCount) : amPlayerCount >= MIN_AMERICANO_PLAYERS)
+                  ? "text-white/40"
+                  : "text-live"
+              }`}
+            >
+              {kingCourt
+                ? isValidKingCourtField(amPlayerCount)
+                  ? `${amPlayerCount} players → a ladder of ${courtCount(amPlayerCount)} courts, everyone playing every round.`
+                  : `King of the court needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS} — every rung of the ladder has to be full. Currently ${amPlayerCount}.`
+                : amPlayerCount < MIN_AMERICANO_PLAYERS
                 ? `Enter at least ${MIN_AMERICANO_PLAYERS} players — a round needs four people on court.`
                 : `${amPlayerCount} players → ${matchesPerRound(amPlayerCount)} match${
                     matchesPerRound(amPlayerCount) === 1 ? "" : "es"
@@ -560,7 +593,9 @@ export default function SetupPage() {
         <section className="mb-6">
           <h2 className="font-display uppercase text-lg text-white/80 mb-1">Rounds</h2>
           <p className="text-white/40 text-xs mb-3">
-            {mexicano
+            {kingCourt
+              ? "How many rounds are played. After each one the winners on every court move up a rung and the losers move down, so where you finish is where you climbed to."
+              : mexicano
               ? "How many times the table is redrawn. Each round is made from the standings at that moment, so partners and opponents follow your results."
               : `How many times everyone changes partners.${
                   MIN_AMERICANO_PLAYERS <= amPlayerCount
@@ -595,6 +630,34 @@ export default function SetupPage() {
               />
             </label>
           </div>
+
+          {kcPreview && (
+            <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">
+              <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+                <p className="font-display uppercase text-sm text-gold">Opening ladder</p>
+                <p className="text-white/40 text-xs">Winners move up · losers move down</p>
+              </div>
+              <div className="grid gap-2">
+                {kcPreview.rungs.map((r) => (
+                  <div key={r.level} className="rounded-lg bg-court-panel2 px-3 py-2">
+                    <p
+                      className={`font-display uppercase text-[10px] tracking-[0.25em] mb-1 ${
+                        r.level === 0 ? "text-gold" : "text-white/35"
+                      }`}
+                    >
+                      {r.level === 0 ? "👑 " : ""}
+                      {courtLevelName(r.level)}
+                    </p>
+                    <p className="text-xs text-white/75 truncate">
+                      {kcPreview.names[r.team1[0]]} &amp; {kcPreview.names[r.team1[1]]}
+                      <span className="text-white/30 mx-1.5">vs</span>
+                      {kcPreview.names[r.team2[0]]} &amp; {kcPreview.names[r.team2[1]]}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {mxPreview && (
             <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">
