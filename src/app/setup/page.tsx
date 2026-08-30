@@ -30,6 +30,17 @@ import {
   matchesPerRound as teamMatchesPerRound,
   MIN_TEAM_AMERICANO_PLAYERS,
 } from "@/lib/bracket/teamAmericano";
+import {
+  defaultMixicanoRounds,
+  generateMixicano,
+  groupSize,
+  isValidMixicanoField,
+  maxMixicanoRounds,
+  mixicanoGroupName,
+  mixicanoScheduleQuality,
+  matchesPerRound as mixicanoMatchesPerRound,
+  MIN_MIXICANO_PLAYERS,
+} from "@/lib/bracket/mixicano";
 
 /** The set-based options never change; the race options describe themselves with the chosen target. */
 function tiebreakOptions(target: number): { value: TiebreakMode; title: string; desc: string }[] {
@@ -99,10 +110,11 @@ export default function SetupPage() {
   const mexicano = format === "mexicano";
   const kingCourt = format === "king-court";
   const teamAmericano = format === "team-americano";
+  const mixicano = format === "mixicano";
   // All the rotating-partner formats share this whole section of the form.
-  const americano = format === "americano" || mexicano || kingCourt || teamAmericano;
-  // The two that need a full multiple of four rather than merely enough players.
-  const needsFours = kingCourt || teamAmericano;
+  const americano = format === "americano" || mexicano || kingCourt || teamAmericano || mixicano;
+  // The ones needing a full multiple of four rather than merely enough players.
+  const needsFours = kingCourt || teamAmericano || mixicano;
   const entrantLabel = americano || discipline === "singles" ? "Player" : "Team";
   const entrantsLabel = americano || discipline === "singles" ? "Players" : "Teams";
   const [names, setNames] = useState<string[]>(Array(16).fill(""));
@@ -187,6 +199,8 @@ export default function SetupPage() {
     amRounds ||
     (teamAmericano && isValidTeamField(amPlayerCount)
       ? defaultTeamRounds(amPlayerCount)
+      : mixicano && isValidMixicanoField(amPlayerCount)
+      ? defaultMixicanoRounds(amPlayerCount)
       : defaultRounds(Math.max(amPlayerCount, MIN_AMERICANO_PLAYERS)));
   const amPreview = useMemo(() => {
     if (format !== "americano" || amPlayerCount < MIN_AMERICANO_PLAYERS || amPlayerCount > MAX_AMERICANO_PLAYERS) return null;
@@ -234,6 +248,25 @@ export default function SetupPage() {
     }
   }, [teamAmericano, amPlayerCount, rrNames, effectiveRounds]);
 
+  // The two groups and the cross-group rotation, from the same generator the
+  // seeder uses.
+  const mixPreview = useMemo(() => {
+    if (!mixicano || !isValidMixicanoField(amPlayerCount)) return null;
+    const names = rrNames.map((n) => n.trim()).filter(Boolean);
+    const size = groupSize(amPlayerCount);
+    try {
+      const matches = generateMixicano(amPlayerCount, effectiveRounds);
+      return {
+        names,
+        groups: [names.slice(0, size), names.slice(size)],
+        matches,
+        quality: mixicanoScheduleQuality(matches, amPlayerCount),
+      };
+    } catch {
+      return null;
+    }
+  }, [mixicano, amPlayerCount, rrNames, effectiveRounds]);
+
   // Who lands in which group, using the same alternating split the seeder uses.
   const groupPreview = useMemo(() => {
     const teams = rrNames.map((n) => n.trim()).filter(Boolean);
@@ -255,6 +288,12 @@ export default function SetupPage() {
     }
     if (format === "round-robin" && trimmed.filter(Boolean).length < 3) {
       setError("Enter at least 3 teams.");
+      return;
+    }
+    if (mixicano && !isValidMixicanoField(trimmed.filter(Boolean).length)) {
+      setError(
+        `A mixicano needs a multiple of four players, at least ${MIN_MIXICANO_PLAYERS} — two equal groups that make whole matches.`
+      );
       return;
     }
     if (teamAmericano && !isValidTeamField(trimmed.filter(Boolean).length)) {
@@ -388,7 +427,7 @@ export default function SetupPage() {
                   mexicano ? ", each drawn from the standings as they stand" : ""
                 }${kingCourt ? ", with winners climbing a court after each one" : ""}${
                   teamAmericano ? ", with every point going to your team" : ""
-                }.`
+                }${mixicano ? ", pairing across the two groups" : ""}.`
               : format === "compass"
               ? "East Round of 16 is seeded and courts are assigned."
               : "The fixtures are generated and courts are assigned."}
@@ -419,7 +458,9 @@ export default function SetupPage() {
         <div>
           <h1 className="font-display text-3xl sm:text-4xl font-bold uppercase">Tournament Setup</h1>
           <p className="text-white/50 mt-2 text-sm">
-            {teamAmericano
+            {mixicano
+              ? "Enter one group and then the other. Every pair is one from each group, and your partner changes every round."
+              : teamAmericano
               ? "Enter one team and then the other. Partners rotate within your team; every point goes to your side."
               : kingCourt
               ? "Enter everyone playing, strongest first — that sets the opening ladder. Win and you climb a court."
@@ -476,6 +517,11 @@ export default function SetupPage() {
               desc: `Enter individuals, not pairs. Every round everyone gets a new partner and a new pair of opponents, and each player keeps their own running points total — the winner is the highest scorer, not a team. Needs at least ${MIN_AMERICANO_PLAYERS} players.`,
             },
             {
+              value: "mixicano",
+              title: "Mixicano (pairs across two groups)",
+              desc: `Enter two equal groups — in a mixed session, everyone from one side of the draw and then the other. Every pair is one player from each group, you get a new partner from the other group each round, and scoring is individual. Needs a multiple of four players.`,
+            },
+            {
               value: "team-americano",
               title: "Team americano (two sides)",
               desc: `Two fixed teams, entered one after the other. Every round you partner someone else from your own team and play two from the other side, and every point you win goes to your team's total. Needs a multiple of four players, at least ${MIN_TEAM_AMERICANO_PLAYERS}.`,
@@ -506,7 +552,8 @@ export default function SetupPage() {
                   opt.value === "americano" ||
                   opt.value === "mexicano" ||
                   opt.value === "king-court" ||
-                  opt.value === "team-americano"
+                  opt.value === "team-americano" ||
+                  opt.value === "mixicano"
                 ) {
                   setTiebreakMode("race-to-16");
                   setBestOfSets(1);
@@ -619,7 +666,9 @@ export default function SetupPage() {
           {americano ? (
             <p
               className={`text-xs mt-3 ${
-                (teamAmericano
+                (mixicano
+                  ? isValidMixicanoField(amPlayerCount)
+                  : teamAmericano
                   ? isValidTeamField(amPlayerCount)
                   : kingCourt
                   ? isValidKingCourtField(amPlayerCount)
@@ -628,7 +677,13 @@ export default function SetupPage() {
                   : "text-live"
               }`}
             >
-              {teamAmericano
+              {mixicano
+                ? isValidMixicanoField(amPlayerCount)
+                  ? `${amPlayerCount} players → two groups of ${groupSize(amPlayerCount)}, ${mixicanoMatchesPerRound(amPlayerCount)} match${
+                      mixicanoMatchesPerRound(amPlayerCount) === 1 ? "" : "es"
+                    } per round. Every pair is one from each group.`
+                  : `A mixicano needs a multiple of four players, at least ${MIN_MIXICANO_PLAYERS} — two equal groups. Currently ${amPlayerCount}.`
+                : teamAmericano
                 ? isValidTeamField(amPlayerCount)
                   ? `${amPlayerCount} players → two teams of ${teamSize(amPlayerCount)}, ${teamMatchesPerRound(amPlayerCount)} match${
                       teamMatchesPerRound(amPlayerCount) === 1 ? "" : "es"
@@ -663,7 +718,13 @@ export default function SetupPage() {
         <section className="mb-6">
           <h2 className="font-display uppercase text-lg text-white/80 mb-1">Rounds</h2>
           <p className="text-white/40 text-xs mb-3">
-            {teamAmericano
+            {mixicano
+              ? `How many times you change partner across the groups.${
+                  isValidMixicanoField(amPlayerCount)
+                    ? ` With groups of ${groupSize(amPlayerCount)} there are ${maxMixicanoRounds(amPlayerCount)} rounds before anyone repeats a partner.`
+                    : ""
+                }`
+              : teamAmericano
               ? `How many times you change partner within your team.${
                   isValidTeamField(amPlayerCount)
                     ? ` A team of ${teamSize(amPlayerCount)} has ${maxTeamRounds(amPlayerCount)} rounds before anyone repeats a team-mate.`
@@ -706,6 +767,52 @@ export default function SetupPage() {
               />
             </label>
           </div>
+
+          {mixPreview && (
+            <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">
+              <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+                <p className="font-display uppercase text-sm text-gold">The two groups</p>
+                <p className="text-white/40 text-xs">
+                  {mixPreview.matches.length} matches ·{" "}
+                  {mixPreview.quality.repeatedPartnerships === 0
+                    ? "nobody repeats a partner"
+                    : `${mixPreview.quality.repeatedPartnerships} repeated partner${
+                        mixPreview.quality.repeatedPartnerships === 1 ? "" : "s"
+                      }`}
+                </p>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-2 mb-3">
+                {mixPreview.groups.map((members, i) => (
+                  <div key={i} className="rounded-lg bg-court-panel2 px-3 py-2">
+                    <p className="font-display uppercase text-[10px] tracking-[0.25em] text-gold mb-1">
+                      {mixicanoGroupName(i + 1)}
+                    </p>
+                    {members.map((n) => (
+                      <p key={n} className="text-xs text-white/75 truncate py-0.5">
+                        {n}
+                      </p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <div className="grid gap-2 max-h-56 overflow-y-auto pr-1">
+                {Array.from({ length: effectiveRounds }, (_, r) => (
+                  <div key={r} className="rounded-lg bg-court-panel2 px-3 py-2">
+                    <p className="font-display uppercase text-[10px] tracking-[0.25em] text-white/35 mb-1">Round {r + 1}</p>
+                    {mixPreview.matches
+                      .filter((m) => m.round === r + 1)
+                      .map((m) => (
+                        <p key={m.posIndex} className="text-xs text-white/75 truncate py-0.5">
+                          {mixPreview.names[m.team1[0]]} &amp; {mixPreview.names[m.team1[1]]}
+                          <span className="text-white/30 mx-1.5">vs</span>
+                          {mixPreview.names[m.team2[0]]} &amp; {mixPreview.names[m.team2[1]]}
+                        </p>
+                      ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {taPreview && (
             <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">

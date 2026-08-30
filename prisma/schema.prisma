@@ -40,8 +40,10 @@ model Player {
   name      String
   seed      Int
 
-  /// Team americano only: which fixed side this player belongs to (1 or 2).
-  /// 0 everywhere else, where players have no standing team.
+  /// Team americano and mixicano: which of the two entry groups this player
+  /// belongs to (1 or 2). The two formats use it for opposite purposes — one
+  /// pairs you with your group, the other across the divide. 0 everywhere
+  /// else, where players are not grouped at all.
   team      Int      @default(0)
   createdAt DateTime @default(now())
 

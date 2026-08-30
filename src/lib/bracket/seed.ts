@@ -12,6 +12,13 @@ import {
   teamOf,
   MIN_TEAM_AMERICANO_PLAYERS,
 } from "./teamAmericano";
+import {
+  defaultMixicanoRounds,
+  generateMixicano,
+  groupOf,
+  isValidMixicanoField,
+  MIN_MIXICANO_PLAYERS,
+} from "./mixicano";
 import { rebalanceCourts, DEFAULT_COURT_IDS } from "./courts";
 import { TiebreakMode, TournamentFormat } from "../types";
 import { resetV2State } from "../v2/reset";
@@ -62,11 +69,24 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
       `A team americano needs two equal teams that each divide into pairs — a multiple of four players, at least ${MIN_TEAM_AMERICANO_PLAYERS} (got ${trimmed.length})`
     );
   }
+  if (format === "mixicano" && !isValidMixicanoField(trimmed.length)) {
+    throw new Error(
+      `A mixicano needs two equal groups that divide into whole matches — a multiple of four players, at least ${MIN_MIXICANO_PLAYERS} (got ${trimmed.length})`
+    );
+  }
   const rotating =
-    format === "americano" || format === "mexicano" || format === "king-court" || format === "team-americano";
+    format === "americano" ||
+    format === "mexicano" ||
+    format === "king-court" ||
+    format === "team-americano" ||
+    format === "mixicano";
   const amRounds = rotating
     ? opts.amRounds ||
-      (format === "team-americano" ? defaultTeamRounds(trimmed.length) : defaultRounds(trimmed.length))
+      (format === "team-americano"
+        ? defaultTeamRounds(trimmed.length)
+        : format === "mixicano"
+        ? defaultMixicanoRounds(trimmed.length)
+        : defaultRounds(trimmed.length))
     : 0;
 
   return client.$transaction(
@@ -87,8 +107,14 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
 
       const players = [];
       for (let i = 0; i < trimmed.length; i++) {
-        // Only a team americano has standing sides; everywhere else team is 0.
-        const team = format === "team-americano" ? teamOf(i, trimmed.length) : 0;
+        // Both two-group formats record which half of the entry list a player
+        // came from; everywhere else there are no groups and team stays 0.
+        const team =
+          format === "team-americano"
+            ? teamOf(i, trimmed.length)
+            : format === "mixicano"
+            ? groupOf(i, trimmed.length)
+            : 0;
         players.push(await tx.player.create({ data: { name: trimmed[i], seed: i, team } }));
       }
 
@@ -116,6 +142,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
             ? generateAmericano(players.length, amRounds).matches
             : format === "team-americano"
             ? generateTeamAmericano(players.length, amRounds)
+            : format === "mixicano"
+            ? generateMixicano(players.length, amRounds)
             : format === "king-court"
             ? // posIndex is the rung: 0 is the king court.
               openingLadder(trimmed.length).map((r) => ({ round: 1, posIndex: r.level, team1: r.team1, team2: r.team2 }))

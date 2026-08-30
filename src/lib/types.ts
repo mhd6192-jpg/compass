@@ -10,22 +10,42 @@ export type TournamentFormat =
   | "americano"
   | "mexicano"
   | "king-court"
-  | "team-americano";
+  | "team-americano"
+  | "mixicano";
 
 /**
  * The formats entered as individuals, where a match holds four people and the
  * pairings change every round. They differ in where the next round comes from —
  * an americano draws the lot in advance, a mexicano re-ranks the field on
- * points, king of the court moves people up and down a ladder, and a team
- * americano rotates partners inside two fixed sides. Everything downstream —
+ * points, king of the court moves people up and down a ladder, a team
+ * americano rotates partners inside two fixed sides and a mixicano rotates
+ * them across two groups. Everything downstream —
  * scoring, court booking, the four-people-per-match handling — treats them
  * identically; only the team americano differs at the end, where the result
  * belongs to a side rather than to a person.
  */
 export function isRotatingPartners(format: string | undefined): boolean {
   return (
-    format === "americano" || format === "mexicano" || format === "king-court" || format === "team-americano"
+    format === "americano" ||
+    format === "mexicano" ||
+    format === "king-court" ||
+    format === "team-americano" ||
+    format === "mixicano"
   );
+}
+
+/**
+ * The formats entered as two groups, where the entry order decides who is on
+ * which side. They use the same stored `team` field for opposite purposes: a
+ * team americano pairs you WITH your group, a mixicano pairs you ACROSS the
+ * divide.
+ */
+export function isTwoGroupEntry(format: string | undefined): boolean {
+  return format === "team-americano" || format === "mixicano";
+}
+
+export function isMixicano(format: string | undefined): boolean {
+  return format === "mixicano";
 }
 
 /**
@@ -239,7 +259,7 @@ export interface PlayerDTO {
   id: string;
   name: string;
   seed: number;
-  /** Team americano only: the fixed side this player belongs to (1 or 2). */
+  /** Team americano and mixicano: which of the two entry groups this player is in (1 or 2). */
   team?: number;
 }
 
