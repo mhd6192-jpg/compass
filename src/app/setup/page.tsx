@@ -41,6 +41,13 @@ import {
   matchesPerRound as mixicanoMatchesPerRound,
   MIN_MIXICANO_PLAYERS,
 } from "@/lib/bracket/mixicano";
+import {
+  defaultWinnerCourtRounds,
+  isValidWinnerCourtField,
+  openingRound,
+  waitingCount,
+  MIN_WINNER_COURT_PLAYERS,
+} from "@/lib/bracket/winnerCourt";
 
 /** The set-based options never change; the race options describe themselves with the chosen target. */
 function tiebreakOptions(target: number): { value: TiebreakMode; title: string; desc: string }[] {
@@ -111,8 +118,9 @@ export default function SetupPage() {
   const kingCourt = format === "king-court";
   const teamAmericano = format === "team-americano";
   const mixicano = format === "mixicano";
+  const winnerCourt = format === "winner-court";
   // All the rotating-partner formats share this whole section of the form.
-  const americano = format === "americano" || mexicano || kingCourt || teamAmericano || mixicano;
+  const americano = format === "americano" || mexicano || kingCourt || teamAmericano || mixicano || winnerCourt;
   // The ones needing a full multiple of four rather than merely enough players.
   const needsFours = kingCourt || teamAmericano || mixicano;
   const entrantLabel = americano || discipline === "singles" ? "Player" : "Team";
@@ -201,6 +209,8 @@ export default function SetupPage() {
       ? defaultTeamRounds(amPlayerCount)
       : mixicano && isValidMixicanoField(amPlayerCount)
       ? defaultMixicanoRounds(amPlayerCount)
+      : winnerCourt && isValidWinnerCourtField(amPlayerCount)
+      ? defaultWinnerCourtRounds(amPlayerCount)
       : defaultRounds(Math.max(amPlayerCount, MIN_AMERICANO_PLAYERS)));
   const amPreview = useMemo(() => {
     if (format !== "americano" || amPlayerCount < MIN_AMERICANO_PLAYERS || amPlayerCount > MAX_AMERICANO_PLAYERS) return null;
@@ -267,6 +277,14 @@ export default function SetupPage() {
     }
   }, [mixicano, amPlayerCount, rrNames, effectiveRounds]);
 
+  // The opening match and the line behind it. Only the first match can be
+  // shown: who plays next depends on who holds the court.
+  const wcPreview = useMemo(() => {
+    if (!winnerCourt || !isValidWinnerCourtField(amPlayerCount)) return null;
+    const names = rrNames.map((n) => n.trim()).filter(Boolean);
+    return openingRound(names);
+  }, [winnerCourt, amPlayerCount, rrNames]);
+
   // Who lands in which group, using the same alternating split the seeder uses.
   const groupPreview = useMemo(() => {
     const teams = rrNames.map((n) => n.trim()).filter(Boolean);
@@ -288,6 +306,12 @@ export default function SetupPage() {
     }
     if (format === "round-robin" && trimmed.filter(Boolean).length < 3) {
       setError("Enter at least 3 teams.");
+      return;
+    }
+    if (winnerCourt && !isValidWinnerCourtField(trimmed.filter(Boolean).length)) {
+      setError(
+        `A winner court needs at least ${MIN_WINNER_COURT_PLAYERS} players — four on court and a pair waiting to challenge.`
+      );
       return;
     }
     if (mixicano && !isValidMixicanoField(trimmed.filter(Boolean).length)) {
@@ -427,7 +451,9 @@ export default function SetupPage() {
                   mexicano ? ", each drawn from the standings as they stand" : ""
                 }${kingCourt ? ", with winners climbing a court after each one" : ""}${
                   teamAmericano ? ", with every point going to your team" : ""
-                }${mixicano ? ", pairing across the two groups" : ""}.`
+                }${mixicano ? ", pairing across the two groups" : ""}${
+                  winnerCourt ? ", with the winners keeping the court" : ""
+                }.`
               : format === "compass"
               ? "East Round of 16 is seeded and courts are assigned."
               : "The fixtures are generated and courts are assigned."}
@@ -458,7 +484,9 @@ export default function SetupPage() {
         <div>
           <h1 className="font-display text-3xl sm:text-4xl font-bold uppercase">Tournament Setup</h1>
           <p className="text-white/50 mt-2 text-sm">
-            {mixicano
+            {winnerCourt
+              ? "Enter everyone playing, in the order they should queue. The first four start; the rest wait their turn."
+              : mixicano
               ? "Enter one group and then the other. Every pair is one from each group, and your partner changes every round."
               : teamAmericano
               ? "Enter one team and then the other. Partners rotate within your team; every point goes to your side."
@@ -517,6 +545,11 @@ export default function SetupPage() {
               desc: `Enter individuals, not pairs. Every round everyone gets a new partner and a new pair of opponents, and each player keeps their own running points total — the winner is the highest scorer, not a team. Needs at least ${MIN_AMERICANO_PLAYERS} players.`,
             },
             {
+              value: "winner-court",
+              title: "Winner court (winners stay on)",
+              desc: `One court and a queue. The pair that wins keeps the court and its partnership; the pair that loses goes to the back of the line, and the next two waiting come on to challenge. Needs at least ${MIN_WINNER_COURT_PLAYERS} players — four on court and a pair waiting.`,
+            },
+            {
               value: "mixicano",
               title: "Mixicano (pairs across two groups)",
               desc: `Enter two equal groups — in a mixed session, everyone from one side of the draw and then the other. Every pair is one player from each group, you get a new partner from the other group each round, and scoring is individual. Needs a multiple of four players.`,
@@ -553,7 +586,8 @@ export default function SetupPage() {
                   opt.value === "mexicano" ||
                   opt.value === "king-court" ||
                   opt.value === "team-americano" ||
-                  opt.value === "mixicano"
+                  opt.value === "mixicano" ||
+                  opt.value === "winner-court"
                 ) {
                   setTiebreakMode("race-to-16");
                   setBestOfSets(1);
@@ -666,7 +700,9 @@ export default function SetupPage() {
           {americano ? (
             <p
               className={`text-xs mt-3 ${
-                (mixicano
+                (winnerCourt
+                  ? isValidWinnerCourtField(amPlayerCount)
+                  : mixicano
                   ? isValidMixicanoField(amPlayerCount)
                   : teamAmericano
                   ? isValidTeamField(amPlayerCount)
@@ -677,7 +713,11 @@ export default function SetupPage() {
                   : "text-live"
               }`}
             >
-              {mixicano
+              {winnerCourt
+                ? isValidWinnerCourtField(amPlayerCount)
+                  ? `${amPlayerCount} players → four on court, ${waitingCount(amPlayerCount)} waiting. One match at a time.`
+                  : `A winner court needs at least ${MIN_WINNER_COURT_PLAYERS} players — four on court and a pair waiting. Currently ${amPlayerCount}.`
+                : mixicano
                 ? isValidMixicanoField(amPlayerCount)
                   ? `${amPlayerCount} players → two groups of ${groupSize(amPlayerCount)}, ${mixicanoMatchesPerRound(amPlayerCount)} match${
                       mixicanoMatchesPerRound(amPlayerCount) === 1 ? "" : "es"
@@ -718,7 +758,9 @@ export default function SetupPage() {
         <section className="mb-6">
           <h2 className="font-display uppercase text-lg text-white/80 mb-1">Rounds</h2>
           <p className="text-white/40 text-xs mb-3">
-            {mixicano
+            {winnerCourt
+              ? "How many matches are played in total. Only one match is on at a time, so this is the length of the whole session."
+              : mixicano
               ? `How many times you change partner across the groups.${
                   isValidMixicanoField(amPlayerCount)
                     ? ` With groups of ${groupSize(amPlayerCount)} there are ${maxMixicanoRounds(amPlayerCount)} rounds before anyone repeats a partner.`
@@ -767,6 +809,26 @@ export default function SetupPage() {
               />
             </label>
           </div>
+
+          {wcPreview && (
+            <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">
+              <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+                <p className="font-display uppercase text-sm text-gold">The opening match</p>
+                <p className="text-white/40 text-xs">Winners stay on · losers go to the back</p>
+              </div>
+              <div className="rounded-lg bg-court-panel2 px-3 py-2 mb-2">
+                <p className="text-xs text-white/75 truncate">
+                  {wcPreview.team1[0]} &amp; {wcPreview.team1[1]}
+                  <span className="text-white/30 mx-1.5">vs</span>
+                  {wcPreview.team2[0]} &amp; {wcPreview.team2[1]}
+                </p>
+              </div>
+              <p className="font-display uppercase text-[10px] tracking-[0.25em] text-white/35 mb-1">
+                Waiting, in order
+              </p>
+              <p className="text-xs text-white/60">{wcPreview.queue.join(" · ")}</p>
+            </div>
+          )}
 
           {mixPreview && (
             <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">

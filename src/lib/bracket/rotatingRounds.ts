@@ -2,6 +2,7 @@ import type { Match, Prisma } from "@prisma/client";
 import { computeStandings } from "../standings";
 import { isDerivedRounds, isRotatingPartners } from "../types";
 import { nextLadder, type CourtResult } from "./kingCourt";
+import { nextRound, type WinnerCourtResult } from "./winnerCourt";
 import { chooseSitters, pairByRank } from "./mexicano";
 import { MATCH_INCLUDE, buildMatchDTO } from "./dto";
 import { getScoringConfig } from "./config";
@@ -21,12 +22,13 @@ export function isRotatingRow(m: Pick<Match, "bracket">): boolean {
  * players were free, and the round a player is told to watch for would not
  * match what is on the court.
  *
- * They differ only in where the next round comes from. An americano has it
- * sitting there already, drawn at seeding time. A mexicano re-ranks the whole
- * field on points and re-draws. King of the court moves each set of winners up
- * a rung and each set of losers down one. The last two can only be worked out
- * once the previous round is in, which is exactly what makes them worth
- * playing.
+ * They differ only in where the next round comes from. An americano (and the
+ * two-group formats built on it) has the whole thing drawn already at seeding
+ * time. A mexicano re-ranks the field on points and re-draws. King of the court
+ * moves each set of winners up a rung and each set of losers down one. A winner
+ * court keeps the winning pair on and calls the next two off the queue. All but
+ * the first can only be worked out once the previous round is in, which is
+ * exactly what makes them worth playing.
  *
  * Idempotent, so it is safe to call after every completed match.
  */
@@ -69,6 +71,41 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
   if (rows.some((m) => m.status !== "completed")) return [];
 
   const round = played + 1;
+
+  // --- winner court: the winning pair holds, the queue supplies the next ----
+  if (cfg?.format === "winner-court") {
+    const roster = await tx.player.findMany({ orderBy: { seed: "asc" }, select: { id: true } });
+    const history: WinnerCourtResult[] = [...rows]
+      .sort((a, b) => a.round - b.round)
+      .map((m) => {
+        const side1: [string, string] = [m.player1Id!, m.player1PartnerId!];
+        const side2: [string, string] = [m.player2Id!, m.player2PartnerId!];
+        const side1Won = m.winnerId === m.player1Id;
+        return { winners: side1Won ? side1 : side2, losers: side1Won ? side2 : side1 };
+      });
+    if (history.some((r) => [...r.winners, ...r.losers].some((x) => !x))) return [];
+
+    const next = nextRound(
+      roster.map((p) => p.id),
+      history
+    );
+    if (!next) return [];
+
+    const row = await tx.match.create({
+      data: {
+        bracket: "AM",
+        round,
+        posIndex: 0, // only ever one match on
+        player1Id: next.team1[0],
+        player1PartnerId: next.team1[1],
+        player2Id: next.team2[0],
+        player2PartnerId: next.team2[1],
+        status: "ready",
+        readyAt: new Date(),
+      },
+    });
+    return [row.id];
+  }
 
   // --- king of the court: winners climb a rung, losers drop one -------------
   if (cfg?.format === "king-court") {

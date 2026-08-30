@@ -70,7 +70,9 @@ export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight
       key: "leader",
       icon: "🔥",
       eyebrow: americano
-        ? format === "team-americano"
+        ? format === "winner-court"
+          ? "Most points so far"
+          : format === "team-americano"
           ? "Top scorer"
           : format === "mixicano"
           ? "Leading the mixicano"
@@ -85,6 +87,37 @@ export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight
         ? `${leader.pointsFor} points from ${played} ${played === 1 ? "match" : "matches"}`
         : `${leader.won} ${leader.won === 1 ? "win" : "wins"} from ${played}`,
     });
+  }
+
+  // --- who is holding the court ---
+  // Only in a winner court, where staying on IS the achievement. Counted back
+  // through the completed matches in playing order: the run ends at the first
+  // match the current holders were not both on the winning side of.
+  if (format === "winner-court") {
+    const played = [...done].sort((a, b) => (a.completedAt ?? "").localeCompare(b.completedAt ?? ""));
+    const last = played[played.length - 1];
+    const holders = last
+      ? last.winnerId === last.player1?.id
+        ? last.player1Members ?? []
+        : last.player2Members ?? []
+      : [];
+    if (holders.length === 2) {
+      const ids = new Set(holders.map((p) => p.id));
+      let streak = 0;
+      for (let i = played.length - 1; i >= 0; i--) {
+        const m = played[i];
+        const winners = m.winnerId === m.player1?.id ? m.player1Members ?? [] : m.player2Members ?? [];
+        if (winners.length === 2 && winners.every((p) => ids.has(p.id))) streak += 1;
+        else break;
+      }
+      cards.push({
+        key: "holding",
+        icon: "🛡️",
+        eyebrow: streak > 1 ? "Holding the court" : "On the court",
+        headline: holders.map((p) => p.name).join(" & "),
+        detail: streak > 1 ? `${streak} wins in a row` : "Won the last one",
+      });
+    }
   }
 
   // --- the match that would not end ---

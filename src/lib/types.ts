@@ -11,15 +11,17 @@ export type TournamentFormat =
   | "mexicano"
   | "king-court"
   | "team-americano"
-  | "mixicano";
+  | "mixicano"
+  | "winner-court";
 
 /**
  * The formats entered as individuals, where a match holds four people and the
  * pairings change every round. They differ in where the next round comes from —
  * an americano draws the lot in advance, a mexicano re-ranks the field on
  * points, king of the court moves people up and down a ladder, a team
- * americano rotates partners inside two fixed sides and a mixicano rotates
- * them across two groups. Everything downstream —
+ * americano rotates partners inside two fixed sides, a mixicano rotates them
+ * across two groups, and a winner court keeps the winning pair on and queues
+ * everybody else. Everything downstream —
  * scoring, court booking, the four-people-per-match handling — treats them
  * identically; only the team americano differs at the end, where the result
  * belongs to a side rather than to a person.
@@ -30,7 +32,8 @@ export function isRotatingPartners(format: string | undefined): boolean {
     format === "mexicano" ||
     format === "king-court" ||
     format === "team-americano" ||
-    format === "mixicano"
+    format === "mixicano" ||
+    format === "winner-court"
   );
 }
 
@@ -48,6 +51,10 @@ export function isMixicano(format: string | undefined): boolean {
   return format === "mixicano";
 }
 
+export function isWinnerCourt(format: string | undefined): boolean {
+  return format === "winner-court";
+}
+
 /**
  * The one rotating format scored by side rather than by person: partners still
  * rotate, but they rotate within a fixed team and every point lands on that
@@ -59,7 +66,7 @@ export function isTeamAmericano(format: string | undefined): boolean {
 
 /** Formats whose rounds are built as the night goes, so they cannot be previewed in full. */
 export function isDerivedRounds(format: string | undefined): boolean {
-  return format === "mexicano" || format === "king-court";
+  return format === "mexicano" || format === "king-court" || format === "winner-court";
 }
 
 export function isAmericano(format: string | undefined): boolean {

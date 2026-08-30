@@ -186,7 +186,9 @@ export default function V3Standings({
           style={{ fontSize: "clamp(0.55rem, 1vw, 1rem)" }}
         >
           {subtitle ??
-            (format === "mixicano"
+            (format === "winner-court"
+              ? "Ranked on points won — winners keep the court"
+              : format === "mixicano"
               ? "Ranked on points won — every pair is one from each group"
               : format === "team-americano"
               ? "Every point you win goes to your team"

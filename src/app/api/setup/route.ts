@@ -9,6 +9,7 @@ import { MAX_AMERICANO_PLAYERS, MAX_AMERICANO_ROUNDS, MIN_AMERICANO_PLAYERS } fr
 import { MIN_KING_COURT_PLAYERS } from "@/lib/bracket/kingCourt";
 import { MIN_TEAM_AMERICANO_PLAYERS } from "@/lib/bracket/teamAmericano";
 import { MIN_MIXICANO_PLAYERS } from "@/lib/bracket/mixicano";
+import { MIN_WINNER_COURT_PLAYERS } from "@/lib/bracket/winnerCourt";
 import { getIO, EVENTS } from "@/lib/socket";
 
 export async function POST(req: Request) {
@@ -22,7 +23,8 @@ export async function POST(req: Request) {
       format === "mexicano" ||
       format === "king-court" ||
       format === "team-americano" ||
-      format === "mixicano"
+      format === "mixicano" ||
+      format === "winner-court"
         ? format
         : "compass";
     const rotating = isRotatingPartners(fmt);
@@ -36,6 +38,8 @@ export async function POST(req: Request) {
         ? MIN_TEAM_AMERICANO_PLAYERS
         : fmt === "mixicano"
         ? MIN_MIXICANO_PLAYERS
+        : fmt === "winner-court"
+        ? MIN_WINNER_COURT_PLAYERS
         : rotating
         ? MIN_AMERICANO_PLAYERS
         : 3;
