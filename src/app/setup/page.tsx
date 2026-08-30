@@ -9,6 +9,14 @@ import { arrangeDraw } from "@/lib/bracket/seedArrange";
 import { isPointsRace, type TiebreakMode, type TournamentFormat } from "@/lib/types";
 import { MIN_TWO_GROUP_TEAMS, splitGroups, twoGroupMatchCount } from "@/lib/bracket/twoGroup";
 import { FORMAT_FAMILIES, describeField, formatsInFamily, validateField } from "@/lib/bracket/formats";
+
+interface SavedRoster {
+  id: string;
+  label: string;
+  names: string[];
+  format: string | null;
+  updatedAt: string;
+}
 import {
   defaultRounds,
   generateAmericano,
@@ -70,7 +78,7 @@ import {
 } from "@/lib/bracket/mixedTeamAmericano";
 
 /** The set-based options never change; the race options describe themselves with the chosen target. */
-function tiebreakOptions(target: number): { value: TiebreakMode; title: string; desc: string }[] {
+function tiebreakOptions(target: number, winBy: 1 | 2): { value: TiebreakMode; title: string; desc: string }[] {
   const total = 2 * target - 2;
   return [
     {
@@ -95,8 +103,11 @@ function tiebreakOptions(target: number): { value: TiebreakMode; title: string; 
     },
     {
       value: "race-to-16",
-      title: `Race to ${target}`,
-      desc: `No games or sets — first side to ${target} points wins, no need to lead by two. At ${target - 1}-${target - 1} it's sudden death: the next point takes it ${target}-${target - 1}.`,
+      title: winBy === 2 ? `Race to ${target}, win by 2` : `Race to ${target}`,
+      desc:
+        winBy === 2
+          ? `No games or sets — first side to ${target} points AND two clear. At ${target - 1}-${target - 1} it carries on like a tiebreak until someone leads by two (${target + 1}-${target - 1}, ${target + 2}-${target}, and so on).`
+          : `No games or sets — first side to ${target} points wins, no need to lead by two. At ${target - 1}-${target - 1} it's sudden death: the next point takes it ${target}-${target - 1}.`,
     },
   ];
 }
@@ -165,6 +176,7 @@ export default function SetupPage() {
   const [tiebreakMode, setTiebreakMode] = useState<TiebreakMode>("standard");
   const [amRounds, setAmRounds] = useState(0); // 0 = use the default for the field size
   const [raceTarget, setRaceTarget] = useState(16);
+  const [raceWinBy, setRaceWinBy] = useState<1 | 2>(1);
   const [serveEvery, setServeEvery] = useState(4);
   const [pin, setPin] = useState("");
   const [courtIds, setCourtIds] = useState<number[]>([2, 3]);
@@ -193,6 +205,77 @@ export default function SetupPage() {
     setRrNames(Array.from({ length: 8 }, (_, i) => `Player ${i + 1}`));
     if (!pin) setPin("1234");
   }
+  // --- saved entrant lists -------------------------------------------------
+  // Resetting a draw deletes the Player rows, which is exactly when an
+  // organiser is re-running the same group and does not want to retype anyone.
+  const [rosters, setRosters] = useState<SavedRoster[]>([]);
+  const [rosterLabel, setRosterLabel] = useState("");
+  const [rosterBusy, setRosterBusy] = useState(false);
+  const [rosterNote, setRosterNote] = useState<string | null>(null);
+
+  const refreshRosters = () =>
+    fetch("/api/rosters")
+      .then((r) => r.json())
+      .then((d) => setRosters(d.rosters ?? []))
+      .catch(() => setRosters([]));
+
+  useEffect(() => {
+    void refreshRosters();
+  }, []);
+
+  /** The names currently typed in, for whichever entry list this format uses. */
+  const currentNames = () => (format === "compass" ? names : rrNames).map((n) => n.trim()).filter(Boolean);
+
+  async function saveRoster() {
+    const list = currentNames();
+    const label = rosterLabel.trim();
+    setRosterNote(null);
+    if (!label) return setRosterNote("Give the list a name first.");
+    if (list.length < 2) return setRosterNote("Enter at least two entrants first.");
+    setRosterBusy(true);
+    try {
+      const res = await fetch("/api/rosters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label, names: list, format }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not save");
+      setRosterNote(`Saved "${label}" — ${list.length} entrants.`);
+      setRosterLabel("");
+      await refreshRosters();
+    } catch (e) {
+      setRosterNote(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setRosterBusy(false);
+    }
+  }
+
+  function loadRoster(r: SavedRoster) {
+    setRosterNote(null);
+    if (format === "compass") {
+      // The compass draw is exactly sixteen rows, so pad or trim to fit.
+      const filled = [...r.names.slice(0, 16), ...Array(Math.max(0, 16 - r.names.length)).fill("")];
+      setNames(filled);
+      if (r.names.length !== 16) setRosterNote(`"${r.label}" has ${r.names.length} entrants; a compass draw needs exactly 16.`);
+    } else {
+      setRrNames(r.names.length ? r.names : [""]);
+    }
+    if (!pin) setPin("1234");
+  }
+
+  async function deleteRoster(r: SavedRoster) {
+    setRosterBusy(true);
+    setRosterNote(null);
+    try {
+      await fetch(`/api/rosters?id=${encodeURIComponent(r.id)}`, { method: "DELETE" });
+      await refreshRosters();
+      setRosterNote(`Deleted "${r.label}".`);
+    } finally {
+      setRosterBusy(false);
+    }
+  }
+
   function updateSeed(i: number, value: string) {
     const num = value === "" ? "" : Math.max(1, Math.min(16, parseInt(value, 10) || 0));
     setSeeds((prev) => prev.map((s, idx) => (idx === i ? (num as number | "") : s)));
@@ -417,6 +500,7 @@ export default function SetupPage() {
           tiebreakMode,
           raceTarget,
           serveEvery,
+          raceWinBy,
           amRounds: amRounds || effectiveRounds,
           pin: pin.trim(),
         }),
@@ -634,6 +718,70 @@ export default function SetupPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Saved lists sit above the entrant fields, because the moment they are
+          wanted is the moment someone is looking at an empty list again. */}
+      <section className="mb-4 rounded-xl border border-court-line bg-court-panel p-4">
+        <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
+          <h2 className="font-display uppercase text-sm text-white/80">Saved lists</h2>
+          <p className="text-white/35 text-xs">Keep a group so you never type it twice</p>
+        </div>
+
+        {rosters.length > 0 ? (
+          <div className="grid gap-1.5 mb-3">
+            {rosters.map((r) => (
+              <div key={r.id} className="flex items-center gap-2 rounded-lg bg-court-panel2 px-3 py-2">
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate text-sm text-white/85">{r.label}</span>
+                  <span className="block text-white/35 text-[11px]">
+                    {r.names.length} entrants
+                    {r.format ? ` · last used for ${r.format.replace(/-/g, " ")}` : ""}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => loadRoster(r)}
+                  className="shrink-0 rounded-lg border border-gold/50 text-gold font-display uppercase text-xs px-3 py-1.5"
+                >
+                  Load
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteRoster(r)}
+                  disabled={rosterBusy}
+                  className="shrink-0 text-white/25 hover:text-live text-lg px-1 disabled:opacity-40"
+                  aria-label={`Delete ${r.label}`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-white/35 text-xs mb-3">
+            Nothing saved yet. Type your entrants below, then give the list a name and save it — it will still be
+            here after you reset the draw.
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          <input
+            value={rosterLabel}
+            onChange={(e) => setRosterLabel(e.target.value)}
+            placeholder="Name this list, e.g. Tuesday night"
+            className="flex-1 min-w-0 bg-court-panel2 border border-court-line rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 ring-gold/50"
+          />
+          <button
+            type="button"
+            onClick={saveRoster}
+            disabled={rosterBusy}
+            className="shrink-0 rounded-lg bg-gold text-court-bg font-display uppercase text-xs font-bold px-4 disabled:opacity-40"
+          >
+            {rosterBusy ? "…" : "Save current"}
+          </button>
+        </div>
+        {rosterNote && <p className="text-white/50 text-xs mt-2">{rosterNote}</p>}
       </section>
 
       {format === "compass" ? (
@@ -1172,7 +1320,12 @@ export default function SetupPage() {
       )}
 
       <section className="mb-6">
-        <h2 className="font-display uppercase text-lg text-white/80 mb-3">Match format</h2>
+        <h2 className="font-display uppercase text-lg text-white/80 mb-1">Match format</h2>
+        <p className="text-white/40 text-xs mb-3">
+          {americano
+            ? "Picking a rotating format sets a short points race, because that is how these are normally played — but sets and games work just as well. Choose one below and the best-of options appear."
+            : "How each individual match is scored."}
+        </p>
         {!isPointsRace(tiebreakMode) && (
           <div className="flex gap-2 mb-4">
             {[1, 3, 5].map((n) => (
@@ -1191,7 +1344,7 @@ export default function SetupPage() {
         )}
 
         <div className="grid gap-2">
-          {tiebreakOptions(raceTarget).map((opt) => (
+          {tiebreakOptions(raceTarget, raceWinBy).map((opt) => (
             <button
               key={opt.value}
               type="button"
@@ -1246,10 +1399,44 @@ export default function SetupPage() {
               </div>
               <p className="text-white/40 text-xs mt-2">
                 {tiebreakMode === "race-to-16"
-                  ? `First side to ${raceTarget} points takes the match.`
+                  ? raceWinBy === 2
+                    ? `First side to ${raceTarget} AND two clear takes the match.`
+                    : `First side to ${raceTarget} points takes the match.`
                   : `Play stops at ${2 * raceTarget - 2} total points; whoever has more wins (a typical winning score is ${raceTarget}).`}
               </p>
             </div>
+
+            {tiebreakMode === "race-to-16" && (
+              <div className="mt-4 pt-4 border-t border-court-line">
+                <p className="font-display uppercase text-sm text-white/80 mb-2">Finishing the race</p>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {([
+                    {
+                      value: 1 as const,
+                      title: "Sudden death",
+                      desc: `Reaching ${raceTarget} wins it. At ${raceTarget - 1}-${raceTarget - 1} the next point decides the match.`,
+                    },
+                    {
+                      value: 2 as const,
+                      title: "Win by two (deuce)",
+                      desc: `Like a tiebreak: it runs on past ${raceTarget} until someone leads by two. No cap.`,
+                    },
+                  ]).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setRaceWinBy(opt.value)}
+                      className={`text-left rounded-xl border p-3 transition-colors ${
+                        raceWinBy === opt.value ? "border-gold bg-gold/10" : "border-court-line bg-court-panel2"
+                      }`}
+                    >
+                      <p className="font-display uppercase text-sm mb-1">{opt.title}</p>
+                      <p className="text-white/45 text-xs leading-relaxed">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="mt-4 pt-4 border-t border-court-line">
               <p className="font-display uppercase text-sm text-white/80 mb-2">Serve changes every</p>

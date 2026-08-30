@@ -137,6 +137,7 @@ export async function getFullSnapshot(prisma: PrismaClient) {
     tiebreakMode: (configRow?.tiebreakMode as ScoringConfig["tiebreakMode"]) ?? "standard",
     raceTarget: configRow?.raceTarget || undefined,
     serveEvery: configRow?.serveEvery || undefined,
+    raceWinBy: configRow?.raceWinBy || undefined,
   };
 
   const matches = await prisma.match.findMany({
@@ -158,6 +159,7 @@ export async function getFullSnapshot(prisma: PrismaClient) {
       tiebreakMode: config.tiebreakMode,
       raceTarget: config.raceTarget ?? 0,
       serveEvery: config.serveEvery ?? 0,
+      raceWinBy: config.raceWinBy ?? 0,
       amRounds: configRow?.amRounds ?? 0,
     },
     courts,

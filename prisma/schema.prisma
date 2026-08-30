@@ -30,6 +30,11 @@ model TournamentConfig {
 
   /// The serve changes hands every N points in a race. 0 = the house default of 4.
   serveEvery   Int       @default(0)
+
+  /// Race formats only: the margin needed to take it. 0 or 1 = the point that
+  /// reaches the target wins outright (sudden death at target-1 all). 2 = it
+  /// must be won by two, so the race carries on past the target like a tiebreak.
+  raceWinBy    Int       @default(0)
   pin          String    @default("1234")
   startedAt    DateTime?
   createdAt    DateTime  @default(now())
@@ -198,5 +203,21 @@ model Ceremony {
   announced Boolean @default(false)
 
   rev       Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+/// A saved list of entrants, so an organiser re-running or adjusting an event
+/// does not have to type everyone in again. Deliberately independent of any
+/// tournament: resetting a draw wipes the Player rows, which is exactly the
+/// moment this is needed.
+model SavedRoster {
+  id        String   @id @default(cuid())
+  /// What the organiser called it — "Tuesday night group", "Ladies league".
+  label     String   @unique
+  /// The names, in entry order. Order matters to several formats, so it is kept.
+  names     Json
+  /// The format it was last used for, shown as a hint when loading.
+  format    String?
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

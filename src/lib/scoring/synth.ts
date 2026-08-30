@@ -1,4 +1,4 @@
-import { isPointsRace, raceTargetOf, raceTotalPoints } from "../types";
+import { isPointsRace, raceTargetOf, raceTotalPoints, raceWinByOf } from "../types";
 import { computeMatchState, ScoringConfig, setsToWin } from "./engine";
 
 export interface SetInput {
@@ -92,7 +92,17 @@ export function synthPoints(input: ScoreInput, config: ScoringConfig): { slots: 
     const lo = Math.min(a, b);
     const target = raceTargetOf(config);
     if (config.tiebreakMode === "race-to-16") {
-      if (hi !== target || lo > target - 1) {
+      if (raceWinByOf(config) === 2) {
+        // Win by two: the race runs on past the target, but it stops the moment
+        // someone is two clear — so a score beyond the target must be exactly a
+        // two-point margin, and one AT the target can be any margin of two or more.
+        const legal = hi >= target && hi - lo >= 2 && (hi === target || hi - lo === 2);
+        if (!legal) {
+          throw new Error(
+            `First to ${target}, win by 2 — the winner needs ${target} or more and a two-point lead, and past ${target} the margin is exactly two (got ${a}-${b})`
+          );
+        }
+      } else if (hi !== target || lo > target - 1) {
         throw new Error(`First to ${target} wins — the winner must have exactly ${target} and the loser 0-${target - 1} (got ${a}-${b})`);
       }
     } else {

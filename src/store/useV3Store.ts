@@ -7,7 +7,7 @@ import { IDLE_CEREMONY } from "@/lib/v2/stage";
 import { pendingFor } from "@/lib/v3/outbox";
 
 export interface V2Snapshot {
-  tournament: { status: string; format: string; discipline: string; bestOfSets: number; tiebreakMode: string; raceTarget?: number; serveEvery?: number };
+  tournament: { status: string; format: string; discipline: string; bestOfSets: number; tiebreakMode: string; raceTarget?: number; serveEvery?: number; raceWinBy?: number };
   courts: { id: number; label: string }[];
   matches: MatchDTO[];
   progress: { completed: number; total: number };

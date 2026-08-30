@@ -34,6 +34,7 @@ const LOGIC = [
 
 /** Each of these needs its own fresh database. */
 const DB = [
+  ["checkRosters", "saved entrant lists"],
   ["checkAmericanoFlow", "americano end to end"],
   ["checkMexicano", "mexicano end to end"],
   ["checkKingCourtFlow", "king of the court end to end"],

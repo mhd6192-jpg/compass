@@ -11,5 +11,6 @@ export async function getScoringConfig(client: Prisma.TransactionClient | Prisma
     tiebreakMode: cfg.tiebreakMode as TiebreakMode,
     raceTarget: cfg.raceTarget || undefined,
     serveEvery: cfg.serveEvery || undefined,
+    raceWinBy: cfg.raceWinBy || undefined,
   };
 }

@@ -45,6 +45,7 @@ export async function POST(req: Request) {
     // switch of format can't inherit a stale target.
     let raceTarget = 0;
     let serveEvery = 0;
+    let raceWinBy = 0;
     if (isPointsRace(tiebreakMode)) {
       raceTarget = Number(body.raceTarget) || 0;
       serveEvery = Number(body.serveEvery) || 0;
@@ -54,6 +55,9 @@ export async function POST(req: Request) {
       if (serveEvery !== 0 && (!Number.isInteger(serveEvery) || serveEvery < 1 || serveEvery > 10)) {
         return NextResponse.json({ error: "Serve change must be every 1 to 10 points" }, { status: 400 });
       }
+      // Win-by-two only means something for "first to N"; the points-total rule
+      // already ends on a fixed total, so a margin requirement has nothing to bite on.
+      raceWinBy = tiebreakMode === "race-to-16" && Number(body.raceWinBy) === 2 ? 2 : 0;
     }
 
     // Optionally arrange by seed so top seeds land in separate quarters (they only
@@ -79,6 +83,7 @@ export async function POST(req: Request) {
       tiebreakMode,
       raceTarget,
       serveEvery,
+      raceWinBy,
       amRounds,
       pin,
       format: fmt,

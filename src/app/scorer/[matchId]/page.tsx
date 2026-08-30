@@ -9,7 +9,7 @@ import PinBar from "@/components/scorer/PinBar";
 import { findMatch, useCompassStore } from "@/store/useCompassStore";
 import { usePinStore } from "@/store/usePinStore";
 import { applyPoint, stateFromDTO, toDTO } from "@/lib/scoring/engine";
-import { TiebreakMode, isPointsRace, raceTargetOf, raceTotalPoints } from "@/lib/types";
+import { TiebreakMode, isPointsRace, raceTargetOf, raceTotalPoints, raceWinByOf } from "@/lib/types";
 
 function ScoringContent() {
   const params = useParams<{ matchId: string }>();
@@ -46,8 +46,9 @@ function ScoringContent() {
       tiebreakMode: snapshot.tournament.tiebreakMode as TiebreakMode,
       raceTarget: snapshot.tournament.raceTarget || undefined,
       serveEvery: snapshot.tournament.serveEvery || undefined,
+      raceWinBy: snapshot.tournament.raceWinBy || undefined,
     }),
-    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode, snapshot.tournament.raceTarget, snapshot.tournament.serveEvery]
+    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode, snapshot.tournament.raceTarget, snapshot.tournament.serveEvery, snapshot.tournament.raceWinBy]
   );
 
   // The points-race formats are a single race, not sets and games: the score
@@ -57,7 +58,9 @@ function ScoringContent() {
   const firstTo = config.tiebreakMode === "race-to-16";
   const target = raceTargetOf(config);
   const targetTotal = raceTotalPoints(config);
-  const maxScore = pointsRace ? (firstTo ? target : targetTotal) : 15;
+  const winBy = raceWinByOf(config);
+  // Win-by-two can run past the target, so the editor must be able to reach it.
+  const maxScore = pointsRace ? (firstTo ? (winBy === 2 ? target + 12 : target) : targetTotal) : 15;
   const raceTotal = (completedRows[0]?.a ?? 0) + (completedRows[0]?.b ?? 0);
   const raceScoreValid =
     !pointsRace ||
@@ -66,8 +69,13 @@ function ScoringContent() {
       const b = completedRows[0]?.b ?? 0;
       const hi = Math.max(a, b);
       const lo = Math.min(a, b);
-      // first to T: the winner has exactly T, no win-by-2 (T-(T-1) is legal)
-      if (firstTo) return hi === target && lo <= target - 1;
+      if (firstTo) {
+        // Win by two: at least the target AND two clear, and past the target the
+        // margin is exactly two, since it stops the moment someone is two ahead.
+        if (winBy === 2) return hi >= target && hi - lo >= 2 && (hi === target || hi - lo === 2);
+        // Sudden death: the winner has exactly T (T-(T-1) is legal).
+        return hi === target && lo <= target - 1;
+      }
       return (hi + lo === targetTotal && hi !== lo) || (hi + lo === targetTotal + 1 && hi - lo === 1);
     })();
 
@@ -366,7 +374,11 @@ function ScoringContent() {
 
         {pointsRace ? (
           <p className={`text-[11px] mb-4 leading-relaxed ${raceScoreValid ? "text-white/35" : "text-live"}`}>
-            {firstTo
+            {firstTo && winBy === 2
+              ? raceScoreValid
+                ? `${completedRows[0].a}-${completedRows[0].b} — first to ${target}, win by 2. Winner is the higher score.`
+                : `First to ${target}, win by 2: the winner needs ${target} or more with a two-point lead, and past ${target} the margin is exactly two. Currently ${completedRows[0].a}-${completedRows[0].b}.`
+              : firstTo
               ? raceScoreValid
                 ? `${completedRows[0].a}-${completedRows[0].b} — ${Math.min(completedRows[0].a, completedRows[0].b) === target - 1 ? "sudden-death finish" : `first to ${target}`}. Winner is the higher score.`
                 : `First to ${target} wins: the winner must have exactly ${target} and the loser 0-${target - 1} (${target}-${target - 1} is a legal sudden-death finish). Currently ${completedRows[0].a}-${completedRows[0].b}.`

@@ -183,8 +183,9 @@ function CoachConsole({ courtId }: { courtId: number }) {
       tiebreakMode: snapshot.tournament.tiebreakMode as TiebreakMode,
       raceTarget: snapshot.tournament.raceTarget || undefined,
       serveEvery: snapshot.tournament.serveEvery || undefined,
+      raceWinBy: snapshot.tournament.raceWinBy || undefined,
     }),
-    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode, snapshot.tournament.raceTarget, snapshot.tournament.serveEvery]
+    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode, snapshot.tournament.raceTarget, snapshot.tournament.serveEvery, snapshot.tournament.raceWinBy]
   );
 
   const liveStateRef = useRef<{ matchId: string; state: ReturnType<typeof stateFromDTO> } | null>(null);

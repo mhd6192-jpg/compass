@@ -1,4 +1,4 @@
-import { AnimationTier, MatchStateDTO, TiebreakMode, isPointsRace, raceTargetOf, raceTotalPoints } from "../types";
+import { AnimationTier, MatchStateDTO, TiebreakMode, isPointsRace, raceTargetOf, raceTotalPoints, raceWinByOf } from "../types";
 
 export interface ScoringConfig {
   bestOfSets: number; // e.g. 3 or 5 (always odd)
@@ -7,6 +7,8 @@ export interface ScoringConfig {
   raceTarget?: number;
   /** Serve changes hands every N points in a race. 0/undefined = the house default of 4. */
   serveEvery?: number;
+  /** Margin needed to take a race: 1 (sudden death at the target) or 2 (win by two). */
+  raceWinBy?: number;
 }
 
 interface CompletedSet {
@@ -89,12 +91,15 @@ export function applyPoint(
     // combined total reaches 2T-2, then whoever has more wins (T=9: totals 16,
     // e.g. 9-7). A tie at that total doesn't end it — one further sudden-death
     // point decides it (9-8, total 17).
-    // race-to-16 (first to T): no win-by-2 at all — T ends it, so (T-1)-(T-1)
-    // is sudden death and the next point takes it.
+    // race-to-16 (first to T): T ends it, so (T-1)-(T-1) is sudden death and
+    // the next point takes it — unless the organiser asked for win-by-two, in
+    // which case the race carries on past T like a tiebreak until someone
+    // leads by two.
     const target = raceTargetOf(config);
+    const winBy = raceWinByOf(config);
     const won =
       config.tiebreakMode === "race-to-16"
-        ? a >= target
+        ? a >= target && a - b >= winBy
         : config.tiebreakMode === "race-to-9"
         ? a + b >= raceTotalPoints(config) && a !== b
         : a >= 10 && a - b >= 2;
@@ -249,6 +254,7 @@ export function toDTO(state: EngineState, config: ScoringConfig): MatchStateDTO 
       tiebreakMode: config.tiebreakMode,
       ...(config.raceTarget ? { raceTarget: config.raceTarget } : {}),
       ...(config.serveEvery ? { serveEvery: config.serveEvery } : {}),
+      ...(config.raceWinBy ? { raceWinBy: config.raceWinBy } : {}),
     },
     setsWon: state.setsWon,
     completedSets: state.sets,

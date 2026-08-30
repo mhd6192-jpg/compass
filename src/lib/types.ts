@@ -148,6 +148,7 @@ export interface RaceConfigLike {
   tiebreakMode: TiebreakMode | string;
   raceTarget?: number;
   serveEvery?: number;
+  raceWinBy?: number;
 }
 
 /**
@@ -168,6 +169,18 @@ export function raceTotalPoints(config: RaceConfigLike): number {
   return 2 * raceTargetOf(config) - 2;
 }
 
+/**
+ * The margin needed to take a race: 1 (the default) or 2.
+ *
+ * At 1 the point that reaches the target wins it outright, so target-1 all is
+ * sudden death. At 2 the race behaves like a tiebreak — it carries on past the
+ * target until someone leads by two — which is what people mean when they ask
+ * for "deuce" on a race.
+ */
+export function raceWinByOf(config: RaceConfigLike): 1 | 2 {
+  return config.raceWinBy === 2 ? 2 : 1;
+}
+
 /** How many points each side serves before it changes hands. 0/undefined = the house default of 4. */
 export function serveEveryOf(config: RaceConfigLike): number {
   if (config.serveEvery && config.serveEvery >= 1) return Math.floor(config.serveEvery);
@@ -176,7 +189,10 @@ export function serveEveryOf(config: RaceConfigLike): number {
 
 /** One line describing the match format, e.g. "First to 18 points" — every screen shows the same words. */
 export function matchFormatLabel(bestOfSets: number, config: RaceConfigLike): string {
-  if (config.tiebreakMode === "race-to-16") return `First to ${raceTargetOf(config)} points`;
+  if (config.tiebreakMode === "race-to-16") {
+    const target = raceTargetOf(config);
+    return raceWinByOf(config) === 2 ? `First to ${target}, win by 2` : `First to ${target} points`;
+  }
   if (config.tiebreakMode === "race-to-9") return `${raceTotalPoints(config)} points total`;
   const base = `Best of ${bestOfSets}`;
   if (config.tiebreakMode === "match-tiebreak") return `${base} · match tiebreak`;
@@ -280,7 +296,7 @@ export interface PlayerDTO {
 
 export interface MatchStateDTO {
   // derived, event-sourced live score state
-  config: { bestOfSets: number; tiebreakMode: TiebreakMode; raceTarget?: number; serveEvery?: number };
+  config: { bestOfSets: number; tiebreakMode: TiebreakMode; raceTarget?: number; serveEvery?: number; raceWinBy?: number };
   setsWon: [number, number];
   completedSets: Array<{ games: [number, number]; tiebreak?: [number, number] }>;
   currentSet: { games: [number, number] } | null;

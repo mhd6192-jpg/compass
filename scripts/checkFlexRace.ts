@@ -106,6 +106,59 @@ check("pressure: 2-1 is nothing", calm === null);
 const totalMp = pressureAfter([...Array<1 | 2>(10).fill(1), ...Array<1 | 2>(9).fill(2)], total11);
 check("pressure: total-rule last point is match point for the leader, not sudden death", totalMp?.matchPointFor === 1 && !totalMp.suddenDeath, JSON.stringify(totalMp));
 
+// --- win by two: the race runs on past the target like a tiebreak ------------
+const winBy2: ScoringConfig = { bestOfSets: 1, tiebreakMode: "race-to-16", raceTarget: 16, raceWinBy: 2 };
+
+const wb0 = play(Array<1 | 2>(16).fill(1), winBy2);
+check("win-by-2: 16-0 still ends at the target", wb0.endedAt === 16 && wb0.state.matchWinnerSlot === 1, `ended at ${wb0.endedAt}`);
+
+// 15-15 then one point is 16-15 — NOT enough with win by two.
+const lvl: (1 | 2)[] = [];
+for (let i = 0; i < 15; i++) lvl.push(1, 2);
+const at1615 = play([...lvl, 1], winBy2);
+check("win-by-2: 16-15 does not win it", at1615.state.matchWinnerSlot === null, JSON.stringify(at1615.state.curGamePoints));
+const at1715 = play([...lvl, 1, 1], winBy2);
+check("win-by-2: 17-15 takes it", at1715.state.matchWinnerSlot === 1, JSON.stringify(at1715.state.sets[0]?.tiebreak));
+
+// A long deuce: level at 20-20, then two in a row.
+const long: (1 | 2)[] = [];
+for (let i = 0; i < 20; i++) long.push(1, 2);
+check("win-by-2: 20-20 is still live", play(long, winBy2).state.matchWinnerSlot === null);
+check("win-by-2: 22-20 ends it", play([...long, 1, 1], winBy2).state.matchWinnerSlot === 1, JSON.stringify(play([...long, 1, 1], winBy2).state.sets[0]?.tiebreak));
+check("win-by-2: 21-20 does not", play([...long, 1], winBy2).state.matchWinnerSlot === null);
+
+// Sudden death is unchanged when win-by is not asked for.
+const sudden: ScoringConfig = { bestOfSets: 1, tiebreakMode: "race-to-16", raceTarget: 16 };
+check("sudden death still ends 16-15", play([...lvl, 1], sudden).state.matchWinnerSlot === 1);
+
+// Hand-entered scores follow the same rule.
+check("synth: 17-15 valid under win-by-2", synthPoints({ completedSets: [{ a: 17, b: 15 }] }, winBy2).matchWinnerSlot === 1);
+check("synth: 16-14 valid under win-by-2", synthPoints({ completedSets: [{ a: 16, b: 14 }] }, winBy2).matchWinnerSlot === 1);
+let wbThrew = "";
+try {
+  synthPoints({ completedSets: [{ a: 16, b: 15 }] }, winBy2);
+} catch (e) {
+  wbThrew = e instanceof Error ? e.message : "?";
+}
+check("synth: 16-15 rejected under win-by-2", wbThrew.includes("win by 2"), wbThrew);
+let wbThrew2 = "";
+try {
+  synthPoints({ completedSets: [{ a: 19, b: 15 }] }, winBy2);
+} catch (e) {
+  wbThrew2 = e instanceof Error ? e.message : "?";
+}
+check("synth: 19-15 rejected (past the target the margin is exactly two)", wbThrew2.includes("win by 2"), wbThrew2);
+
+// Match point reads correctly: at 16-15 either side can still only be one clear.
+{
+  const p = pressureInfo(play([...lvl, 1], winBy2).dto, winBy2);
+  check("win-by-2: 16-15 is match point for the leader, not sudden death", p?.matchPointFor === 1 && !p.suddenDeath, JSON.stringify(p));
+  const level = pressureInfo(play(lvl, winBy2).dto, winBy2);
+  check("win-by-2: 15-15 is not match point at all", level === null, JSON.stringify(level));
+}
+
+check("label: win by 2 is named", matchFormatLabel(1, winBy2) === "First to 16, win by 2", matchFormatLabel(1, winBy2));
+
 // --- labels & helpers --------------------------------------------------------
 check("label: first to 18", matchFormatLabel(1, to18) === "First to 18 points", matchFormatLabel(1, to18));
 check("label: total 20", matchFormatLabel(1, total11) === "20 points total", matchFormatLabel(1, total11));
