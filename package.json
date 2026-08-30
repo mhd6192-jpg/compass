@@ -12,6 +12,8 @@
     "start": "cross-env NODE_ENV=production node server.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
+    "check": "node scripts/runChecks.mjs",
+    "check:db": "node scripts/runChecks.mjs --db",
     "sim": "tsx scripts/simulate.ts",
     "reset": "tsx scripts/reset.ts"
   },
