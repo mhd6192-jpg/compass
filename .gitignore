@@ -11,3 +11,6 @@ node_modules
 tsconfig.tsbuildinfo
 .DS_Store
 .pglite-dev/
+
+# Local database backups — these contain real player names.
+backups/
