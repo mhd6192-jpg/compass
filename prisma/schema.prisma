@@ -40,11 +40,17 @@ model Player {
   name      String
   seed      Int
 
-  /// Team americano and mixicano: which of the two entry groups this player
-  /// belongs to (1 or 2). The two formats use it for opposite purposes — one
-  /// pairs you with your group, the other across the divide. 0 everywhere
-  /// else, where players are not grouped at all.
+  /// Which of the two entry groups this player belongs to (1 or 2), for every
+  /// format that splits the field in half. The formats use it for different
+  /// purposes — a team americano pairs you WITH your group and scores it as a
+  /// side, a mixicano pairs you ACROSS the divide, a mixed americano only ranks
+  /// the two halves separately. 0 where players are not grouped at all.
   team      Int      @default(0)
+
+  /// Mixed team americano only: the half WITHIN your team that pairs across
+  /// (1 or 2). That format needs both dimensions — `team` is the side you score
+  /// for, this is who you may partner — which no other format does. 0 elsewhere.
+  pairGroup Int      @default(0)
   createdAt DateTime @default(now())
 
   matchesAsP1 Match[] @relation("MatchP1")

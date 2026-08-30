@@ -32,6 +32,14 @@ import {
   openingRound as mixedOpeningRound,
   MIN_MIXED_MEXICANO_PLAYERS,
 } from "./mixedMexicano";
+import {
+  defaultMixedTeamRounds,
+  generateMixedTeamAmericano,
+  isValidMixedTeamField,
+  pairGroupOf,
+  teamOf as mixedTeamOf,
+  MIN_MIXED_TEAM_PLAYERS,
+} from "./mixedTeamAmericano";
 import { rebalanceCourts, DEFAULT_COURT_IDS } from "./courts";
 import { TiebreakMode, TournamentFormat } from "../types";
 import { resetV2State } from "../v2/reset";
@@ -106,6 +114,11 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
       `A mixed americano needs an even number of players, at least ${MIN_AMERICANO_PLAYERS}, so the two groups come out equal (got ${trimmed.length})`
     );
   }
+  if (format === "mixed-team-americano" && !isValidMixedTeamField(trimmed.length)) {
+    throw new Error(
+      `A mixed team americano needs two equal teams that each split into two halves — a multiple of four players, at least ${MIN_MIXED_TEAM_PLAYERS} (got ${trimmed.length})`
+    );
+  }
   const rotating =
     format === "americano" ||
     format === "mexicano" ||
@@ -114,7 +127,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
     format === "mixicano" ||
     format === "winner-court" ||
     format === "mixed-mexicano" ||
-    format === "mixed-americano";
+    format === "mixed-americano" ||
+    format === "mixed-team-americano";
   const amRounds = rotating
     ? opts.amRounds ||
       (format === "team-americano"
@@ -125,6 +139,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
         ? defaultWinnerCourtRounds(trimmed.length)
         : format === "mixed-mexicano"
         ? defaultMixedMexicanoRounds(trimmed.length)
+        : format === "mixed-team-americano"
+        ? defaultMixedTeamRounds(trimmed.length)
         : defaultRounds(trimmed.length))
     : 0;
 
@@ -149,14 +165,19 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
         // Both two-group formats record which half of the entry list a player
         // came from; everywhere else there are no groups and team stays 0.
         const team =
-          format === "team-americano"
+          format === "mixed-team-americano"
+            ? mixedTeamOf(i, trimmed.length)
+            : format === "team-americano"
             ? teamOf(i, trimmed.length)
             : format === "mixicano"
             ? groupOf(i, trimmed.length)
             : format === "mixed-mexicano" || format === "mixed-americano"
             ? mixedGroupOf(i, trimmed.length)
             : 0;
-        players.push(await tx.player.create({ data: { name: trimmed[i], seed: i, team } }));
+        // Only the mixed team americano needs a second division: which half of
+        // your own side you are allowed to partner across.
+        const pairGroup = format === "mixed-team-americano" ? pairGroupOf(i, trimmed.length) : 0;
+        players.push(await tx.player.create({ data: { name: trimmed[i], seed: i, team, pairGroup } }));
       }
 
       const courtIds = opts.courtIds?.length ? [...new Set(opts.courtIds)].sort((a, b) => a - b) : DEFAULT_COURT_IDS;
@@ -187,6 +208,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
             ? generateTeamAmericano(players.length, amRounds)
             : format === "mixicano"
             ? generateMixicano(players.length, amRounds)
+            : format === "mixed-team-americano"
+            ? generateMixedTeamAmericano(players.length, amRounds)
             : format === "winner-court"
             ? // Only the opening match is known: every later one depends on who
               // held the court and who is next off the queue.

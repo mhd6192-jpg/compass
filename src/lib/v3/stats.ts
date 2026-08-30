@@ -72,6 +72,8 @@ export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight
       eyebrow: americano
         ? format === "winner-court"
           ? "Most points so far"
+          : format === "mixed-team-americano"
+          ? "Top scorer"
           : format === "mixed-mexicano"
           ? "Leading the mixed mexicano"
           : format === "mixed-americano"

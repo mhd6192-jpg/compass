@@ -11,6 +11,7 @@ import { MIN_TEAM_AMERICANO_PLAYERS } from "@/lib/bracket/teamAmericano";
 import { MIN_MIXICANO_PLAYERS } from "@/lib/bracket/mixicano";
 import { MIN_WINNER_COURT_PLAYERS } from "@/lib/bracket/winnerCourt";
 import { MIN_MIXED_MEXICANO_PLAYERS } from "@/lib/bracket/mixedMexicano";
+import { MIN_MIXED_TEAM_PLAYERS } from "@/lib/bracket/mixedTeamAmericano";
 import { getIO, EVENTS } from "@/lib/socket";
 
 export async function POST(req: Request) {
@@ -27,7 +28,8 @@ export async function POST(req: Request) {
       format === "mixicano" ||
       format === "winner-court" ||
       format === "mixed-mexicano" ||
-      format === "mixed-americano"
+      format === "mixed-americano" ||
+      format === "mixed-team-americano"
         ? format
         : "compass";
     const rotating = isRotatingPartners(fmt);
@@ -45,6 +47,8 @@ export async function POST(req: Request) {
         ? MIN_WINNER_COURT_PLAYERS
         : fmt === "mixed-mexicano"
         ? MIN_MIXED_MEXICANO_PLAYERS
+        : fmt === "mixed-team-americano"
+        ? MIN_MIXED_TEAM_PLAYERS
         : rotating
         ? MIN_AMERICANO_PLAYERS
         : 3;
@@ -83,6 +87,13 @@ export async function POST(req: Request) {
     if (fmt === "mixed-americano" && names.length % 2 !== 0) {
       return NextResponse.json(
         { error: `A mixed americano needs an even number of players so the groups are equal (got ${names.length})` },
+        { status: 400 }
+      );
+    }
+    // Two equal teams that each split into two halves.
+    if (fmt === "mixed-team-americano" && names.length % 4 !== 0) {
+      return NextResponse.json(
+        { error: `A mixed team americano needs a multiple of four players (got ${names.length})` },
         { status: 400 }
       );
     }

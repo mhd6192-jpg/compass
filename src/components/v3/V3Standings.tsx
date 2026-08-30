@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { computeStandings, computeTeamStandings, findDecider, type StandingsRow } from "@/lib/standings";
-import { isGroupRanked, isRotatingPartners, type MatchDTO } from "@/lib/types";
+import { isGroupRanked, isRotatingPartners, isTeamScored, type MatchDTO } from "@/lib/types";
 import { mixicanoGroupName } from "@/lib/bracket/mixicano";
 
 /**
@@ -12,10 +12,10 @@ import { mixicanoGroupName } from "@/lib/bracket/mixicano";
  * shown on its own — which is also how the players read it.
  */
 function splitTables(matches: MatchDTO[], format?: string): Array<{ key: string; label: string | null; rows: StandingsRow[] }> {
-  // A team americano is decided by the two team totals, so that is the table —
+  // The team formats are decided by the two team totals, so that is the table —
   // with the individual scorers beside it, since people still want to see who
   // is actually winning the points for their side.
-  if (format === "team-americano") {
+  if (isTeamScored(format)) {
     return [
       { key: "teams", label: "Teams", rows: computeTeamStandings(matches) },
       { key: "players", label: "Players", rows: computeStandings(matches) },
@@ -203,7 +203,9 @@ export default function V3Standings({
           style={{ fontSize: "clamp(0.55rem, 1vw, 1rem)" }}
         >
           {subtitle ??
-            (format === "mixed-americano"
+            (format === "mixed-team-americano"
+              ? "Every point you win goes to your team · pairs are mixed within it"
+              : format === "mixed-americano"
               ? "Partners come from anywhere — each group has its own winner"
               : format === "mixed-mexicano"
               ? "Each group ranked on its own — the next round follows these tables"

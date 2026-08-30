@@ -8,7 +8,7 @@
  */
 import { computeStandings, computeTeamStandings } from "../standings";
 import { mixicanoGroupName } from "../bracket/mixicano";
-import { BRACKET_LABELS, BracketCode, MatchDTO, isRotatingPartners, isTeamAmericano } from "../types";
+import { BRACKET_LABELS, BracketCode, MatchDTO, isRotatingPartners, isTeamScored } from "../types";
 import type { AwardDTO } from "./stage";
 
 /** How deep the ceremony can go — nobody hands out ninth place. */
@@ -126,9 +126,9 @@ function twoGroupPodium(matches: MatchDTO[]): AwardDTO[] {
 }
 
 /**
- * A team americano is won by a SIDE, so the medals go to the teams — announcing
- * the highest individual scorer would be crowning someone the format never set
- * out to rank.
+ * The team formats are won by a SIDE, so the medals go to the teams —
+ * announcing the highest individual scorer would be crowning someone those
+ * formats never set out to rank.
  */
 function teamPodium(matches: MatchDTO[]): AwardDTO[] {
   return computeTeamStandings(matches)
@@ -143,7 +143,7 @@ function teamPodium(matches: MatchDTO[]): AwardDTO[] {
 
 /** The full ranked podium for this tournament, deepest place last. */
 export function computePodium(matches: MatchDTO[], format: string): AwardDTO[] {
-  if (isTeamAmericano(format)) return teamPodium(matches);
+  if (isTeamScored(format)) return teamPodium(matches);
   if (isRotatingPartners(format)) return rotatingPodium(matches);
   if (format === "round-robin") return groupPodium(matches);
   if (format === "two-group") return twoGroupPodium(matches);

@@ -14,7 +14,8 @@ export type TournamentFormat =
   | "mixicano"
   | "winner-court"
   | "mixed-mexicano"
-  | "mixed-americano";
+  | "mixed-americano"
+  | "mixed-team-americano";
 
 /**
  * The formats entered as individuals, where a match holds four people and the
@@ -25,7 +26,8 @@ export type TournamentFormat =
  * across two groups, a winner court keeps the winning pair on and queues
  * everybody else, a mixed mexicano redraws from the standings while keeping
  * every pair across the groups, and a mixed americano runs the plain rotation
- * but ranks the two groups separately. Everything downstream —
+ * but ranks the two groups separately, and a mixed team americano does the
+ * team americano with every pair mixed within its side. Everything downstream —
  * scoring, court booking, the four-people-per-match handling — treats them
  * identically; only the team americano differs at the end, where the result
  * belongs to a side rather than to a person.
@@ -39,7 +41,8 @@ export function isRotatingPartners(format: string | undefined): boolean {
     format === "mixicano" ||
     format === "winner-court" ||
     format === "mixed-mexicano" ||
-    format === "mixed-americano"
+    format === "mixed-americano" ||
+    format === "mixed-team-americano"
   );
 }
 
@@ -54,7 +57,8 @@ export function isTwoGroupEntry(format: string | undefined): boolean {
     format === "team-americano" ||
     format === "mixicano" ||
     format === "mixed-mexicano" ||
-    format === "mixed-americano"
+    format === "mixed-americano" ||
+    format === "mixed-team-americano"
   );
 }
 
@@ -94,6 +98,15 @@ export function isGroupRanked(format: string | undefined): boolean {
  */
 export function isTeamAmericano(format: string | undefined): boolean {
   return format === "team-americano";
+}
+
+export function isMixedTeamAmericano(format: string | undefined): boolean {
+  return format === "mixed-team-americano";
+}
+
+/** The formats whose result belongs to a side rather than to a person. */
+export function isTeamScored(format: string | undefined): boolean {
+  return format === "team-americano" || format === "mixed-team-americano";
 }
 
 /** Formats whose rounds are built as the night goes, so they cannot be previewed in full. */
@@ -300,8 +313,10 @@ export interface PlayerDTO {
   id: string;
   name: string;
   seed: number;
-  /** Team americano and mixicano: which of the two entry groups this player is in (1 or 2). */
+  /** Which of the two entry groups this player is in (1 or 2), for the formats that split the field. */
   team?: number;
+  /** Mixed team americano only: the half within the team that pairs across (1 or 2). */
+  pairGroup?: number;
 }
 
 export interface MatchStateDTO {
