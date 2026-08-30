@@ -51,23 +51,29 @@ function winnerName(match: MatchDTO): string | null {
   return match.winnerId === match.player1?.id ? match.player1?.name ?? null : match.player2?.name ?? null;
 }
 
-export function buildSpotlights(matches: MatchDTO[]): Spotlight[] {
+export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight[] {
   const done = matches.filter((m) => m.status === "completed" && !m.forcedEnd);
   const cards: Spotlight[] = [];
 
   if (done.length === 0) return cards;
 
   // --- who is having the best day ---
+  // In an americano the entrants are people and the table is ranked on points,
+  // so the card leads with the points total; a "team of the day" would be
+  // naming a pairing that only existed for one round.
+  const americano = format === "americano";
   const table = computeStandings(matches);
   const leader = table[0];
-  if (leader && leader.won > 0) {
+  if (leader && (americano ? leader.pointsFor > 0 : leader.won > 0)) {
     const played = leader.won + leader.lost;
     cards.push({
       key: "leader",
       icon: "🔥",
-      eyebrow: "Team of the day",
+      eyebrow: americano ? "Leading the americano" : "Team of the day",
       headline: leader.name,
-      detail: `${leader.won} ${leader.won === 1 ? "win" : "wins"} from ${played}`,
+      detail: americano
+        ? `${leader.pointsFor} points from ${played} ${played === 1 ? "match" : "matches"}`
+        : `${leader.won} ${leader.won === 1 ? "win" : "wins"} from ${played}`,
     });
   }
 
@@ -162,7 +168,7 @@ export function buildSpotlights(matches: MatchDTO[]): Spotlight[] {
 
   // --- the heaviest scorer, when it is not simply the leader ---
   const topScorer = [...table].sort((a, b) => b.pointsFor - a.pointsFor)[0];
-  if (topScorer && topScorer.pointsFor > 0 && topScorer.id !== leader?.id) {
+  if (!americano && topScorer && topScorer.pointsFor > 0 && topScorer.id !== leader?.id) {
     cards.push({
       key: "scorer",
       icon: "📈",

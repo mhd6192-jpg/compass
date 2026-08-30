@@ -20,9 +20,11 @@ const CONFIG: ScoringConfig = { bestOfSets: 1, tiebreakMode: "race-to-16" };
 type Row = Parameters<typeof buildMatchDTO>[0];
 
 function race16(lo: number) {
-  const s: { slot: number }[] = [];
-  for (let i = 0; i < lo; i++) s.push({ slot: 1 }, { slot: 2 });
-  for (let i = 0; i < 16 - lo; i++) s.push({ slot: 1 });
+  // `createdAt` matters: buildMatchDTO measures the gap between points.
+  const at = (n: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, n));
+  const s: { slot: number; createdAt: Date; tappedAt: Date | null }[] = [];
+  for (let i = 0; i < lo; i++) s.push({ slot: 1, createdAt: at(s.length), tappedAt: null }, { slot: 2, createdAt: at(s.length + 1), tappedAt: null });
+  for (let i = 0; i < 16 - lo; i++) s.push({ slot: 1, createdAt: at(s.length), tappedAt: null });
   return s;
 }
 const player = (id: string) => ({ id, name: id, seed: 0, createdAt: new Date() });
@@ -55,7 +57,8 @@ function row(bracket: string, p1: string | null, p2: string | null, winner: stri
     startedAt: winner ? new Date() : null,
     completedAt: winner ? new Date() : null,
     createdAt: new Date(),
-    points: winner ? (winner === p1 ? race16(lo) : race16(lo).map((x) => ({ slot: 3 - x.slot }))) : [],
+    // Mirroring the winner must keep the timestamps, not just the slots.
+    points: winner ? (winner === p1 ? race16(lo) : race16(lo).map((x) => ({ ...x, slot: 3 - x.slot }))) : [],
   } as unknown as Row;
 }
 

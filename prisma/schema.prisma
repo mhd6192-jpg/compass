@@ -11,7 +11,10 @@ datasource db {
 model TournamentConfig {
   id           String    @id @default("default")
   status       String    @default("setup") // setup | active | completed
-  format       String    @default("compass") // compass | round-robin | two-group
+  format       String    @default("compass") // compass | round-robin | two-group | americano
+
+  /// Americano only: how many rounds of rotating partners are scheduled.
+  amRounds     Int       @default(0)
 
   /// singles | doubles. Purely how the entrants are described and drawn on
   /// screen — the draw itself is identical either way, since an entrant is one
@@ -42,6 +45,10 @@ model Player {
   matchesAsP2 Match[] @relation("MatchP2")
   wonMatches  Match[] @relation("MatchWinner")
   lostMatches Match[] @relation("MatchLoser")
+
+  // Americano only — the second person on each side of a match.
+  matchesAsP1Partner Match[] @relation("MatchP1Partner")
+  matchesAsP2Partner Match[] @relation("MatchP2Partner")
 }
 
 model Court {
@@ -59,6 +66,14 @@ model Match {
   player2Id String?
   player1   Player? @relation("MatchP1", fields: [player1Id], references: [id])
   player2   Player? @relation("MatchP2", fields: [player2Id], references: [id])
+
+  /// Americano only: the entrants are individuals but a match is 2 v 2, so each
+  /// side is a pair. Null in every other format, where one Player row already
+  /// IS the whole side (a person in singles, a standing pair in doubles).
+  player1PartnerId String?
+  player2PartnerId String?
+  player1Partner   Player? @relation("MatchP1Partner", fields: [player1PartnerId], references: [id])
+  player2Partner   Player? @relation("MatchP2Partner", fields: [player2PartnerId], references: [id])
 
   winnerId String?
   loserId  String?

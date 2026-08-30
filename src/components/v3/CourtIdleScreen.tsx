@@ -119,7 +119,7 @@ export default function CourtIdleScreen({
           </div>
           <div className="w-[26%] shrink-0 flex">
             <div className="flex-1 flex">
-              <IdleSpotlight matches={matches} />
+              <IdleSpotlight matches={matches} format={format} />
             </div>
           </div>
         </div>

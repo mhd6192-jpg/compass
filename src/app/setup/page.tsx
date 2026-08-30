@@ -8,6 +8,15 @@ import { arrangeDraw } from "@/lib/bracket/seedArrange";
 
 import { isPointsRace, type TiebreakMode, type TournamentFormat } from "@/lib/types";
 import { MIN_TWO_GROUP_TEAMS, splitGroups, twoGroupMatchCount } from "@/lib/bracket/twoGroup";
+import {
+  defaultRounds,
+  generateAmericano,
+  matchesPerRound,
+  scheduleQuality,
+  MAX_AMERICANO_PLAYERS,
+  MAX_AMERICANO_ROUNDS,
+  MIN_AMERICANO_PLAYERS,
+} from "@/lib/bracket/americano";
 
 /** The set-based options never change; the race options describe themselves with the chosen target. */
 function tiebreakOptions(target: number): { value: TiebreakMode; title: string; desc: string }[] {
@@ -70,16 +79,20 @@ const GROUP_DRAW = ["Alpha/Bravo", "Charlie/Delta", "Echo/Foxtrot", "Golf/Hotel"
 export default function SetupPage() {
   const [status, setStatus] = useState<"loading" | "setup" | "active" | "completed">("loading");
   const [discipline, setDiscipline] = useState<"singles" | "doubles">("doubles");
-  // Wording only: an entrant is one row in the draw either way.
-  const entrantLabel = discipline === "singles" ? "Player" : "Team";
-  const entrantsLabel = discipline === "singles" ? "Players" : "Teams";
   const [format, setFormat] = useState<TournamentFormat>("compass");
+  // Wording only: an entrant is one row in the draw either way. An americano is
+  // always entered as individuals, however the club normally plays — the whole
+  // point of the format is that the pairs are made up as it goes.
+  const americano = format === "americano";
+  const entrantLabel = americano || discipline === "singles" ? "Player" : "Team";
+  const entrantsLabel = americano || discipline === "singles" ? "Players" : "Teams";
   const [names, setNames] = useState<string[]>(Array(16).fill(""));
   const [rrNames, setRrNames] = useState<string[]>(Array(7).fill(""));
   const [seeds, setSeeds] = useState<(number | "")[]>(Array(16).fill(""));
   const [arrange, setArrange] = useState(true);
   const [bestOfSets, setBestOfSets] = useState(1);
   const [tiebreakMode, setTiebreakMode] = useState<TiebreakMode>("standard");
+  const [amRounds, setAmRounds] = useState(0); // 0 = use the default for the field size
   const [raceTarget, setRaceTarget] = useState(16);
   const [serveEvery, setServeEvery] = useState(4);
   const [pin, setPin] = useState("");
@@ -103,6 +116,10 @@ export default function SetupPage() {
   }
   function loadGroupDraw() {
     setRrNames(GROUP_DRAW);
+    if (!pin) setPin("1234");
+  }
+  function loadAmericanoDemo() {
+    setRrNames(Array.from({ length: 8 }, (_, i) => `Player ${i + 1}`));
     if (!pin) setPin("1234");
   }
   function updateSeed(i: number, value: string) {
@@ -141,6 +158,20 @@ export default function SetupPage() {
     return pairs;
   }, [names, seeds, arrange]);
 
+  // The americano rotation, previewed from the same generator the seeder uses,
+  // so what the organiser reads here is exactly the draw they get.
+  const amPlayerCount = rrNames.filter((n) => n.trim()).length;
+  const effectiveRounds = amRounds || defaultRounds(Math.max(amPlayerCount, MIN_AMERICANO_PLAYERS));
+  const amPreview = useMemo(() => {
+    if (format !== "americano" || amPlayerCount < MIN_AMERICANO_PLAYERS || amPlayerCount > MAX_AMERICANO_PLAYERS) return null;
+    try {
+      const schedule = generateAmericano(amPlayerCount, effectiveRounds);
+      return { schedule, quality: scheduleQuality(schedule, amPlayerCount) };
+    } catch {
+      return null;
+    }
+  }, [format, amPlayerCount, effectiveRounds]);
+
   // Who lands in which group, using the same alternating split the seeder uses.
   const groupPreview = useMemo(() => {
     const teams = rrNames.map((n) => n.trim()).filter(Boolean);
@@ -162,6 +193,10 @@ export default function SetupPage() {
     }
     if (format === "round-robin" && trimmed.filter(Boolean).length < 3) {
       setError("Enter at least 3 teams.");
+      return;
+    }
+    if (format === "americano" && trimmed.filter(Boolean).length < MIN_AMERICANO_PLAYERS) {
+      setError(`Enter at least ${MIN_AMERICANO_PLAYERS} players for an americano.`);
       return;
     }
     if (pin.trim().length < 4) {
@@ -188,6 +223,7 @@ export default function SetupPage() {
           tiebreakMode,
           raceTarget,
           serveEvery,
+          amRounds: amRounds || effectiveRounds,
           pin: pin.trim(),
         }),
       });
@@ -272,7 +308,13 @@ export default function SetupPage() {
             <ClubLogo size={48} />
           </div>
           <h1 className="font-display text-2xl uppercase mb-2">Draw is live!</h1>
-          <p className="text-white/50 mb-1">East Round of 16 is seeded and courts are assigned.</p>
+          <p className="text-white/50 mb-1">
+            {americano
+              ? `Round 1 is on the courts. ${effectiveRounds} rounds of rotating partners are scheduled.`
+              : format === "compass"
+              ? "East Round of 16 is seeded and courts are assigned."
+              : "The fixtures are generated and courts are assigned."}
+          </p>
           <p className="text-white/70 mb-6">
             Coach PIN: <span className="font-mono font-bold text-gold">{pin}</span>
           </p>
@@ -299,12 +341,16 @@ export default function SetupPage() {
         <div>
           <h1 className="font-display text-3xl sm:text-4xl font-bold uppercase">Tournament Setup</h1>
           <p className="text-white/50 mt-2 text-sm">
-            Enter the 16 {entrantsLabel.toLowerCase()}. Add seeds (1 = strongest) so top seeds meet late.
+            {americano
+              ? "Enter everyone playing. Partners are drawn for you and change every round."
+              : format === "compass"
+              ? `Enter the 16 ${entrantsLabel.toLowerCase()}. Add seeds (1 = strongest) so top seeds meet late.`
+              : `Enter the ${entrantsLabel.toLowerCase()} taking part.`}
           </p>
         </div>
       </header>
 
-      <section className="mb-6">
+      <section className={`mb-6 ${americano ? "hidden" : ""}`}>
         <h2 className="font-display uppercase text-lg text-white/80 mb-3">Singles or doubles</h2>
         <div className="grid grid-cols-2 gap-2">
           {([
@@ -340,6 +386,11 @@ export default function SetupPage() {
               title: "Two groups → semis → final",
               desc: `Split into Group A and Group B, each a round robin. The top two of each group cross over into the semifinals (A1 v B2, B1 v A2), and the winners meet in the final. Needs at least ${MIN_TWO_GROUP_TEAMS} teams.`,
             },
+            {
+              value: "americano",
+              title: "Americano (rotating partners)",
+              desc: `Enter individuals, not pairs. Every round everyone gets a new partner and a new pair of opponents, and each player keeps their own running points total — the winner is the highest scorer, not a team. Needs at least ${MIN_AMERICANO_PLAYERS} players.`,
+            },
           ] as { value: TournamentFormat; title: string; desc: string }[]).map((opt) => (
             <button
               key={opt.value}
@@ -349,6 +400,13 @@ export default function SetupPage() {
                 if (opt.value === "two-group") {
                   setTiebreakMode("race-to-16");
                   setBestOfSets(1);
+                }
+                // An americano is always a short race to a points total — that
+                // running total IS the tournament, so sets would make no sense.
+                if (opt.value === "americano") {
+                  setTiebreakMode("race-to-16");
+                  setBestOfSets(1);
+                  setRaceTarget(16);
                 }
               }}
               className={`text-left rounded-xl border p-3 transition-colors ${
@@ -413,9 +471,15 @@ export default function SetupPage() {
         <section className="mb-6">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h2 className="font-display uppercase text-lg text-white/80">{entrantsLabel}</h2>
-            <button onClick={loadGroupDraw} type="button" className="text-xs text-gold underline underline-offset-4">
-              Load example group (7 {entrantsLabel.toLowerCase()})
-            </button>
+            {americano ? (
+              <button onClick={loadAmericanoDemo} type="button" className="text-xs text-gold underline underline-offset-4">
+                Load 8 demo players
+              </button>
+            ) : (
+              <button onClick={loadGroupDraw} type="button" className="text-xs text-gold underline underline-offset-4">
+                Load example group (7 {entrantsLabel.toLowerCase()})
+              </button>
+            )}
           </div>
 
           <div className="grid gap-1.5">
@@ -425,10 +489,10 @@ export default function SetupPage() {
                 <input
                   value={n}
                   onChange={(e) => updateRrName(i, e.target.value)}
-                  placeholder={`${entrantLabel} ${i + 1}${discipline === "doubles" ? " (e.g. Alpha/Bravo)" : ""}`}
+                  placeholder={`${entrantLabel} ${i + 1}${!americano && discipline === "doubles" ? " (e.g. Alpha/Bravo)" : ""}`}
                   className="flex-1 min-w-0 bg-court-panel2 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 ring-gold/50"
                 />
-                {rrNames.length > 3 && (
+                {rrNames.length > (americano ? MIN_AMERICANO_PLAYERS : 3) && (
                   <button
                     type="button"
                     onClick={() => setRrNames((prev) => prev.filter((_, idx) => idx !== i))}
@@ -448,7 +512,15 @@ export default function SetupPage() {
           >
             + Add {entrantLabel.toLowerCase()}
           </button>
-          {format === "two-group" ? (
+          {americano ? (
+            <p className={`text-xs mt-3 ${amPlayerCount >= MIN_AMERICANO_PLAYERS ? "text-white/40" : "text-live"}`}>
+              {amPlayerCount < MIN_AMERICANO_PLAYERS
+                ? `Enter at least ${MIN_AMERICANO_PLAYERS} players — a round needs four people on court.`
+                : `${amPlayerCount} players → ${matchesPerRound(amPlayerCount)} match${
+                    matchesPerRound(amPlayerCount) === 1 ? "" : "es"
+                  } per round${amPlayerCount % 4 !== 0 ? `, with ${amPlayerCount % 4} sitting out each round (taking turns)` : ""}.`}
+            </p>
+          ) : format === "two-group" ? (
             <p className="text-white/40 text-xs mt-3">
               Split into two groups, alternating down this list ({rrNames.filter((n) => n.trim()).length} teams →{" "}
               {twoGroupMatchCount(Math.max(rrNames.filter((n) => n.trim()).length, MIN_TWO_GROUP_TEAMS))} matches). Each group is a round
@@ -459,6 +531,84 @@ export default function SetupPage() {
               Every team plays every other team once ({rrNames.length} teams → {(rrNames.length * (rrNames.length - 1)) / 2} matches).
               Standings are ranked by matches won.
             </p>
+          )}
+        </section>
+      )}
+
+      {americano && (
+        <section className="mb-6">
+          <h2 className="font-display uppercase text-lg text-white/80 mb-1">Rounds</h2>
+          <p className="text-white/40 text-xs mb-3">
+            How many times everyone changes partners. {MIN_AMERICANO_PLAYERS <= amPlayerCount ? `With ${amPlayerCount} players you can play up to ${amPlayerCount - 1} rounds before anyone has to repeat a partner.` : ""}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {[4, 5, 6, 7, 8, 10].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setAmRounds(n)}
+                className={`rounded-xl px-4 py-2.5 font-display text-sm border ${
+                  effectiveRounds === n ? "bg-gold text-court-bg border-gold font-bold" : "border-court-line text-white/60"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+            <label className="flex items-center gap-2 ml-1">
+              <span className="text-white/40 text-xs uppercase tracking-widest">Custom</span>
+              <input
+                value={[4, 5, 6, 7, 8, 10].includes(effectiveRounds) ? "" : String(effectiveRounds)}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value, 10);
+                  if (Number.isInteger(n)) setAmRounds(Math.max(1, Math.min(MAX_AMERICANO_ROUNDS, n)));
+                }}
+                placeholder="…"
+                inputMode="numeric"
+                className="w-16 bg-court-panel2 border border-court-line rounded-lg px-2 py-2 text-sm text-center outline-none focus:ring-2 ring-gold/50"
+              />
+            </label>
+          </div>
+
+          {amPreview && (
+            <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">
+              <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+                <p className="font-display uppercase text-sm text-gold">Rotation preview</p>
+                <p className="text-white/40 text-xs">
+                  {amPreview.schedule.matches.length} matches ·{" "}
+                  {amPreview.quality.minMatches === amPreview.quality.maxMatches
+                    ? `${amPreview.quality.minMatches} each`
+                    : `${amPreview.quality.minMatches}–${amPreview.quality.maxMatches} each`}
+                  {amPreview.quality.repeatedPartnerships === 0
+                    ? " · nobody repeats a partner"
+                    : ` · ${amPreview.quality.repeatedPartnerships} repeated partnership${
+                        amPreview.quality.repeatedPartnerships === 1 ? "" : "s"
+                      }`}
+                </p>
+              </div>
+              <div className="grid gap-2 max-h-72 overflow-y-auto pr-1">
+                {Array.from({ length: effectiveRounds }, (_, r) => {
+                  const round = r + 1;
+                  const roundMatches = amPreview.schedule.matches.filter((m) => m.round === round);
+                  const sitting = amPreview.schedule.sitOuts[r] ?? [];
+                  const nameOf = (i: number) => rrNames.filter((n) => n.trim())[i]?.trim() ?? `#${i + 1}`;
+                  return (
+                    <div key={round} className="rounded-lg bg-court-panel2 px-3 py-2">
+                      <p className="font-display uppercase text-[10px] tracking-[0.25em] text-white/35 mb-1">Round {round}</p>
+                      {roundMatches.map((m) => (
+                        <p key={m.posIndex} className="text-xs text-white/75 truncate py-0.5">
+                          {nameOf(m.team1[0])} &amp; {nameOf(m.team1[1])}
+                          <span className="text-white/30 mx-1.5">vs</span>
+                          {nameOf(m.team2[0])} &amp; {nameOf(m.team2[1])}
+                        </p>
+                      ))}
+                      {sitting.length > 0 && (
+                        <p className="text-[11px] text-white/30 mt-0.5">Sitting out: {sitting.map(nameOf).join(", ")}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </section>
       )}

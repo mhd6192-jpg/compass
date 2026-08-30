@@ -30,6 +30,7 @@ const FRIENDLY_LABELS: Record<BracketCode, string> = {
   GB: "Group B",
   SF: "Semifinal",
   F: "Final",
+  AM: "Americano",
 };
 
 function MatchLine({ match }: { match: MatchDTO }) {

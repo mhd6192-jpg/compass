@@ -1,4 +1,4 @@
-import type { MatchDTO } from "../types";
+import { participantIds, type MatchDTO } from "../types";
 
 /**
  * Swapping the match a court is about to play.
@@ -39,13 +39,16 @@ export function candidateLocation(match: MatchDTO): string | null {
  * the thing being moved.
  */
 export function eligibleReplacements(matches: MatchDTO[], outgoing: MatchDTO): MatchDTO[] {
-  const teamIds = (m: MatchDTO) => [m.player1?.id, m.player2?.id].filter(Boolean) as string[];
+  const teamIds = (m: MatchDTO) => participantIds(m);
 
   return matches.filter((cand) => {
     if (cand.id === outgoing.id) return false;
     if (cand.status === "completed" || cand.status === "in_progress") return false;
     if (!cand.player1 || !cand.player2) return false; // the draw hasn't decided who plays this yet
     if (cand.state.totalPoints > 0) return false; // part-scored somewhere — don't move it
+    // An americano round that has not been let out yet is not a legal
+    // substitute: pulling one forward would jump the rotation.
+    if (cand.status === "pending") return false;
 
     const wanted = teamIds(cand);
     const clash = matches.some((m) => {

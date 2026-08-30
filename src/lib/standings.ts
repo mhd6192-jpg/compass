@@ -45,6 +45,14 @@ function pointsInSet(set: { games: [number, number]; tiebreak?: [number, number]
  * Standings ranked by wins, then total points scored (tiebreaker), then fewest
  * losses, then name. If a play-off was played, its winner and loser are lifted
  * to first and second regardless of that ordering — the match settles the title.
+ *
+ * Americano is ranked the other way up — by points first — and credits the
+ * FOUR individuals in each match rather than the two rows. Partners rotate
+ * every round there, so a result belongs to people, not to a side; ranking on
+ * wins would also be close to meaningless when everybody wins about half their
+ * matches with different partners. Both cases are handled here rather than in a
+ * parallel function so that every table, podium and player card in the app
+ * gets americano right without knowing it exists.
  */
 export function computeStandings(matches: MatchDTO[]): StandingsRow[] {
   const rows = new Map<string, StandingsRow>();
@@ -52,35 +60,50 @@ export function computeStandings(matches: MatchDTO[]): StandingsRow[] {
     if (!rows.has(id)) rows.set(id, { id, name, played: 0, won: 0, lost: 0, pointsFor: 0, pointsAgainst: 0 });
     return rows.get(id)!;
   };
+  // Set by any match whose sides are pairs of individuals — i.e. an americano.
+  let byIndividual = false;
+
   for (const m of matches) {
     if (!m.player1 || !m.player2) continue;
-    ensure(m.player1.id, m.player1.name);
-    ensure(m.player2.id, m.player2.name);
+    const side1 = m.player1Members ?? [m.player1];
+    const side2 = m.player2Members ?? [m.player2];
+    if (m.player1Members || m.player2Members) byIndividual = true;
+    for (const p of [...side1, ...side2]) ensure(p.id, p.name);
+
     if (isDeciderMatch(m) || isKnockoutMatch(m)) continue; // settle placings, not the group record
     if (m.status !== "completed" || !m.winnerId) continue;
 
-    const winnerId = m.winnerId;
-    const loserId = m.winnerId === m.player1.id ? m.player2.id : m.player1.id;
-    const winnerRow = ensure(winnerId, m.winnerId === m.player1.id ? m.player1.name : m.player2.name);
-    const loserRow = ensure(loserId, loserId === m.player1.id ? m.player1.name : m.player2.name);
-    winnerRow.won++;
-    loserRow.lost++;
-    winnerRow.played++;
-    loserRow.played++;
+    const p1IsWinner = m.winnerId === m.player1.id;
+    const winners = p1IsWinner ? side1 : side2;
+    const losers = p1IsWinner ? side2 : side1;
 
-    const p1IsWinner = winnerId === m.player1.id;
+    let winnerPts = 0;
+    let loserPts = 0;
     for (const set of m.state.completedSets) {
-      const winnerPts = pointsInSet(set, p1IsWinner ? 0 : 1);
-      const loserPts = pointsInSet(set, p1IsWinner ? 1 : 0);
-      winnerRow.pointsFor += winnerPts;
-      winnerRow.pointsAgainst += loserPts;
-      loserRow.pointsFor += loserPts;
-      loserRow.pointsAgainst += winnerPts;
+      winnerPts += pointsInSet(set, p1IsWinner ? 0 : 1);
+      loserPts += pointsInSet(set, p1IsWinner ? 1 : 0);
+    }
+
+    for (const p of winners) {
+      const row = ensure(p.id, p.name);
+      row.won++;
+      row.played++;
+      row.pointsFor += winnerPts;
+      row.pointsAgainst += loserPts;
+    }
+    for (const p of losers) {
+      const row = ensure(p.id, p.name);
+      row.lost++;
+      row.played++;
+      row.pointsFor += loserPts;
+      row.pointsAgainst += winnerPts;
     }
   }
 
-  const ranked = [...rows.values()].sort(
-    (a, b) => b.won - a.won || b.pointsFor - a.pointsFor || a.lost - b.lost || a.name.localeCompare(b.name)
+  const ranked = [...rows.values()].sort((a, b) =>
+    byIndividual
+      ? b.pointsFor - a.pointsFor || b.won - a.won || a.pointsAgainst - b.pointsAgainst || a.name.localeCompare(b.name)
+      : b.won - a.won || b.pointsFor - a.pointsFor || a.lost - b.lost || a.name.localeCompare(b.name)
   );
 
   const decider = matches.find((m) => isDeciderMatch(m) && m.status === "completed" && m.winnerId);

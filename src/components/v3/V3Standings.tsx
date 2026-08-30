@@ -45,7 +45,18 @@ const PODIUM: Record<number, { medal: string; row: string; rank: string; name: s
   },
 };
 
-function Row({ row, rank, ranked }: { row: StandingsRow; rank: number; ranked: boolean }) {
+function Row({
+  row,
+  rank,
+  ranked,
+  pointsFirst,
+}: {
+  row: StandingsRow;
+  rank: number;
+  ranked: boolean;
+  /** Americano ranks on points, so points lead the row and carry the emphasis. */
+  pointsFirst?: boolean;
+}) {
   // Medals only once results exist. On an untouched table every team is level,
   // so a gold row would just be crowning whoever sorted first.
   const podium = ranked ? PODIUM[rank] : undefined;
@@ -71,7 +82,13 @@ function Row({ row, rank, ranked }: { row: StandingsRow; rank: number; ranked: b
       </span>
 
       <span className="shrink-0 flex items-center gap-[0.55em] font-display tabular-nums">
-        <span className={`text-center ${podium ? podium.rank : "text-white/80"}`} style={{ minWidth: "1.6em" }}>
+        {pointsFirst && (
+          <span className={`text-center font-bold ${podium ? podium.rank : "text-gold"}`} style={{ minWidth: "2.6em", fontSize: "1.15em" }}>
+            {row.pointsFor}
+            <span className="text-white/30 text-[0.5em] uppercase tracking-widest ml-[0.25em]">pts</span>
+          </span>
+        )}
+        <span className={`text-center ${pointsFirst ? "text-white/55" : podium ? podium.rank : "text-white/80"}`} style={{ minWidth: "1.6em" }}>
           {row.won}
           <span className="text-white/30 text-[0.55em] uppercase tracking-widest ml-[0.25em]">W</span>
         </span>
@@ -79,10 +96,12 @@ function Row({ row, rank, ranked }: { row: StandingsRow; rank: number; ranked: b
           {row.lost}
           <span className="text-white/25 text-[0.55em] uppercase tracking-widest ml-[0.25em]">L</span>
         </span>
-        <span className="text-center text-white/70" style={{ minWidth: "2.6em" }}>
-          {row.pointsFor}
-          <span className="text-white/25 text-[0.55em] uppercase tracking-widest ml-[0.25em]">pts</span>
-        </span>
+        {!pointsFirst && (
+          <span className="text-center text-white/70" style={{ minWidth: "2.6em" }}>
+            {row.pointsFor}
+            <span className="text-white/25 text-[0.55em] uppercase tracking-widest ml-[0.25em]">pts</span>
+          </span>
+        )}
       </span>
     </motion.div>
   );
@@ -158,7 +177,9 @@ export default function V3Standings({
           style={{ fontSize: "clamp(0.55rem, 1vw, 1rem)" }}
         >
           {subtitle ??
-            (format === "two-group"
+            (format === "americano"
+              ? "Ranked on points won — partners change every round"
+              : format === "two-group"
               ? "Top two of each group reach the semifinals"
               : findDecider(matches)
                 ? "Top two settled by the deciding final"
@@ -176,7 +197,13 @@ export default function V3Standings({
                 </p>
               )}
               {table.rows.map((row, i) => (
-                <Row key={row.id} row={row} rank={i + 1} ranked={table.rows.some((r) => r.won + r.lost > 0)} />
+                <Row
+                  key={row.id}
+                  row={row}
+                  rank={i + 1}
+                  ranked={table.rows.some((r) => r.won + r.lost > 0)}
+                  pointsFirst={format === "americano"}
+                />
               ))}
             </div>
           ))}

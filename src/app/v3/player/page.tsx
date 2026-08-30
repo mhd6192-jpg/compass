@@ -8,7 +8,7 @@ import BracketBadge from "@/components/shared/BracketBadge";
 import { Ball } from "@/components/v3/ServeIndicator";
 import { useV3Store } from "@/store/useV3Store";
 import { useV3PlayerStore } from "@/store/useV3PlayerStore";
-import { buildPlayerView, opponentOf, ordinal, teamsIn, type PlayerStatus, type PlayerView } from "@/lib/v3/player";
+import { buildPlayerView, opponentOf, ordinal, partnerOf, teamsIn, type PlayerStatus, type PlayerView } from "@/lib/v3/player";
 import { scoreLine } from "@/lib/v3/venue";
 import { formatMatchScoreLine } from "@/lib/scoring/format";
 import type { MatchDTO, PlayerDTO } from "@/lib/types";
@@ -55,6 +55,9 @@ function NextUp({ status, teamId }: { status: PlayerStatus; teamId: string }) {
 
   const opponent = opponentOf(status.match, teamId);
   const vs = opponent?.name ?? "TBD";
+  // Americano only. Who you are playing WITH changes every round and is the
+  // first thing anyone wants off this screen — more than the opponents.
+  const partner = partnerOf(status.match, teamId);
 
   if (status.kind === "playing") {
     const score = scoreLine(status.match);
@@ -71,6 +74,12 @@ function NextUp({ status, teamId }: { status: PlayerStatus; teamId: string }) {
           <span className="font-display uppercase tracking-[0.25em] text-live text-xs">You are on court now</span>
         </div>
         <p className="font-display uppercase font-bold text-3xl">Court {status.courtId}</p>
+        {partner && (
+          <p className="font-display uppercase text-gold mt-2">
+            <span className="text-gold/60 text-xs tracking-[0.25em] mr-2">WITH</span>
+            {partner.name}
+          </p>
+        )}
         <p className="text-white/55 mt-1">vs {vs}</p>
         <div className="flex items-baseline gap-3 mt-4">
           <span className="font-display font-bold text-5xl text-gold tabular-nums">{mine}</span>
@@ -95,6 +104,12 @@ function NextUp({ status, teamId }: { status: PlayerStatus; teamId: string }) {
           </span>
         </div>
         <p className="font-display uppercase font-bold text-3xl">Court {status.courtId}</p>
+        {partner && (
+          <p className="font-display uppercase text-gold mt-2">
+            <span className="text-gold/60 text-xs tracking-[0.25em] mr-2">WITH</span>
+            {partner.name}
+          </p>
+        )}
         <p className="text-white/55 mt-1">vs {vs}</p>
         <p className="text-white/40 text-sm mt-4">
           {status.queuedBehind
@@ -118,6 +133,12 @@ function NextUp({ status, teamId }: { status: PlayerStatus; teamId: string }) {
   return (
     <div className="rounded-3xl border border-court-line bg-court-panel p-6">
       <p className="font-display uppercase tracking-[0.25em] text-white/45 text-xs mb-3">Your next match</p>
+      {partner && (
+        <p className="font-display uppercase text-gold mb-1">
+          <span className="text-gold/60 text-xs tracking-[0.25em] mr-2">WITH</span>
+          {partner.name}
+        </p>
+      )}
       <p className="font-display uppercase font-bold text-2xl break-words">vs {vs}</p>
       <p className="text-white/45 text-sm mt-3">
         Waiting for a court — {status.onCourtNow} match{status.onCourtNow === 1 ? "" : "es"} being played, {status.waiting}{" "}
@@ -213,14 +234,18 @@ function PlayerCard({ view, onChange }: { view: PlayerView; onChange: () => void
         <section className="rounded-2xl border border-court-line bg-court-panel p-4">
           <h2 className="font-display uppercase text-sm text-white/60 mb-3">Still to play</h2>
           <div className="flex flex-col gap-2">
-            {view.upcoming.slice(1).map((m) => (
-              <div key={m.id} className="flex items-center gap-3">
-                <BracketBadge bracket={m.bracket} roundName={m.roundName} size="sm" />
-                <span className="flex-1 min-w-0 truncate text-white/60 text-sm">
-                  {opponentOf(m, team.id)?.name ?? "TBD"}
-                </span>
-              </div>
-            ))}
+            {view.upcoming.slice(1).map((m) => {
+              const mate = partnerOf(m, team.id);
+              return (
+                <div key={m.id} className="flex items-center gap-3">
+                  <BracketBadge bracket={m.bracket} roundName={m.roundName} size="sm" />
+                  <span className="flex-1 min-w-0 truncate text-white/60 text-sm">
+                    {mate && <span className="text-gold/80">with {mate.name} </span>}
+                    <span className="text-white/30">vs</span> {opponentOf(m, team.id)?.name ?? "TBD"}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

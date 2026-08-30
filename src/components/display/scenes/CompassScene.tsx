@@ -18,6 +18,7 @@ const ARROWS: Record<BracketCode, string> = {
   GB: "◎",
   SF: "◈",
   F: "★",
+  AM: "◎",
 };
 
 function DirectionCell({ bracket, matches }: { bracket: BracketCode; matches: MatchDTO[] }) {

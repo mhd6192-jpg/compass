@@ -19,11 +19,13 @@ const CONFIG: ScoringConfig = { bestOfSets: 1, tiebreakMode: "race-to-16" };
 /** Point sequence for a race-to-16 win by `winner` with the loser on `lo`. */
 function race16(winner: 1 | 2, lo: number) {
   const l: 1 | 2 = winner === 1 ? 2 : 1;
-  const s: { slot: number }[] = [];
+  // `createdAt` matters: buildMatchDTO measures the gap between points.
+  const at = (n: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, n));
+  const s: { slot: number; createdAt: Date; tappedAt: Date | null }[] = [];
   for (let i = 0; i < lo; i++) {
-    s.push({ slot: winner }, { slot: l });
+    s.push({ slot: winner, createdAt: at(s.length), tappedAt: null }, { slot: l, createdAt: at(s.length + 1), tappedAt: null });
   }
-  for (let i = 0; i < 16 - lo; i++) s.push({ slot: winner });
+  for (let i = 0; i < 16 - lo; i++) s.push({ slot: winner, createdAt: at(s.length), tappedAt: null });
   return s;
 }
 

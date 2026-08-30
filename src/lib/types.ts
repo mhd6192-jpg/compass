@@ -1,8 +1,44 @@
 // E..SW are the compass draw. RR is a single round-robin group. GA/GB/SF/F are
 // the two-group format: two groups feeding semifinals and a final.
-export type BracketCode = "E" | "W" | "N" | "S" | "NE" | "SE" | "NW" | "SW" | "RR" | "GA" | "GB" | "SF" | "F";
+// AM is the americano rotation: no bracket at all, just numbered rounds.
+export type BracketCode = "E" | "W" | "N" | "S" | "NE" | "SE" | "NW" | "SW" | "RR" | "GA" | "GB" | "SF" | "F" | "AM";
 
-export type TournamentFormat = "compass" | "round-robin" | "two-group";
+export type TournamentFormat = "compass" | "round-robin" | "two-group" | "americano";
+
+/**
+ * The one format whose entrants are individuals rather than sides: partners
+ * rotate every round, so a match holds four people and nobody's result belongs
+ * to a fixed team.
+ */
+export function isAmericano(format: string | undefined): boolean {
+  return format === "americano";
+}
+
+/** How a side's pairing is written wherever two names share a scoreboard row. */
+export function pairLabel(names: string[]): string {
+  return names.filter(Boolean).join(" & ");
+}
+
+/**
+ * Everyone on court in this match.
+ *
+ * Four people in americano, two entrants everywhere else. Anything asking "is
+ * this person already busy" or "who does this result belong to" has to go
+ * through here — reading `player1Id`/`player2Id` alone silently ignores half
+ * the court in an americano, which is how you double-book someone.
+ */
+export function participantIds(match: {
+  player1?: { id: string } | null;
+  player2?: { id: string } | null;
+  player1Members?: { id: string }[] | null;
+  player2Members?: { id: string }[] | null;
+}): string[] {
+  const sides = [
+    match.player1Members ?? (match.player1 ? [match.player1] : []),
+    match.player2Members ?? (match.player2 ? [match.player2] : []),
+  ];
+  return sides.flat().map((p) => p.id);
+}
 
 export type MatchStatus =
   | "pending" // one or both players not yet known
@@ -89,6 +125,7 @@ export const BRACKET_LABELS: Record<BracketCode, string> = {
   GB: "Group B",
   SF: "Semifinal",
   F: "Final",
+  AM: "Americano",
 };
 
 export const BRACKET_TOTAL_ROUNDS: Record<BracketCode, number> = {
@@ -105,6 +142,8 @@ export const BRACKET_TOTAL_ROUNDS: Record<BracketCode, number> = {
   GB: 1,
   SF: 1,
   F: 1,
+  // Americano rounds are configured per tournament, not fixed by the format.
+  AM: 1,
 };
 
 export const BRACKET_ROUND1_MATCHES: Record<BracketCode, number> = {
@@ -121,6 +160,7 @@ export const BRACKET_ROUND1_MATCHES: Record<BracketCode, number> = {
   GB: 0,
   SF: 2,
   F: 1,
+  AM: 0,
 };
 
 export const ROUND_NAMES: Record<BracketCode, string[]> = {
@@ -139,6 +179,8 @@ export const ROUND_NAMES: Record<BracketCode, string[]> = {
   GB: ["Group B"],
   SF: ["Semifinal"],
   F: ["Final"],
+  // Named per round at render time ("Round 3 of 8"), so no fixed list here.
+  AM: [],
 };
 
 /** The two group brackets of the two-group format, in display order. */
@@ -177,8 +219,21 @@ export interface MatchDTO {
   round: number;
   roundName: string;
   posIndex: number;
+  /**
+   * One side of the match, as something to put on a screen.
+   *
+   * In americano a side is two people, and `name` is then the pairing —
+   * "Ana & Ben" — so that every screen in the app draws the side correctly
+   * without knowing the format exists. `id` is still a real player's id, but
+   * in americano it identifies only the FIRST member, never the side: anything
+   * ranking or attributing results must read `player1Members` instead, which is
+   * the honest list of who is on this side.
+   */
   player1: PlayerDTO | null;
   player2: PlayerDTO | null;
+  /** Americano only: the individuals making up each side. Null in every other format, where the side is one entrant. */
+  player1Members: PlayerDTO[] | null;
+  player2Members: PlayerDTO[] | null;
   winnerId: string | null;
   loserId: string | null;
   status: MatchStatus;

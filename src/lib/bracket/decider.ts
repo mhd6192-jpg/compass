@@ -1,7 +1,7 @@
 import type { Match, Prisma } from "@prisma/client";
 import type { ScoringConfig } from "../scoring/engine";
 import { computeStandings } from "../standings";
-import { buildMatchDTO } from "./dto";
+import { MATCH_INCLUDE, buildMatchDTO } from "./dto";
 
 type Tx = Prisma.TransactionClient;
 
@@ -12,7 +12,7 @@ export function isDeciderRow(m: Pick<Match, "bracket" | "round">): boolean {
 
 async function loadGroupDTOs(tx: Tx, config: ScoringConfig) {
   const rows = await tx.match.findMany({
-    include: { player1: true, player2: true, points: { orderBy: { seq: "asc" } } },
+    include: MATCH_INCLUDE,
     orderBy: [{ round: "asc" }, { posIndex: "asc" }],
   });
   return { rows, dtos: rows.map((m) => buildMatchDTO(m, config)) };

@@ -66,6 +66,21 @@ function groupPodium(matches: MatchDTO[]): AwardDTO[] {
 }
 
 /**
+ * Americano is won on points, not on wins, so the medals read that way: the
+ * headline number is the personal total, with the win/loss record behind it.
+ */
+function americanoPodium(matches: MatchDTO[]): AwardDTO[] {
+  return computeStandings(matches)
+    .slice(0, MAX_PLACES)
+    .map((row, i) => ({
+      place: i + 1,
+      playerId: row.id,
+      name: row.name,
+      detail: `${row.pointsFor} points · ${row.won}–${row.lost} from ${row.played} ${row.played === 1 ? "match" : "matches"}`,
+    }));
+}
+
+/**
  * Two groups feeding a knockout: the final settles first and second, both beaten
  * semifinalists share the podium behind them, and anyone deeper is ranked off
  * their own group table.
@@ -98,6 +113,7 @@ function twoGroupPodium(matches: MatchDTO[]): AwardDTO[] {
 
 /** The full ranked podium for this tournament, deepest place last. */
 export function computePodium(matches: MatchDTO[], format: string): AwardDTO[] {
+  if (format === "americano") return americanoPodium(matches);
   if (format === "round-robin") return groupPodium(matches);
   if (format === "two-group") return twoGroupPodium(matches);
   return compassPodium(matches);

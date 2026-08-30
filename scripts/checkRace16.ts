@@ -99,6 +99,8 @@ function fakeMatch(tb: [number, number], mode: TiebreakMode): MatchDTO {
     posIndex: 0,
     player1: { id: "a", name: "A", seed: 1 },
     player2: { id: "b", name: "B", seed: 2 },
+  player1Members: null,
+  player2Members: null,
     winnerId: p1WinnerFirst ? "a" : "b",
     loserId: p1WinnerFirst ? "b" : "a",
     status: "completed",

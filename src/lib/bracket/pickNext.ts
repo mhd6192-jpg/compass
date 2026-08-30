@@ -4,7 +4,15 @@ export interface Candidate {
   bracket: string;
   player1Id: string | null;
   player2Id: string | null;
+  /** Americano only: the second person on each side. Null in every other format. */
+  player1PartnerId?: string | null;
+  player2PartnerId?: string | null;
   readyAt: Date | null;
+}
+
+/** Everyone who would be on court for this match — two entrants, or four people in an americano. */
+function playersOf(m: Candidate): string[] {
+  return [m.player1Id, m.player2Id, m.player1PartnerId, m.player2PartnerId].filter((x): x is string => !!x);
 }
 
 /**
@@ -43,27 +51,23 @@ export function pickNextMatch(
   /** How many matches of each bracket are already occupying a court. */
   bracketOnCourt: Map<string, number> = new Map()
 ): Candidate | null {
-  const eligible = candidates.filter(
-    (m) => (!m.player1Id || !busy.has(m.player1Id)) && (!m.player2Id || !busy.has(m.player2Id))
-  );
+  const eligible = candidates.filter((m) => playersOf(m).every((id) => !busy.has(id)));
   if (eligible.length === 0) return null;
 
   const rank = (m: Candidate) => {
-    const ids = [m.player1Id, m.player2Id].filter((x): x is string => !!x);
+    const ids = playersOf(m);
     // The pair is only as rested as its *most recently* finished member.
     const lastFinish = ids.reduce((acc, id) => Math.max(acc, load.lastFinishedAt.get(id) ?? 0), 0);
     const played = ids.reduce((acc, id) => acc + (load.playedCount.get(id) ?? 0), 0);
     // How many OTHER matches could still start alongside this one. Picking a
     // match that strands every remaining fixture leaves a court standing empty
     // — the late-stage deadlock where the last few matches all share a team.
-    const opensUp = candidates.filter(
-      (o) =>
-        o.id !== m.id &&
-        o.player1Id !== m.player1Id && o.player1Id !== m.player2Id &&
-        o.player2Id !== m.player1Id && o.player2Id !== m.player2Id &&
-        (!o.player1Id || !busy.has(o.player1Id)) &&
-        (!o.player2Id || !busy.has(o.player2Id))
-    ).length;
+    const opensUp = candidates.filter((o) => {
+      if (o.id === m.id) return false;
+      const theirs = playersOf(o);
+      if (theirs.some((id) => ids.includes(id))) return false; // shares a player with this one
+      return theirs.every((id) => !busy.has(id));
+    }).length;
     // Groups take turns: whichever of them has fewer matches on court goes next,
     // so the two never end up sharing both courts while the other one waits.
     const stacked = SPREAD_BRACKETS.has(m.bracket) ? bracketOnCourt.get(m.bracket) ?? 0 : 0;

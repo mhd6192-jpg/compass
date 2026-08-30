@@ -1,7 +1,7 @@
 import type { Match, Prisma } from "@prisma/client";
 import type { ScoringConfig } from "../scoring/engine";
 import { computeStandings } from "../standings";
-import { buildMatchDTO } from "./dto";
+import { MATCH_INCLUDE, buildMatchDTO } from "./dto";
 
 type Tx = Prisma.TransactionClient;
 
@@ -23,7 +23,7 @@ export async function ensureSemifinals(tx: Tx, config: ScoringConfig): Promise<s
   if (cfg?.format !== "two-group") return [];
 
   const rows = await tx.match.findMany({
-    include: { player1: true, player2: true, points: { orderBy: { seq: "asc" } } },
+    include: MATCH_INCLUDE,
     orderBy: [{ bracket: "asc" }, { posIndex: "asc" }],
   });
 

@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { generateSkeleton } from "./skeleton";
 import { generateRoundRobin } from "./roundRobin";
 import { generateTwoGroup, MIN_TWO_GROUP_TEAMS } from "./twoGroup";
+import { defaultRounds, generateAmericano, MIN_AMERICANO_PLAYERS } from "./americano";
 import { rebalanceCourts, DEFAULT_COURT_IDS } from "./courts";
 import { TiebreakMode, TournamentFormat } from "../types";
 import { resetV2State } from "../v2/reset";
@@ -18,6 +19,8 @@ export interface SeedOptions {
   pin: string;
   format?: TournamentFormat;
   discipline?: string;
+  /** Americano only: how many rounds of rotating partners to schedule. */
+  amRounds?: number;
   /** Court numbers this tournament runs on, e.g. [1,2] or [2,3,4]. */
   courtIds?: number[];
 }
@@ -34,6 +37,10 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
   if (format === "two-group" && trimmed.length < MIN_TWO_GROUP_TEAMS) {
     throw new Error(`At least ${MIN_TWO_GROUP_TEAMS} teams are required for two groups, got ${trimmed.length}`);
   }
+  if (format === "americano" && trimmed.length < MIN_AMERICANO_PLAYERS) {
+    throw new Error(`At least ${MIN_AMERICANO_PLAYERS} players are required for an americano, got ${trimmed.length}`);
+  }
+  const amRounds = format === "americano" ? opts.amRounds || defaultRounds(trimmed.length) : 0;
 
   return client.$transaction(
     async (tx) => {
@@ -63,6 +70,34 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
           update: {},
           create: { id: courtId, label: `Court ${courtId}` },
         });
+      }
+
+      // Americano has no bracket to wire: the whole draw is known up front, as
+      // rounds of four-player matches. Only round 1 opens — later rounds are
+      // held back so the evening is played in the order the rotation intends
+      // (see `openNextAmericanoRound`), rather than the court queue pulling
+      // round 5 forward because those players happen to be free.
+      if (format === "americano") {
+        const schedule = generateAmericano(players.length, amRounds);
+        for (const m of schedule.matches) {
+          const firstRound = m.round === 1;
+          await tx.match.create({
+            data: {
+              bracket: "AM",
+              round: m.round,
+              posIndex: m.posIndex,
+              player1Id: players[m.team1[0]].id,
+              player1PartnerId: players[m.team1[1]].id,
+              player2Id: players[m.team2[0]].id,
+              player2PartnerId: players[m.team2[1]].id,
+              status: firstRound ? "ready" : "pending",
+              readyAt: firstRound ? new Date() : null,
+            },
+          });
+        }
+        await seedConfig(tx);
+        await rebalanceCourts(tx);
+        return;
       }
 
       const nodes =
@@ -106,32 +141,39 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
         }
       }
 
-      await tx.tournamentConfig.upsert({
-        where: { id: "default" },
-        update: {
-          status: "active",
-          format,
-          discipline: opts.discipline === "singles" ? "singles" : "doubles",
-          bestOfSets: opts.bestOfSets,
-          tiebreakMode: opts.tiebreakMode,
-          raceTarget: opts.raceTarget ?? 0,
-          serveEvery: opts.serveEvery ?? 0,
-          pin: opts.pin,
-          startedAt: new Date(),
-        },
-        create: {
-          id: "default",
-          status: "active",
-          format,
-          discipline: opts.discipline === "singles" ? "singles" : "doubles",
-          bestOfSets: opts.bestOfSets,
-          tiebreakMode: opts.tiebreakMode,
-          raceTarget: opts.raceTarget ?? 0,
-          serveEvery: opts.serveEvery ?? 0,
-          pin: opts.pin,
-          startedAt: new Date(),
-        },
-      });
+      // Shared by both paths above; americano returns early, having no feed wiring.
+      async function seedConfig(tx2: typeof tx) {
+        await tx2.tournamentConfig.upsert({
+          where: { id: "default" },
+          update: {
+            status: "active",
+            format,
+            discipline: opts.discipline === "singles" ? "singles" : "doubles",
+            bestOfSets: opts.bestOfSets,
+            tiebreakMode: opts.tiebreakMode,
+            raceTarget: opts.raceTarget ?? 0,
+            serveEvery: opts.serveEvery ?? 0,
+            amRounds,
+            pin: opts.pin,
+            startedAt: new Date(),
+          },
+          create: {
+            id: "default",
+            status: "active",
+            format,
+            discipline: opts.discipline === "singles" ? "singles" : "doubles",
+            bestOfSets: opts.bestOfSets,
+            tiebreakMode: opts.tiebreakMode,
+            raceTarget: opts.raceTarget ?? 0,
+            serveEvery: opts.serveEvery ?? 0,
+            amRounds,
+            pin: opts.pin,
+            startedAt: new Date(),
+          },
+        });
+      }
+
+      await seedConfig(tx);
 
       await rebalanceCourts(tx);
     },

@@ -47,6 +47,7 @@ async function main() {
     GB: 0,
     SF: 0,
     F: 0,
+    AM: 0,
   };
   const counts: Record<string, number> = {};
   for (const m of final.matches) counts[m.bracket] = (counts[m.bracket] || 0) + 1;

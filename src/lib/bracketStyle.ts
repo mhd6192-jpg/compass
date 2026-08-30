@@ -24,4 +24,7 @@ export const BRACKET_STYLE: Record<BracketCode, BracketStyle> = {
   GB: { text: "text-west", bg: "bg-west/15", border: "border-west", ring: "ring-west", solidBg: "bg-west", glow: "shadow-[0_0_36px_rgba(59,130,246,0.55)]" },
   SF: { text: "text-ne", bg: "bg-ne/15", border: "border-ne", ring: "ring-ne", solidBg: "bg-ne", glow: "shadow-[0_0_36px_rgba(168,85,247,0.55)]" },
   F: { text: "text-gold", bg: "bg-gold/15", border: "border-gold", ring: "ring-gold", solidBg: "bg-gold", glow: "shadow-[0_0_36px_rgba(201,217,53,0.6)]" },
+  // Americano has one continuous rotation rather than separate draws, so it
+  // simply wears the house colour.
+  AM: { text: "text-gold", bg: "bg-gold/15", border: "border-gold", ring: "ring-gold", solidBg: "bg-gold", glow: "shadow-[0_0_36px_rgba(201,217,53,0.5)]" },
 };

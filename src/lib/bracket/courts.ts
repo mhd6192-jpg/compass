@@ -21,13 +21,13 @@ export async function getCourtIds(prisma: DB): Promise<number[]> {
 async function getPlayerLoad(prisma: DB): Promise<PlayerLoad> {
   const done = await prisma.match.findMany({
     where: { status: "completed" },
-    select: { player1Id: true, player2Id: true, completedAt: true },
+    select: { player1Id: true, player2Id: true, player1PartnerId: true, player2PartnerId: true, completedAt: true },
   });
   const lastFinishedAt = new Map<string, number>();
   const playedCount = new Map<string, number>();
   for (const m of done) {
     const t = m.completedAt ? m.completedAt.getTime() : 0;
-    for (const pid of [m.player1Id, m.player2Id]) {
+    for (const pid of [m.player1Id, m.player2Id, m.player1PartnerId, m.player2PartnerId]) {
       if (!pid) continue;
       playedCount.set(pid, (playedCount.get(pid) ?? 0) + 1);
       lastFinishedAt.set(pid, Math.max(lastFinishedAt.get(pid) ?? 0, t));
@@ -49,12 +49,15 @@ async function getBusyPlayerIds(prisma: DB): Promise<Set<string>> {
   // could ever be scheduled for them.
   const busy = await prisma.match.findMany({
     where: { status: { not: "completed" }, courtId: { not: null } },
-    select: { player1Id: true, player2Id: true },
+    select: { player1Id: true, player2Id: true, player1PartnerId: true, player2PartnerId: true },
   });
   const ids = new Set<string>();
   for (const m of busy) {
-    if (m.player1Id) ids.add(m.player1Id);
-    if (m.player2Id) ids.add(m.player2Id);
+    // All four in an americano — a partner is just as unable to be on two
+    // courts at once as the player whose name happens to be in player1Id.
+    for (const pid of [m.player1Id, m.player2Id, m.player1PartnerId, m.player2PartnerId]) {
+      if (pid) ids.add(pid);
+    }
   }
   return ids;
 }
@@ -189,17 +192,26 @@ export async function manualAssignCourt(
   // match being moved, and the one it is about to displace (that one is either
   // swapping into this match's old slot or going back to the queue).
   const displacedCheck = await prisma.match.findFirst({ where: { courtId, courtSlot: slot } });
+  // Every person on this side of the move, against every person already out
+  // there: in an americano both are pairs of individuals, so checking only the
+  // two "player" columns would let a partner be sent to a second court.
+  const sourcePlayers = [
+    source.player1Id,
+    source.player2Id,
+    source.player1PartnerId,
+    source.player2PartnerId,
+  ].filter((x): x is string => !!x);
   const conflict = await prisma.match.findFirst({
     where: {
       status: { not: "completed" },
       courtId: { not: null },
       id: { notIn: [source.id, ...(displacedCheck ? [displacedCheck.id] : [])] },
-      OR: [
-        { player1Id: source.player1Id },
-        { player2Id: source.player1Id },
-        { player1Id: source.player2Id },
-        { player2Id: source.player2Id },
-      ],
+      OR: sourcePlayers.flatMap((pid) => [
+        { player1Id: pid },
+        { player2Id: pid },
+        { player1PartnerId: pid },
+        { player2PartnerId: pid },
+      ]),
     },
     include: { player1: true, player2: true },
   });

@@ -1,5 +1,5 @@
 import { computeStandings, type StandingsRow } from "../standings";
-import type { MatchDTO, PlayerDTO } from "../types";
+import { participantIds, type MatchDTO, type PlayerDTO } from "../types";
 
 /**
  * One team's view of the tournament.
@@ -30,22 +30,41 @@ export interface PlayerView {
   tableLabel: string | null;
 }
 
+/**
+ * Everyone who can be looked up on the player card.
+ *
+ * In an americano this is the individuals, not the sides — partners rotate, so
+ * "Ana & Ben" is a thing that exists for one round rather than someone who can
+ * follow their own results all evening.
+ */
 export function teamsIn(matches: MatchDTO[]): PlayerDTO[] {
   const byId = new Map<string, PlayerDTO>();
   for (const m of matches) {
-    if (m.player1) byId.set(m.player1.id, m.player1);
-    if (m.player2) byId.set(m.player2.id, m.player2);
+    const people = [...(m.player1Members ?? (m.player1 ? [m.player1] : [])), ...(m.player2Members ?? (m.player2 ? [m.player2] : []))];
+    for (const p of people) byId.set(p.id, p);
   }
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function involves(match: MatchDTO, teamId: string): boolean {
-  return match.player1?.id === teamId || match.player2?.id === teamId;
+  return participantIds(match).includes(teamId);
 }
 
+/** The side this person is up against — in an americano, the other pair. */
 export function opponentOf(match: MatchDTO, teamId: string): PlayerDTO | null {
-  if (match.player1?.id === teamId) return match.player2;
-  if (match.player2?.id === teamId) return match.player1;
+  const onSide1 = (match.player1Members ?? (match.player1 ? [match.player1] : [])).some((p) => p.id === teamId);
+  if (onSide1) return match.player2;
+  const onSide2 = (match.player2Members ?? (match.player2 ? [match.player2] : [])).some((p) => p.id === teamId);
+  if (onSide2) return match.player1;
+  return null;
+}
+
+/** Who this person is playing WITH this round — americano only, null elsewhere. */
+export function partnerOf(match: MatchDTO, playerId: string): PlayerDTO | null {
+  for (const side of [match.player1Members, match.player2Members]) {
+    if (!side) continue;
+    if (side.some((p) => p.id === playerId)) return side.find((p) => p.id !== playerId) ?? null;
+  }
   return null;
 }
 
