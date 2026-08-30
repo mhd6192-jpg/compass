@@ -13,7 +13,8 @@ export type TournamentFormat =
   | "team-americano"
   | "mixicano"
   | "winner-court"
-  | "mixed-mexicano";
+  | "mixed-mexicano"
+  | "mixed-americano";
 
 /**
  * The formats entered as individuals, where a match holds four people and the
@@ -22,8 +23,9 @@ export type TournamentFormat =
  * points, king of the court moves people up and down a ladder, a team
  * americano rotates partners inside two fixed sides, a mixicano rotates them
  * across two groups, a winner court keeps the winning pair on and queues
- * everybody else, and a mixed mexicano redraws from the standings while keeping
- * every pair across the groups. Everything downstream —
+ * everybody else, a mixed mexicano redraws from the standings while keeping
+ * every pair across the groups, and a mixed americano runs the plain rotation
+ * but ranks the two groups separately. Everything downstream —
  * scoring, court booking, the four-people-per-match handling — treats them
  * identically; only the team americano differs at the end, where the result
  * belongs to a side rather than to a person.
@@ -36,7 +38,8 @@ export function isRotatingPartners(format: string | undefined): boolean {
     format === "team-americano" ||
     format === "mixicano" ||
     format === "winner-court" ||
-    format === "mixed-mexicano"
+    format === "mixed-mexicano" ||
+    format === "mixed-americano"
   );
 }
 
@@ -47,7 +50,12 @@ export function isRotatingPartners(format: string | undefined): boolean {
  * divide.
  */
 export function isTwoGroupEntry(format: string | undefined): boolean {
-  return format === "team-americano" || format === "mixicano" || format === "mixed-mexicano";
+  return (
+    format === "team-americano" ||
+    format === "mixicano" ||
+    format === "mixed-mexicano" ||
+    format === "mixed-americano"
+  );
 }
 
 export function isMixicano(format: string | undefined): boolean {
@@ -60,6 +68,23 @@ export function isWinnerCourt(format: string | undefined): boolean {
 
 export function isMixedMexicano(format: string | undefined): boolean {
   return format === "mixed-mexicano";
+}
+
+export function isMixedAmericano(format: string | undefined): boolean {
+  return format === "mixed-americano";
+}
+
+/**
+ * The formats that keep a separate table per group rather than one list.
+ *
+ * A mixed mexicano must, because those two tables are how the next round is
+ * drawn. A mixed americano does it for a different reason: the rotation is a
+ * plain americano over the whole field, and the per-group tables are the whole
+ * point of running it at a mixed event — they are what give each group its own
+ * winner.
+ */
+export function isGroupRanked(format: string | undefined): boolean {
+  return format === "mixed-mexicano" || format === "mixed-americano";
 }
 
 /**

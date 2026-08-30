@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { computeStandings, computeTeamStandings, findDecider, type StandingsRow } from "@/lib/standings";
-import { isRotatingPartners, type MatchDTO } from "@/lib/types";
+import { isGroupRanked, isRotatingPartners, type MatchDTO } from "@/lib/types";
 import { mixicanoGroupName } from "@/lib/bracket/mixicano";
 
 /**
@@ -21,10 +21,10 @@ function splitTables(matches: MatchDTO[], format?: string): Array<{ key: string;
       { key: "players", label: "Players", rows: computeStandings(matches) },
     ].filter((t) => t.rows.length > 0);
   }
-  // A mixed mexicano ranks each group on its own — that is literally how the
-  // next round is drawn, so showing one merged list would be showing something
-  // the draw does not use.
-  if (format === "mixed-mexicano") {
+  // Two tables, one per group. A mixed mexicano needs them because they are how
+  // the next round is drawn; a mixed americano because giving each group its own
+  // winner is the reason for running it that way at all.
+  if (isGroupRanked(format)) {
     const rows = computeStandings(matches);
     const inGroup = (g: number) =>
       rows.filter((r) =>
@@ -203,7 +203,9 @@ export default function V3Standings({
           style={{ fontSize: "clamp(0.55rem, 1vw, 1rem)" }}
         >
           {subtitle ??
-            (format === "mixed-mexicano"
+            (format === "mixed-americano"
+              ? "Partners come from anywhere — each group has its own winner"
+              : format === "mixed-mexicano"
               ? "Each group ranked on its own — the next round follows these tables"
               : format === "winner-court"
               ? "Ranked on points won — winners keep the court"

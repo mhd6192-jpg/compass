@@ -74,6 +74,8 @@ export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight
           ? "Most points so far"
           : format === "mixed-mexicano"
           ? "Leading the mixed mexicano"
+          : format === "mixed-americano"
+          ? "Top of the whole field"
           : format === "team-americano"
           ? "Top scorer"
           : format === "mixicano"

@@ -97,6 +97,15 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
       `A mixed mexicano needs two equal groups that divide into whole matches — a multiple of four players, at least ${MIN_MIXED_MEXICANO_PLAYERS} (got ${trimmed.length})`
     );
   }
+  // A mixed americano is a plain americano rotation with the field split into
+  // two ranked groups, so it needs enough players for the rotation AND an even
+  // split — but not the multiple of four the pairing-constrained formats need,
+  // since nothing here requires a pair to come from any particular group.
+  if (format === "mixed-americano" && (trimmed.length < MIN_AMERICANO_PLAYERS || trimmed.length % 2 !== 0)) {
+    throw new Error(
+      `A mixed americano needs an even number of players, at least ${MIN_AMERICANO_PLAYERS}, so the two groups come out equal (got ${trimmed.length})`
+    );
+  }
   const rotating =
     format === "americano" ||
     format === "mexicano" ||
@@ -104,7 +113,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
     format === "team-americano" ||
     format === "mixicano" ||
     format === "winner-court" ||
-    format === "mixed-mexicano";
+    format === "mixed-mexicano" ||
+    format === "mixed-americano";
   const amRounds = rotating
     ? opts.amRounds ||
       (format === "team-americano"
@@ -143,7 +153,7 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
             ? teamOf(i, trimmed.length)
             : format === "mixicano"
             ? groupOf(i, trimmed.length)
-            : format === "mixed-mexicano"
+            : format === "mixed-mexicano" || format === "mixed-americano"
             ? mixedGroupOf(i, trimmed.length)
             : 0;
         players.push(await tx.player.create({ data: { name: trimmed[i], seed: i, team } }));
@@ -169,7 +179,9 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
         // standings and king of the court's from who won on each rung, neither
         // of which exists until the night is under way.
         const round1 =
-          format === "americano"
+          // A mixed americano IS an americano — the groups change how it is
+          // ranked and read, never how it is drawn.
+          format === "americano" || format === "mixed-americano"
             ? generateAmericano(players.length, amRounds).matches
             : format === "team-americano"
             ? generateTeamAmericano(players.length, amRounds)

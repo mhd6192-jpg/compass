@@ -7,6 +7,7 @@
  * final is the closest thing the format has to a third-place match.
  */
 import { computeStandings, computeTeamStandings } from "../standings";
+import { mixicanoGroupName } from "../bracket/mixicano";
 import { BRACKET_LABELS, BracketCode, MatchDTO, isRotatingPartners, isTeamAmericano } from "../types";
 import type { AwardDTO } from "./stage";
 
@@ -71,14 +72,26 @@ function groupPodium(matches: MatchDTO[]): AwardDTO[] {
  * record behind it.
  */
 function rotatingPodium(matches: MatchDTO[]): AwardDTO[] {
+  // In the grouped formats the group is part of who someone is on the night, so
+  // it belongs on the medal line rather than only in the table.
+  const groupOfPlayer = new Map<string, number>();
+  for (const m of matches) {
+    for (const p of [...(m.player1Members ?? []), ...(m.player2Members ?? [])]) {
+      if (p.team) groupOfPlayer.set(p.id, p.team);
+    }
+  }
   return computeStandings(matches)
     .slice(0, MAX_PLACES)
-    .map((row, i) => ({
-      place: i + 1,
-      playerId: row.id,
-      name: row.name,
-      detail: `${row.pointsFor} points · ${row.won}–${row.lost} from ${row.played} ${row.played === 1 ? "match" : "matches"}`,
-    }));
+    .map((row, i) => {
+      const group = groupOfPlayer.get(row.id);
+      const record = `${row.pointsFor} points · ${row.won}–${row.lost} from ${row.played} ${row.played === 1 ? "match" : "matches"}`;
+      return {
+        place: i + 1,
+        playerId: row.id,
+        name: row.name,
+        detail: group ? `${mixicanoGroupName(group)} · ${record}` : record,
+      };
+    });
 }
 
 /**

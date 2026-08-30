@@ -26,7 +26,8 @@ export async function POST(req: Request) {
       format === "team-americano" ||
       format === "mixicano" ||
       format === "winner-court" ||
-      format === "mixed-mexicano"
+      format === "mixed-mexicano" ||
+      format === "mixed-americano"
         ? format
         : "compass";
     const rotating = isRotatingPartners(fmt);
@@ -74,6 +75,14 @@ export async function POST(req: Request) {
     if (fmt === "team-americano" && names.length % 4 !== 0) {
       return NextResponse.json(
         { error: `A team americano needs a multiple of four players (got ${names.length})` },
+        { status: 400 }
+      );
+    }
+    // A mixed americano only needs the two groups to come out equal — its
+    // rotation is the plain americano one and does not care who partners whom.
+    if (fmt === "mixed-americano" && names.length % 2 !== 0) {
+      return NextResponse.json(
+        { error: `A mixed americano needs an even number of players so the groups are equal (got ${names.length})` },
         { status: 400 }
       );
     }
