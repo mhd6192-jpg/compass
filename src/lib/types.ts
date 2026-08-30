@@ -3,63 +3,64 @@
 // AM is the americano rotation: no bracket at all, just numbered rounds.
 export type BracketCode = "E" | "W" | "N" | "S" | "NE" | "SE" | "NW" | "SW" | "RR" | "GA" | "GB" | "SF" | "F" | "AM";
 
-export type TournamentFormat =
-  | "compass"
-  | "round-robin"
-  | "two-group"
-  | "americano"
-  | "mexicano"
-  | "king-court"
-  | "team-americano"
-  | "mixicano"
-  | "winner-court"
-  | "mixed-mexicano"
-  | "mixed-americano"
-  | "mixed-team-americano";
+// The formats themselves are declared in lib/bracket/formats.ts — one entry
+// each, holding everything that is merely a DESCRIPTION of a format. These
+// predicates read from that table so a new format cannot be half-added: it
+// either declares a behaviour or it does not have it.
+export type { TournamentFormat } from "./bracket/formats";
+import { formatSpec } from "./bracket/formats";
 
 /**
  * The formats entered as individuals, where a match holds four people and the
  * pairings change every round. They differ in where the next round comes from —
  * an americano draws the lot in advance, a mexicano re-ranks the field on
- * points, king of the court moves people up and down a ladder, a team
- * americano rotates partners inside two fixed sides, a mixicano rotates them
- * across two groups, a winner court keeps the winning pair on and queues
- * everybody else, a mixed mexicano redraws from the standings while keeping
- * every pair across the groups, and a mixed americano runs the plain rotation
- * but ranks the two groups separately, and a mixed team americano does the
- * team americano with every pair mixed within its side. Everything downstream —
- * scoring, court booking, the four-people-per-match handling — treats them
- * identically; only the team americano differs at the end, where the result
- * belongs to a side rather than to a person.
+ * points, king of the court moves people up and down a ladder, a winner court
+ * queues challengers, and the two-group variants add a constraint on who may
+ * partner whom. Everything downstream — scoring, court booking, the
+ * four-people-per-match handling — treats them identically.
  */
 export function isRotatingPartners(format: string | undefined): boolean {
-  return (
-    format === "americano" ||
-    format === "mexicano" ||
-    format === "king-court" ||
-    format === "team-americano" ||
-    format === "mixicano" ||
-    format === "winner-court" ||
-    format === "mixed-mexicano" ||
-    format === "mixed-americano" ||
-    format === "mixed-team-americano"
-  );
+  return !!formatSpec(format).rotatingPartners;
+}
+
+/** Formats whose rounds are built as the night goes, so they cannot be previewed in full. */
+export function isDerivedRounds(format: string | undefined): boolean {
+  return !!formatSpec(format).derivedRounds;
+}
+
+/** Formats whose result belongs to a side rather than to a person. */
+export function isTeamScored(format: string | undefined): boolean {
+  return !!formatSpec(format).teamScored;
 }
 
 /**
- * The formats entered as two groups, where the entry order decides who is on
- * which side. They use the same stored `team` field for opposite purposes: a
- * team americano pairs you WITH your group, a mixicano pairs you ACROSS the
- * divide.
+ * The formats that keep a separate table per group rather than one list.
+ *
+ * A mixed mexicano must, because those two tables are how the next round is
+ * drawn. A mixed americano does it for a different reason: the rotation is a
+ * plain americano over the whole field, and the per-group tables are the whole
+ * point of running it at a mixed event — they are what give each group its own
+ * winner.
  */
+export function isGroupRanked(format: string | undefined): boolean {
+  return !!formatSpec(format).groupRanked;
+}
+
+/** The formats whose field is entered as two halves. */
 export function isTwoGroupEntry(format: string | undefined): boolean {
-  return (
-    format === "team-americano" ||
-    format === "mixicano" ||
-    format === "mixed-mexicano" ||
-    format === "mixed-americano" ||
-    format === "mixed-team-americano"
-  );
+  return !!formatSpec(format).twoGroupEntry;
+}
+
+export function isAmericano(format: string | undefined): boolean {
+  return format === "americano";
+}
+
+export function isMexicano(format: string | undefined): boolean {
+  return format === "mexicano";
+}
+
+export function isKingCourt(format: string | undefined): boolean {
+  return format === "king-court";
 }
 
 export function isMixicano(format: string | undefined): boolean {
@@ -78,54 +79,12 @@ export function isMixedAmericano(format: string | undefined): boolean {
   return format === "mixed-americano";
 }
 
-/**
- * The formats that keep a separate table per group rather than one list.
- *
- * A mixed mexicano must, because those two tables are how the next round is
- * drawn. A mixed americano does it for a different reason: the rotation is a
- * plain americano over the whole field, and the per-group tables are the whole
- * point of running it at a mixed event — they are what give each group its own
- * winner.
- */
-export function isGroupRanked(format: string | undefined): boolean {
-  return format === "mixed-mexicano" || format === "mixed-americano";
-}
-
-/**
- * The one rotating format scored by side rather than by person: partners still
- * rotate, but they rotate within a fixed team and every point lands on that
- * team's total.
- */
 export function isTeamAmericano(format: string | undefined): boolean {
   return format === "team-americano";
 }
 
 export function isMixedTeamAmericano(format: string | undefined): boolean {
   return format === "mixed-team-americano";
-}
-
-/** The formats whose result belongs to a side rather than to a person. */
-export function isTeamScored(format: string | undefined): boolean {
-  return format === "team-americano" || format === "mixed-team-americano";
-}
-
-/** Formats whose rounds are built as the night goes, so they cannot be previewed in full. */
-export function isDerivedRounds(format: string | undefined): boolean {
-  return (
-    format === "mexicano" || format === "king-court" || format === "winner-court" || format === "mixed-mexicano"
-  );
-}
-
-export function isAmericano(format: string | undefined): boolean {
-  return format === "americano";
-}
-
-export function isMexicano(format: string | undefined): boolean {
-  return format === "mexicano";
-}
-
-export function isKingCourt(format: string | undefined): boolean {
-  return format === "king-court";
 }
 
 /** How a side's pairing is written wherever two names share a scoreboard row. */

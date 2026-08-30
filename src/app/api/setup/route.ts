@@ -4,111 +4,25 @@ import { seedTournament } from "@/lib/bracket/seed";
 import { arrangeDraw } from "@/lib/bracket/seedArrange";
 import { broadcastSnapshot } from "@/lib/broadcast";
 import { isPointsRace, isRotatingPartners, type TournamentFormat } from "@/lib/types";
-import { MIN_TWO_GROUP_TEAMS } from "@/lib/bracket/twoGroup";
-import { MAX_AMERICANO_PLAYERS, MAX_AMERICANO_ROUNDS, MIN_AMERICANO_PLAYERS } from "@/lib/bracket/americano";
-import { MIN_KING_COURT_PLAYERS } from "@/lib/bracket/kingCourt";
-import { MIN_TEAM_AMERICANO_PLAYERS } from "@/lib/bracket/teamAmericano";
-import { MIN_MIXICANO_PLAYERS } from "@/lib/bracket/mixicano";
-import { MIN_WINNER_COURT_PLAYERS } from "@/lib/bracket/winnerCourt";
-import { MIN_MIXED_MEXICANO_PLAYERS } from "@/lib/bracket/mixedMexicano";
-import { MIN_MIXED_TEAM_PLAYERS } from "@/lib/bracket/mixedTeamAmericano";
+import { isTournamentFormat, validateField } from "@/lib/bracket/formats";
+import { MAX_AMERICANO_ROUNDS } from "@/lib/bracket/americano";
 import { getIO, EVENTS } from "@/lib/socket";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { names, bestOfSets, tiebreakMode, pin, seeds, arrange, format, discipline } = body;
-    const fmt: TournamentFormat =
-      format === "round-robin" ||
-      format === "two-group" ||
-      format === "americano" ||
-      format === "mexicano" ||
-      format === "king-court" ||
-      format === "team-americano" ||
-      format === "mixicano" ||
-      format === "winner-court" ||
-      format === "mixed-mexicano" ||
-      format === "mixed-americano" ||
-      format === "mixed-team-americano"
-        ? format
-        : "compass";
+    // The registry owns every format's field rule, so this route cannot drift
+    // from the form the organiser filled in or from the seeder that runs next.
+    const fmt: TournamentFormat = isTournamentFormat(format) ? format : "compass";
     const rotating = isRotatingPartners(fmt);
 
-    const minTeams =
-      fmt === "two-group"
-        ? MIN_TWO_GROUP_TEAMS
-        : fmt === "king-court"
-        ? MIN_KING_COURT_PLAYERS
-        : fmt === "team-americano"
-        ? MIN_TEAM_AMERICANO_PLAYERS
-        : fmt === "mixicano"
-        ? MIN_MIXICANO_PLAYERS
-        : fmt === "winner-court"
-        ? MIN_WINNER_COURT_PLAYERS
-        : fmt === "mixed-mexicano"
-        ? MIN_MIXED_MEXICANO_PLAYERS
-        : fmt === "mixed-team-americano"
-        ? MIN_MIXED_TEAM_PLAYERS
-        : rotating
-        ? MIN_AMERICANO_PLAYERS
-        : 3;
-    if (!Array.isArray(names) || (fmt === "compass" ? names.length !== 16 : names.length < minTeams)) {
-      return NextResponse.json(
-        {
-          error:
-            fmt === "compass"
-              ? "Exactly 16 player names are required"
-              : rotating
-              ? `At least ${minTeams} players are required`
-              : `At least ${minTeams} teams are required`,
-        },
-        { status: 400 }
-      );
+    if (!Array.isArray(names)) {
+      return NextResponse.json({ error: "Entrant names are required" }, { status: 400 });
     }
-    if (rotating && names.length > MAX_AMERICANO_PLAYERS) {
-      return NextResponse.json({ error: `This format supports up to ${MAX_AMERICANO_PLAYERS} players` }, { status: 400 });
-    }
-    // The ladder only works with every rung full — see lib/bracket/kingCourt.ts.
-    if (fmt === "king-court" && names.length % 4 !== 0) {
-      return NextResponse.json(
-        { error: `King of the court needs a multiple of four players (got ${names.length})` },
-        { status: 400 }
-      );
-    }
-    // Two equal teams that each split into pairs.
-    if (fmt === "team-americano" && names.length % 4 !== 0) {
-      return NextResponse.json(
-        { error: `A team americano needs a multiple of four players (got ${names.length})` },
-        { status: 400 }
-      );
-    }
-    // A mixed americano only needs the two groups to come out equal — its
-    // rotation is the plain americano one and does not care who partners whom.
-    if (fmt === "mixed-americano" && names.length % 2 !== 0) {
-      return NextResponse.json(
-        { error: `A mixed americano needs an even number of players so the groups are equal (got ${names.length})` },
-        { status: 400 }
-      );
-    }
-    // Two equal teams that each split into two halves.
-    if (fmt === "mixed-team-americano" && names.length % 4 !== 0) {
-      return NextResponse.json(
-        { error: `A mixed team americano needs a multiple of four players (got ${names.length})` },
-        { status: 400 }
-      );
-    }
-    // Two equal groups that between them make whole matches.
-    if (fmt === "mixed-mexicano" && names.length % 4 !== 0) {
-      return NextResponse.json(
-        { error: `A mixed mexicano needs a multiple of four players (got ${names.length})` },
-        { status: 400 }
-      );
-    }
-    if (fmt === "mixicano" && names.length % 4 !== 0) {
-      return NextResponse.json(
-        { error: `A mixicano needs a multiple of four players (got ${names.length})` },
-        { status: 400 }
-      );
+    const invalidField = validateField(fmt, names.length);
+    if (invalidField) {
+      return NextResponse.json({ error: invalidField }, { status: 400 });
     }
 
     const amRounds = rotating ? Number(body.amRounds) || 0 : 0;

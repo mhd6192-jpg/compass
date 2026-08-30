@@ -1,5 +1,6 @@
 import { computeStandings } from "../standings";
 import { isRotatingPartners, type MatchDTO } from "../types";
+import { formatSpec } from "../bracket/formats";
 import { formatDuration } from "./venue";
 
 /**
@@ -69,25 +70,7 @@ export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight
     cards.push({
       key: "leader",
       icon: "🔥",
-      eyebrow: americano
-        ? format === "winner-court"
-          ? "Most points so far"
-          : format === "mixed-team-americano"
-          ? "Top scorer"
-          : format === "mixed-mexicano"
-          ? "Leading the mixed mexicano"
-          : format === "mixed-americano"
-          ? "Top of the whole field"
-          : format === "team-americano"
-          ? "Top scorer"
-          : format === "mixicano"
-          ? "Leading the mixicano"
-          : format === "mexicano"
-          ? "Leading the mexicano"
-          : format === "king-court"
-          ? "Most points so far"
-          : "Leading the americano"
-        : "Team of the day",
+      eyebrow: americano ? formatSpec(format).leaderEyebrow ?? "Leading the americano" : "Team of the day",
       headline: leader.name,
       detail: americano
         ? `${leader.pointsFor} points from ${played} ${played === 1 ? "match" : "matches"}`

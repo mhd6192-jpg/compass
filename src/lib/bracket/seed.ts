@@ -1,47 +1,18 @@
 import type { PrismaClient } from "@prisma/client";
 import { generateSkeleton } from "./skeleton";
 import { generateRoundRobin } from "./roundRobin";
-import { generateTwoGroup, MIN_TWO_GROUP_TEAMS } from "./twoGroup";
-import { defaultRounds, generateAmericano, playersPerRound, MIN_AMERICANO_PLAYERS } from "./americano";
-import { pairByRank, MIN_MEXICANO_PLAYERS } from "./mexicano";
-import { isValidKingCourtField, openingLadder, MIN_KING_COURT_PLAYERS } from "./kingCourt";
-import {
-  defaultTeamRounds,
-  generateTeamAmericano,
-  isValidTeamField,
-  teamOf,
-  MIN_TEAM_AMERICANO_PLAYERS,
-} from "./teamAmericano";
-import {
-  defaultMixicanoRounds,
-  generateMixicano,
-  groupOf,
-  isValidMixicanoField,
-  MIN_MIXICANO_PLAYERS,
-} from "./mixicano";
-import {
-  defaultWinnerCourtRounds,
-  isValidWinnerCourtField,
-  OPENING_INDICES,
-  MIN_WINNER_COURT_PLAYERS,
-} from "./winnerCourt";
-import {
-  defaultMixedMexicanoRounds,
-  groupOf as mixedGroupOf,
-  isValidMixedMexicanoField,
-  openingRound as mixedOpeningRound,
-  MIN_MIXED_MEXICANO_PLAYERS,
-} from "./mixedMexicano";
-import {
-  defaultMixedTeamRounds,
-  generateMixedTeamAmericano,
-  isValidMixedTeamField,
-  pairGroupOf,
-  teamOf as mixedTeamOf,
-  MIN_MIXED_TEAM_PLAYERS,
-} from "./mixedTeamAmericano";
+import { generateTwoGroup } from "./twoGroup";
+import { generateAmericano, playersPerRound } from "./americano";
+import { pairByRank } from "./mexicano";
+import { openingLadder } from "./kingCourt";
+import { generateTeamAmericano, teamOf } from "./teamAmericano";
+import { generateMixicano, groupOf } from "./mixicano";
+import { OPENING_INDICES } from "./winnerCourt";
+import { groupOf as mixedGroupOf, openingRound as mixedOpeningRound } from "./mixedMexicano";
+import { generateMixedTeamAmericano, pairGroupOf, teamOf as mixedTeamOf } from "./mixedTeamAmericano";
 import { rebalanceCourts, DEFAULT_COURT_IDS } from "./courts";
-import { TiebreakMode, TournamentFormat } from "../types";
+import { TiebreakMode, TournamentFormat, isRotatingPartners } from "../types";
+import { defaultRoundsFor, validateField } from "./formats";
 import { resetV2State } from "../v2/reset";
 
 export type { TournamentFormat };
@@ -65,84 +36,13 @@ export interface SeedOptions {
 export async function seedTournament(client: PrismaClient, names: string[], opts: SeedOptions) {
   const format: TournamentFormat = opts.format ?? "compass";
   const trimmed = names.map((n) => n.trim()).filter(Boolean);
-  if (format === "compass" && trimmed.length !== 16) {
-    throw new Error(`Exactly 16 player names are required, got ${trimmed.length}`);
-  }
-  if (format === "round-robin" && trimmed.length < 3) {
-    throw new Error(`At least 3 teams are required for a round-robin, got ${trimmed.length}`);
-  }
-  if (format === "two-group" && trimmed.length < MIN_TWO_GROUP_TEAMS) {
-    throw new Error(`At least ${MIN_TWO_GROUP_TEAMS} teams are required for two groups, got ${trimmed.length}`);
-  }
-  if (format === "americano" && trimmed.length < MIN_AMERICANO_PLAYERS) {
-    throw new Error(`At least ${MIN_AMERICANO_PLAYERS} players are required for an americano, got ${trimmed.length}`);
-  }
-  if (format === "mexicano" && trimmed.length < MIN_MEXICANO_PLAYERS) {
-    throw new Error(`At least ${MIN_MEXICANO_PLAYERS} players are required for a mexicano, got ${trimmed.length}`);
-  }
-  if (format === "king-court" && !isValidKingCourtField(trimmed.length)) {
-    throw new Error(
-      `King of the court needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS} (got ${trimmed.length}) — every court on the ladder has to be full.`
-    );
-  }
-  if (format === "team-americano" && !isValidTeamField(trimmed.length)) {
-    throw new Error(
-      `A team americano needs two equal teams that each divide into pairs — a multiple of four players, at least ${MIN_TEAM_AMERICANO_PLAYERS} (got ${trimmed.length})`
-    );
-  }
-  if (format === "mixicano" && !isValidMixicanoField(trimmed.length)) {
-    throw new Error(
-      `A mixicano needs two equal groups that divide into whole matches — a multiple of four players, at least ${MIN_MIXICANO_PLAYERS} (got ${trimmed.length})`
-    );
-  }
-  if (format === "winner-court" && !isValidWinnerCourtField(trimmed.length)) {
-    throw new Error(
-      `A winner court needs at least ${MIN_WINNER_COURT_PLAYERS} players — four on court and a pair waiting to challenge (got ${trimmed.length})`
-    );
-  }
-  if (format === "mixed-mexicano" && !isValidMixedMexicanoField(trimmed.length)) {
-    throw new Error(
-      `A mixed mexicano needs two equal groups that divide into whole matches — a multiple of four players, at least ${MIN_MIXED_MEXICANO_PLAYERS} (got ${trimmed.length})`
-    );
-  }
-  // A mixed americano is a plain americano rotation with the field split into
-  // two ranked groups, so it needs enough players for the rotation AND an even
-  // split — but not the multiple of four the pairing-constrained formats need,
-  // since nothing here requires a pair to come from any particular group.
-  if (format === "mixed-americano" && (trimmed.length < MIN_AMERICANO_PLAYERS || trimmed.length % 2 !== 0)) {
-    throw new Error(
-      `A mixed americano needs an even number of players, at least ${MIN_AMERICANO_PLAYERS}, so the two groups come out equal (got ${trimmed.length})`
-    );
-  }
-  if (format === "mixed-team-americano" && !isValidMixedTeamField(trimmed.length)) {
-    throw new Error(
-      `A mixed team americano needs two equal teams that each split into two halves — a multiple of four players, at least ${MIN_MIXED_TEAM_PLAYERS} (got ${trimmed.length})`
-    );
-  }
-  const rotating =
-    format === "americano" ||
-    format === "mexicano" ||
-    format === "king-court" ||
-    format === "team-americano" ||
-    format === "mixicano" ||
-    format === "winner-court" ||
-    format === "mixed-mexicano" ||
-    format === "mixed-americano" ||
-    format === "mixed-team-americano";
-  const amRounds = rotating
-    ? opts.amRounds ||
-      (format === "team-americano"
-        ? defaultTeamRounds(trimmed.length)
-        : format === "mixicano"
-        ? defaultMixicanoRounds(trimmed.length)
-        : format === "winner-court"
-        ? defaultWinnerCourtRounds(trimmed.length)
-        : format === "mixed-mexicano"
-        ? defaultMixedMexicanoRounds(trimmed.length)
-        : format === "mixed-team-americano"
-        ? defaultMixedTeamRounds(trimmed.length)
-        : defaultRounds(trimmed.length))
-    : 0;
+  // One validator per format, declared in ./formats — the form, the API and
+  // this all read the same rule and print the same sentence.
+  const invalid = validateField(format, trimmed.length);
+  if (invalid) throw new Error(invalid);
+
+  const rotating = isRotatingPartners(format);
+  const amRounds = rotating ? opts.amRounds || defaultRoundsFor(format, trimmed.length) : 0;
 
   return client.$transaction(
     async (tx) => {

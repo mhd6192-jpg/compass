@@ -8,6 +8,7 @@ import { arrangeDraw } from "@/lib/bracket/seedArrange";
 
 import { isPointsRace, type TiebreakMode, type TournamentFormat } from "@/lib/types";
 import { MIN_TWO_GROUP_TEAMS, splitGroups, twoGroupMatchCount } from "@/lib/bracket/twoGroup";
+import { FORMAT_FAMILIES, describeField, formatsInFamily, validateField } from "@/lib/bracket/formats";
 import {
   defaultRounds,
   generateAmericano,
@@ -381,63 +382,15 @@ export default function SetupPage() {
   async function submit() {
     setError(null);
     const trimmed = (format === "compass" ? names : rrNames).map((n) => n.trim());
-    if (format === "two-group" && trimmed.filter(Boolean).length < MIN_TWO_GROUP_TEAMS) {
-      setError(`Enter at least ${MIN_TWO_GROUP_TEAMS} teams for two groups.`);
-      return;
-    }
+    // One rule per format, from the registry — the same sentence the API would
+    // return, so the organiser never sees two different explanations.
     if (format === "compass" && trimmed.some((n) => !n)) {
       setError("All 16 player names must be filled in.");
       return;
     }
-    if (format === "round-robin" && trimmed.filter(Boolean).length < 3) {
-      setError("Enter at least 3 teams.");
-      return;
-    }
-    if (mixedTeam && !isValidMixedTeamField(trimmed.filter(Boolean).length)) {
-      setError(
-        `A mixed team americano needs a multiple of four players, at least ${MIN_MIXED_TEAM_PLAYERS} — two teams that each split into two halves.`
-      );
-      return;
-    }
-    if (mixedAmericano) {
-      const n = trimmed.filter(Boolean).length;
-      if (n < MIN_AMERICANO_PLAYERS || n % 2 !== 0) {
-        setError(`A mixed americano needs an even number of players, at least ${MIN_AMERICANO_PLAYERS}, so the groups come out equal.`);
-        return;
-      }
-    }
-    if (mixedMexicano && !isValidMixedMexicanoField(trimmed.filter(Boolean).length)) {
-      setError(
-        `A mixed mexicano needs a multiple of four players, at least ${MIN_MIXED_MEXICANO_PLAYERS} — two equal groups that make whole matches.`
-      );
-      return;
-    }
-    if (winnerCourt && !isValidWinnerCourtField(trimmed.filter(Boolean).length)) {
-      setError(
-        `A winner court needs at least ${MIN_WINNER_COURT_PLAYERS} players — four on court and a pair waiting to challenge.`
-      );
-      return;
-    }
-    if (mixicano && !isValidMixicanoField(trimmed.filter(Boolean).length)) {
-      setError(
-        `A mixicano needs a multiple of four players, at least ${MIN_MIXICANO_PLAYERS} — two equal groups that make whole matches.`
-      );
-      return;
-    }
-    if (teamAmericano && !isValidTeamField(trimmed.filter(Boolean).length)) {
-      setError(
-        `A team americano needs a multiple of four players, at least ${MIN_TEAM_AMERICANO_PLAYERS} — two equal teams that each split into pairs.`
-      );
-      return;
-    }
-    if (kingCourt && !isValidKingCourtField(trimmed.filter(Boolean).length)) {
-      setError(
-        `King of the court needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS} — every court on the ladder has to be full.`
-      );
-      return;
-    }
-    if (americano && !needsFours && trimmed.filter(Boolean).length < MIN_AMERICANO_PLAYERS) {
-      setError(`Enter at least ${MIN_AMERICANO_PLAYERS} players for ${mexicano ? "a mexicano" : "an americano"}.`);
+    const invalidField = validateField(format, trimmed.filter(Boolean).length);
+    if (invalidField) {
+      setError(invalidField);
       return;
     }
     if (pin.trim().length < 4) {
@@ -642,95 +595,43 @@ export default function SetupPage() {
 
       <section className="mb-6">
         <h2 className="font-display uppercase text-lg text-white/80 mb-3">Draw type</h2>
-        <div className="grid gap-2">
-          {([
-            { value: "compass", title: "Compass (16, single elim)", desc: "Sixteen players, every loser drops into a consolation draw — nobody goes home after one match." },
-            { value: "round-robin", title: "Round robin group", desc: "One group, everyone plays everyone once. The table decides it, with a deciding final if the top two end level." },
-            {
-              value: "two-group",
-              title: "Two groups → semis → final",
-              desc: `Split into Group A and Group B, each a round robin. The top two of each group cross over into the semifinals (A1 v B2, B1 v A2), and the winners meet in the final. Needs at least ${MIN_TWO_GROUP_TEAMS} teams.`,
-            },
-            {
-              value: "americano",
-              title: "Americano (rotating partners)",
-              desc: `Enter individuals, not pairs. Every round everyone gets a new partner and a new pair of opponents, and each player keeps their own running points total — the winner is the highest scorer, not a team. Needs at least ${MIN_AMERICANO_PLAYERS} players.`,
-            },
-            {
-              value: "mixed-mexicano",
-              title: "Mixed mexicano (standings + two groups)",
-              desc: `Both at once: every pair is one player from each group, and each round is redrawn from the standings. Each group is ranked on its own, so the top two of each meet on the first court, the next two of each on the second, and winning moves you up into tougher company. Needs a multiple of four players.`,
-            },
-            {
-              value: "winner-court",
-              title: "Winner court (winners stay on)",
-              desc: `One court and a queue. The pair that wins keeps the court and its partnership; the pair that loses goes to the back of the line, and the next two waiting come on to challenge. Needs at least ${MIN_WINNER_COURT_PLAYERS} players — four on court and a pair waiting.`,
-            },
-            {
-              value: "mixed-americano",
-              title: "Mixed americano (two groups, own winners)",
-              desc: `A plain americano rotation over the whole field — partners can come from either group — but the two groups are ranked separately, so each has its own winner. Enter one group and then the other. If you want every PAIR to be one from each group, pick the mixicano instead.`,
-            },
-            {
-              value: "mixicano",
-              title: "Mixicano (pairs across two groups)",
-              desc: `Enter two equal groups — in a mixed session, everyone from one side of the draw and then the other. Every pair is one player from each group, you get a new partner from the other group each round, and scoring is individual. Needs a multiple of four players.`,
-            },
-            {
-              value: "mixed-team-americano",
-              title: "Mixed team americano (two sides, mixed pairs)",
-              desc: `The team americano with every pair mixed within its own side. Enter it in quarters: team A's first half, team A's second half, then team B's two halves. You always partner someone from the other half of YOUR team, play the other team, and every point goes to your team's total. Needs a multiple of four players, at least ${MIN_MIXED_TEAM_PLAYERS}.`,
-            },
-            {
-              value: "team-americano",
-              title: "Team americano (two sides)",
-              desc: `Two fixed teams, entered one after the other. Every round you partner someone else from your own team and play two from the other side, and every point you win goes to your team's total. Needs a multiple of four players, at least ${MIN_TEAM_AMERICANO_PLAYERS}.`,
-            },
-            {
-              value: "king-court",
-              title: "King of the court (climb the ladder)",
-              desc: `Courts are ranked, and the king court is the top one. Each round every court plays its own match: the two winners move up a court, the two losers move down, and your partner is always someone arriving from the other direction. Needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS}.`,
-            },
-            {
-              value: "mexicano",
-              title: "Mexicano (partners by standing)",
-              desc: `Like the americano, but each round is drawn from the table rather than fixed in advance: the top four play each other, then the next four, and within each four the leader partners the fourth. Win and you move up into tougher company. Needs at least ${MIN_MEXICANO_PLAYERS} players.`,
-            },
-          ] as { value: TournamentFormat; title: string; desc: string }[]).map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => {
-                setFormat(opt.value);
-                if (opt.value === "two-group") {
-                  setTiebreakMode("race-to-16");
-                  setBestOfSets(1);
-                }
-                // These are always a short race to a points total — that
-                // running total IS the tournament, so sets would make no sense.
-                if (
-                  opt.value === "americano" ||
-                  opt.value === "mexicano" ||
-                  opt.value === "king-court" ||
-                  opt.value === "team-americano" ||
-                  opt.value === "mixicano" ||
-                  opt.value === "winner-court" ||
-                  opt.value === "mixed-mexicano" ||
-                  opt.value === "mixed-americano" ||
-                  opt.value === "mixed-team-americano"
-                ) {
-                  setTiebreakMode("race-to-16");
-                  setBestOfSets(1);
-                  setRaceTarget(16);
-                }
-              }}
-              className={`text-left rounded-xl border p-3 transition-colors ${
-                format === opt.value ? "border-gold bg-gold/10" : "border-court-line bg-court-panel"
-              }`}
-            >
-              <p className="font-display uppercase text-sm mb-1">{opt.title}</p>
-              <p className="text-white/50 text-xs leading-relaxed">{opt.desc}</p>
-            </button>
+        {/* Grouped into families rather than one flat list. Twelve formats with
+            names like americano / mixed americano / mixicano are close to
+            unpickable in a single column; the families say what kind of thing
+            each one is before the reader has to parse the name. */}
+        <div className="flex flex-col gap-5">
+          {FORMAT_FAMILIES.map((family) => (
+            <div key={family.key}>
+              <div className="mb-2">
+                <p className="font-display uppercase text-xs tracking-[0.25em] text-gold/80">{family.title}</p>
+                <p className="text-white/35 text-xs mt-0.5">{family.blurb}</p>
+              </div>
+              <div className="grid gap-2">
+                {formatsInFamily(family.key).map(({ id, spec }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setFormat(id);
+                      // Everything but the bracket draws is scored as a short
+                      // race to a points total — that running total IS the
+                      // tournament, so sets would make no sense.
+                      if (id === "two-group" || spec.rotatingPartners) {
+                        setTiebreakMode("race-to-16");
+                        setBestOfSets(1);
+                        if (spec.rotatingPartners) setRaceTarget(16);
+                      }
+                    }}
+                    className={`text-left rounded-xl border p-3 transition-colors ${
+                      format === id ? "border-gold bg-gold/10" : "border-court-line bg-court-panel"
+                    }`}
+                  >
+                    <p className="font-display uppercase text-sm mb-1">{spec.title}</p>
+                    <p className="text-white/50 text-xs leading-relaxed">{spec.blurb}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </section>
@@ -828,68 +729,11 @@ export default function SetupPage() {
             + Add {entrantLabel.toLowerCase()}
           </button>
           {americano ? (
-            <p
-              className={`text-xs mt-3 ${
-                (mixedTeam
-                  ? isValidMixedTeamField(amPlayerCount)
-                  : mixedAmericano
-                  ? amPlayerCount >= MIN_AMERICANO_PLAYERS && amPlayerCount % 2 === 0
-                  : mixedMexicano
-                  ? isValidMixedMexicanoField(amPlayerCount)
-                  : winnerCourt
-                  ? isValidWinnerCourtField(amPlayerCount)
-                  : mixicano
-                  ? isValidMixicanoField(amPlayerCount)
-                  : teamAmericano
-                  ? isValidTeamField(amPlayerCount)
-                  : kingCourt
-                  ? isValidKingCourtField(amPlayerCount)
-                  : amPlayerCount >= MIN_AMERICANO_PLAYERS)
-                  ? "text-white/40"
-                  : "text-live"
-              }`}
-            >
-              {mixedTeam
-                ? isValidMixedTeamField(amPlayerCount)
-                  ? `${amPlayerCount} players → two teams of ${mixedTeamSize(amPlayerCount)}, each split into halves of ${mixedTeamHalfSize(amPlayerCount)}. ${mixedTeamMatchesPerRound(amPlayerCount)} match${
-                      mixedTeamMatchesPerRound(amPlayerCount) === 1 ? "" : "es"
-                    } per round.`
-                  : `A mixed team americano needs a multiple of four players, at least ${MIN_MIXED_TEAM_PLAYERS} — two teams that each split into halves. Currently ${amPlayerCount}.`
-                : mixedAmericano
-                ? amPlayerCount >= MIN_AMERICANO_PLAYERS && amPlayerCount % 2 === 0
-                  ? `${amPlayerCount} players → two groups of ${amPlayerCount / 2}, ranked separately. Partners are drawn from the whole field.`
-                  : `A mixed americano needs an even number of players, at least ${MIN_AMERICANO_PLAYERS}. Currently ${amPlayerCount}.`
-                : mixedMexicano
-                ? isValidMixedMexicanoField(amPlayerCount)
-                  ? `${amPlayerCount} players → two groups of ${mixedGroupSize(amPlayerCount)}, ${mixedMexMatchesPerRound(amPlayerCount)} match${
-                      mixedMexMatchesPerRound(amPlayerCount) === 1 ? "" : "es"
-                    } per round. Every pair is one from each group, and the courts follow the standings.`
-                  : `A mixed mexicano needs a multiple of four players, at least ${MIN_MIXED_MEXICANO_PLAYERS} — two equal groups. Currently ${amPlayerCount}.`
-                : winnerCourt
-                ? isValidWinnerCourtField(amPlayerCount)
-                  ? `${amPlayerCount} players → four on court, ${waitingCount(amPlayerCount)} waiting. One match at a time.`
-                  : `A winner court needs at least ${MIN_WINNER_COURT_PLAYERS} players — four on court and a pair waiting. Currently ${amPlayerCount}.`
-                : mixicano
-                ? isValidMixicanoField(amPlayerCount)
-                  ? `${amPlayerCount} players → two groups of ${groupSize(amPlayerCount)}, ${mixicanoMatchesPerRound(amPlayerCount)} match${
-                      mixicanoMatchesPerRound(amPlayerCount) === 1 ? "" : "es"
-                    } per round. Every pair is one from each group.`
-                  : `A mixicano needs a multiple of four players, at least ${MIN_MIXICANO_PLAYERS} — two equal groups. Currently ${amPlayerCount}.`
-                : teamAmericano
-                ? isValidTeamField(amPlayerCount)
-                  ? `${amPlayerCount} players → two teams of ${teamSize(amPlayerCount)}, ${teamMatchesPerRound(amPlayerCount)} match${
-                      teamMatchesPerRound(amPlayerCount) === 1 ? "" : "es"
-                    } per round. The first ${teamSize(amPlayerCount)} names are ${teamName(1)}, the rest ${teamName(2)}.`
-                  : `A team americano needs a multiple of four players, at least ${MIN_TEAM_AMERICANO_PLAYERS} — two equal teams that each split into pairs. Currently ${amPlayerCount}.`
-                : kingCourt
-                ? isValidKingCourtField(amPlayerCount)
-                  ? `${amPlayerCount} players → a ladder of ${courtCount(amPlayerCount)} courts, everyone playing every round.`
-                  : `King of the court needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS} — every rung of the ladder has to be full. Currently ${amPlayerCount}.`
-                : amPlayerCount < MIN_AMERICANO_PLAYERS
-                ? `Enter at least ${MIN_AMERICANO_PLAYERS} players — a round needs four people on court.`
-                : `${amPlayerCount} players → ${matchesPerRound(amPlayerCount)} match${
-                    matchesPerRound(amPlayerCount) === 1 ? "" : "es"
-                  } per round${amPlayerCount % 4 !== 0 ? `, with ${amPlayerCount % 4} sitting out each round (taking turns)` : ""}.`}
+            // One sentence from the registry: the reason it is illegal, or what
+            // this field will produce. The submit button uses the same rule, so
+            // the two can never say different things.
+            <p className={`text-xs mt-3 ${describeField(format, amPlayerCount).ok ? "text-white/40" : "text-live"}`}>
+              {describeField(format, amPlayerCount).message}
             </p>
           ) : format === "two-group" ? (
             <p className="text-white/40 text-xs mt-3">

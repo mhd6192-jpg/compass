@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { computeStandings, computeTeamStandings, findDecider, type StandingsRow } from "@/lib/standings";
 import { isGroupRanked, isRotatingPartners, isTeamScored, type MatchDTO } from "@/lib/types";
 import { mixicanoGroupName } from "@/lib/bracket/mixicano";
+import { formatSpec } from "@/lib/bracket/formats";
 
 /**
  * A two-group draw is two separate tables. Ranking every team in one list would
@@ -203,29 +204,8 @@ export default function V3Standings({
           style={{ fontSize: "clamp(0.55rem, 1vw, 1rem)" }}
         >
           {subtitle ??
-            (format === "mixed-team-americano"
-              ? "Every point you win goes to your team · pairs are mixed within it"
-              : format === "mixed-americano"
-              ? "Partners come from anywhere — each group has its own winner"
-              : format === "mixed-mexicano"
-              ? "Each group ranked on its own — the next round follows these tables"
-              : format === "winner-court"
-              ? "Ranked on points won — winners keep the court"
-              : format === "mixicano"
-              ? "Ranked on points won — every pair is one from each group"
-              : format === "team-americano"
-              ? "Every point you win goes to your team"
-              : format === "king-court"
-              ? "Ranked on points won — winners climb a court each round"
-              : format === "mexicano"
-              ? "Ranked on points won — next round is drawn from this table"
-              : format === "americano"
-              ? "Ranked on points won — partners change every round"
-              : format === "two-group"
-              ? "Top two of each group reach the semifinals"
-              : findDecider(matches)
-                ? "Top two settled by the deciding final"
-                : "Ties broken by points scored")}
+            formatSpec(format).standingsSubtitle ??
+            (findDecider(matches) ? "Top two settled by the deciding final" : "Ties broken by points scored")}
         </p>
       </div>
 
