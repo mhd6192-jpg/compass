@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { computeStandings, computeTeamStandings, findDecider, type StandingsRow } from "@/lib/standings";
 import { isRotatingPartners, type MatchDTO } from "@/lib/types";
+import { mixicanoGroupName } from "@/lib/bracket/mixicano";
 
 /**
  * A two-group draw is two separate tables. Ranking every team in one list would
@@ -18,6 +19,22 @@ function splitTables(matches: MatchDTO[], format?: string): Array<{ key: string;
     return [
       { key: "teams", label: "Teams", rows: computeTeamStandings(matches) },
       { key: "players", label: "Players", rows: computeStandings(matches) },
+    ].filter((t) => t.rows.length > 0);
+  }
+  // A mixed mexicano ranks each group on its own — that is literally how the
+  // next round is drawn, so showing one merged list would be showing something
+  // the draw does not use.
+  if (format === "mixed-mexicano") {
+    const rows = computeStandings(matches);
+    const inGroup = (g: number) =>
+      rows.filter((r) =>
+        matches.some((m) =>
+          [...(m.player1Members ?? []), ...(m.player2Members ?? [])].some((p) => p.id === r.id && p.team === g)
+        )
+      );
+    return [
+      { key: "g1", label: mixicanoGroupName(1), rows: inGroup(1) },
+      { key: "g2", label: mixicanoGroupName(2), rows: inGroup(2) },
     ].filter((t) => t.rows.length > 0);
   }
   if (format === "two-group") {
@@ -186,7 +203,9 @@ export default function V3Standings({
           style={{ fontSize: "clamp(0.55rem, 1vw, 1rem)" }}
         >
           {subtitle ??
-            (format === "winner-court"
+            (format === "mixed-mexicano"
+              ? "Each group ranked on its own — the next round follows these tables"
+              : format === "winner-court"
               ? "Ranked on points won — winners keep the court"
               : format === "mixicano"
               ? "Ranked on points won — every pair is one from each group"

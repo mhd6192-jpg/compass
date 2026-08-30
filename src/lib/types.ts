@@ -12,7 +12,8 @@ export type TournamentFormat =
   | "king-court"
   | "team-americano"
   | "mixicano"
-  | "winner-court";
+  | "winner-court"
+  | "mixed-mexicano";
 
 /**
  * The formats entered as individuals, where a match holds four people and the
@@ -20,8 +21,9 @@ export type TournamentFormat =
  * an americano draws the lot in advance, a mexicano re-ranks the field on
  * points, king of the court moves people up and down a ladder, a team
  * americano rotates partners inside two fixed sides, a mixicano rotates them
- * across two groups, and a winner court keeps the winning pair on and queues
- * everybody else. Everything downstream —
+ * across two groups, a winner court keeps the winning pair on and queues
+ * everybody else, and a mixed mexicano redraws from the standings while keeping
+ * every pair across the groups. Everything downstream —
  * scoring, court booking, the four-people-per-match handling — treats them
  * identically; only the team americano differs at the end, where the result
  * belongs to a side rather than to a person.
@@ -33,7 +35,8 @@ export function isRotatingPartners(format: string | undefined): boolean {
     format === "king-court" ||
     format === "team-americano" ||
     format === "mixicano" ||
-    format === "winner-court"
+    format === "winner-court" ||
+    format === "mixed-mexicano"
   );
 }
 
@@ -44,7 +47,7 @@ export function isRotatingPartners(format: string | undefined): boolean {
  * divide.
  */
 export function isTwoGroupEntry(format: string | undefined): boolean {
-  return format === "team-americano" || format === "mixicano";
+  return format === "team-americano" || format === "mixicano" || format === "mixed-mexicano";
 }
 
 export function isMixicano(format: string | undefined): boolean {
@@ -53,6 +56,10 @@ export function isMixicano(format: string | undefined): boolean {
 
 export function isWinnerCourt(format: string | undefined): boolean {
   return format === "winner-court";
+}
+
+export function isMixedMexicano(format: string | undefined): boolean {
+  return format === "mixed-mexicano";
 }
 
 /**
@@ -66,7 +73,9 @@ export function isTeamAmericano(format: string | undefined): boolean {
 
 /** Formats whose rounds are built as the night goes, so they cannot be previewed in full. */
 export function isDerivedRounds(format: string | undefined): boolean {
-  return format === "mexicano" || format === "king-court" || format === "winner-court";
+  return (
+    format === "mexicano" || format === "king-court" || format === "winner-court" || format === "mixed-mexicano"
+  );
 }
 
 export function isAmericano(format: string | undefined): boolean {

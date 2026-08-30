@@ -25,6 +25,13 @@ import {
   OPENING_INDICES,
   MIN_WINNER_COURT_PLAYERS,
 } from "./winnerCourt";
+import {
+  defaultMixedMexicanoRounds,
+  groupOf as mixedGroupOf,
+  isValidMixedMexicanoField,
+  openingRound as mixedOpeningRound,
+  MIN_MIXED_MEXICANO_PLAYERS,
+} from "./mixedMexicano";
 import { rebalanceCourts, DEFAULT_COURT_IDS } from "./courts";
 import { TiebreakMode, TournamentFormat } from "../types";
 import { resetV2State } from "../v2/reset";
@@ -85,13 +92,19 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
       `A winner court needs at least ${MIN_WINNER_COURT_PLAYERS} players — four on court and a pair waiting to challenge (got ${trimmed.length})`
     );
   }
+  if (format === "mixed-mexicano" && !isValidMixedMexicanoField(trimmed.length)) {
+    throw new Error(
+      `A mixed mexicano needs two equal groups that divide into whole matches — a multiple of four players, at least ${MIN_MIXED_MEXICANO_PLAYERS} (got ${trimmed.length})`
+    );
+  }
   const rotating =
     format === "americano" ||
     format === "mexicano" ||
     format === "king-court" ||
     format === "team-americano" ||
     format === "mixicano" ||
-    format === "winner-court";
+    format === "winner-court" ||
+    format === "mixed-mexicano";
   const amRounds = rotating
     ? opts.amRounds ||
       (format === "team-americano"
@@ -100,6 +113,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
         ? defaultMixicanoRounds(trimmed.length)
         : format === "winner-court"
         ? defaultWinnerCourtRounds(trimmed.length)
+        : format === "mixed-mexicano"
+        ? defaultMixedMexicanoRounds(trimmed.length)
         : defaultRounds(trimmed.length))
     : 0;
 
@@ -128,6 +143,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
             ? teamOf(i, trimmed.length)
             : format === "mixicano"
             ? groupOf(i, trimmed.length)
+            : format === "mixed-mexicano"
+            ? mixedGroupOf(i, trimmed.length)
             : 0;
         players.push(await tx.player.create({ data: { name: trimmed[i], seed: i, team } }));
       }
@@ -162,6 +179,10 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
             ? // Only the opening match is known: every later one depends on who
               // held the court and who is next off the queue.
               [{ round: 1, posIndex: 0, ...OPENING_INDICES }]
+            : format === "mixed-mexicano"
+            ? // Round 1 off the entry order within each group; later rounds are
+              // redrawn from the standings.
+              mixedOpeningRound(trimmed.length).map((p) => ({ round: 1, ...p }))
             : format === "king-court"
             ? // posIndex is the rung: 0 is the king court.
               openingLadder(trimmed.length).map((r) => ({ round: 1, posIndex: r.level, team1: r.team1, team2: r.team2 }))

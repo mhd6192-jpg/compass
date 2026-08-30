@@ -4,12 +4,13 @@ import { isDerivedRounds, isRotatingPartners } from "../types";
 import { nextLadder, type CourtResult } from "./kingCourt";
 import { nextRound, type WinnerCourtResult } from "./winnerCourt";
 import { chooseSitters, pairByRank } from "./mexicano";
+import { pairAcrossRanked } from "./mixedMexicano";
 import { MATCH_INCLUDE, buildMatchDTO } from "./dto";
 import { getScoringConfig } from "./config";
 
 type Tx = Prisma.TransactionClient;
 
-/** A round of a rotating-partner format (americano, mexicano or king of the court). */
+/** A round of any rotating-partner format — they all share the AM bracket. */
 export function isRotatingRow(m: Pick<Match, "bracket">): boolean {
   return m.bracket === "AM";
 }
@@ -17,18 +18,25 @@ export function isRotatingRow(m: Pick<Match, "bracket">): boolean {
 /**
  * Lets the next round out once the current one is finished.
  *
- * All three rotating formats play strictly one round at a time. Without that
- * gate the court queue would start a round-five match the moment those four
- * players were free, and the round a player is told to watch for would not
- * match what is on the court.
+ * Every rotating format plays strictly one round at a time. Without that gate
+ * the court queue would start a round-five match the moment those four players
+ * were free, and the round a player is told to watch for would not match what
+ * is on the court.
  *
- * They differ only in where the next round comes from. An americano (and the
- * two-group formats built on it) has the whole thing drawn already at seeding
- * time. A mexicano re-ranks the field on points and re-draws. King of the court
- * moves each set of winners up a rung and each set of losers down one. A winner
- * court keeps the winning pair on and calls the next two off the queue. All but
- * the first can only be worked out once the previous round is in, which is
- * exactly what makes them worth playing.
+ * They differ only in where the next round comes from:
+ *
+ *   americano, team americano, mixicano — the whole schedule is drawn at
+ *     seeding time and simply held back a round at a time.
+ *   mexicano — the field is re-ranked on points and re-drawn.
+ *   mixed mexicano — the same, with each group ranked separately so pairs can
+ *     still cross the divide.
+ *   king of the court — each set of winners moves up a rung, each set of losers
+ *     down one.
+ *   winner court — the winning pair keeps the court and the next two come off
+ *     the queue.
+ *
+ * All but the first group can only be worked out once the previous round is in,
+ * which is exactly what makes them worth playing.
  *
  * Idempotent, so it is safe to call after every completed match.
  */
@@ -144,7 +152,7 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
     return created;
   }
 
-  // --- mexicano: build the next round from the table ------------------------
+  // --- the standings-driven formats: mexicano and mixed mexicano ------------
 
   const config = await getScoringConfig(tx);
   const table = computeStandings(rows.map((m) => buildMatchDTO(m, config)));
@@ -156,19 +164,45 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
   // they are missing there is no bye to hand out, the same four pairs get drawn
   // again, and those players never get on court all night.
   const roster = await tx.player.findMany({ orderBy: { seed: "asc" } });
-  const rankedIds = [...roster]
-    .sort((a, b) => {
-      const ra = byId.get(a.id);
-      const rb = byId.get(b.id);
-      return (
-        (rb?.pointsFor ?? 0) - (ra?.pointsFor ?? 0) ||
-        (rb?.won ?? 0) - (ra?.won ?? 0) ||
-        (ra?.pointsAgainst ?? 0) - (rb?.pointsAgainst ?? 0) ||
-        a.seed - b.seed
-      );
-    })
-    .map((p) => p.id);
+  const byStanding = (a: { id: string; seed: number }, b: { id: string; seed: number }) => {
+    const ra = byId.get(a.id);
+    const rb = byId.get(b.id);
+    return (
+      (rb?.pointsFor ?? 0) - (ra?.pointsFor ?? 0) ||
+      (rb?.won ?? 0) - (ra?.won ?? 0) ||
+      (ra?.pointsAgainst ?? 0) - (rb?.pointsAgainst ?? 0) ||
+      a.seed - b.seed
+    );
+  };
+  const rankedIds = [...roster].sort(byStanding).map((p) => p.id);
   if (rankedIds.length < 4) return [];
+
+  // --- mixed mexicano: the same redraw, but pairs cross the two groups ------
+  // Each group is ranked on its own, so "the top court" means the best two of
+  // each group rather than the best four overall — which is the thing a player
+  // can see and aim at when every pair has to be one from each side.
+  if (cfg?.format === "mixed-mexicano") {
+    const rankedA = [...roster].filter((p) => p.team === 1).sort(byStanding).map((p) => p.id);
+    const rankedB = [...roster].filter((p) => p.team === 2).sort(byStanding).map((p) => p.id);
+    const created: string[] = [];
+    for (const pairing of pairAcrossRanked(rankedA, rankedB)) {
+      const row = await tx.match.create({
+        data: {
+          bracket: "AM",
+          round,
+          posIndex: pairing.posIndex,
+          player1Id: pairing.team1[0],
+          player1PartnerId: pairing.team1[1],
+          player2Id: pairing.team2[0],
+          player2PartnerId: pairing.team2[1],
+          status: "ready",
+          readyAt: new Date(),
+        },
+      });
+      created.push(row.id);
+    }
+    return created;
+  }
 
   // Byes so far, so the sit-outs keep going round rather than always landing on
   // the same people. A player who has played every round has taken none.

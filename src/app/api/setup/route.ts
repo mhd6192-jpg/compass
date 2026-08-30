@@ -10,6 +10,7 @@ import { MIN_KING_COURT_PLAYERS } from "@/lib/bracket/kingCourt";
 import { MIN_TEAM_AMERICANO_PLAYERS } from "@/lib/bracket/teamAmericano";
 import { MIN_MIXICANO_PLAYERS } from "@/lib/bracket/mixicano";
 import { MIN_WINNER_COURT_PLAYERS } from "@/lib/bracket/winnerCourt";
+import { MIN_MIXED_MEXICANO_PLAYERS } from "@/lib/bracket/mixedMexicano";
 import { getIO, EVENTS } from "@/lib/socket";
 
 export async function POST(req: Request) {
@@ -24,7 +25,8 @@ export async function POST(req: Request) {
       format === "king-court" ||
       format === "team-americano" ||
       format === "mixicano" ||
-      format === "winner-court"
+      format === "winner-court" ||
+      format === "mixed-mexicano"
         ? format
         : "compass";
     const rotating = isRotatingPartners(fmt);
@@ -40,6 +42,8 @@ export async function POST(req: Request) {
         ? MIN_MIXICANO_PLAYERS
         : fmt === "winner-court"
         ? MIN_WINNER_COURT_PLAYERS
+        : fmt === "mixed-mexicano"
+        ? MIN_MIXED_MEXICANO_PLAYERS
         : rotating
         ? MIN_AMERICANO_PLAYERS
         : 3;
@@ -74,6 +78,12 @@ export async function POST(req: Request) {
       );
     }
     // Two equal groups that between them make whole matches.
+    if (fmt === "mixed-mexicano" && names.length % 4 !== 0) {
+      return NextResponse.json(
+        { error: `A mixed mexicano needs a multiple of four players (got ${names.length})` },
+        { status: 400 }
+      );
+    }
     if (fmt === "mixicano" && names.length % 4 !== 0) {
       return NextResponse.json(
         { error: `A mixicano needs a multiple of four players (got ${names.length})` },
