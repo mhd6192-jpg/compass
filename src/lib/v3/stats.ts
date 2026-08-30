@@ -70,7 +70,9 @@ export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight
       key: "leader",
       icon: "🔥",
       eyebrow: americano
-        ? format === "mexicano"
+        ? format === "team-americano"
+          ? "Top scorer"
+          : format === "mexicano"
           ? "Leading the mexicano"
           : format === "king-court"
           ? "Most points so far"

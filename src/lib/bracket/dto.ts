@@ -20,7 +20,9 @@ type MatchWithRelations = Match & {
 
 export function toPlayerDTO(p: Player | null): PlayerDTO | null {
   if (!p) return null;
-  return { id: p.id, name: p.name, seed: p.seed };
+  // `team` is only ever non-zero in a team americano; omitted elsewhere so the
+  // field's presence means what it says.
+  return { id: p.id, name: p.name, seed: p.seed, ...(p.team ? { team: p.team } : {}) };
 }
 
 /** The relations every DTO build needs — kept in one place so a new one can't be forgotten. */

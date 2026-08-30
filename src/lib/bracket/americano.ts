@@ -89,8 +89,11 @@ class PairCount {
  * every possible pairing exactly once. An odd player count is handled by
  * rotating a ghost player through the field — whoever draws the ghost sits out,
  * which spreads the byes evenly for free.
+ *
+ * Exported because the team americano rotates partnerships inside each team the
+ * same way.
  */
-function circlePairs(size: number, round: number): [number, number][] {
+export function circlePairs(size: number, round: number): [number, number][] {
   const rest = [...Array(size - 1).keys()].map((i) => i + 1);
   const shift = round % (size - 1);
   const rotated = [...rest.slice(shift), ...rest.slice(0, shift)];

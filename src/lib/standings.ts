@@ -1,4 +1,5 @@
 import type { MatchDTO } from "./types";
+import { teamName } from "./bracket/teamAmericano";
 
 export interface StandingsRow {
   /** Player/team id — stable across renders, unlike the display name. */
@@ -115,4 +116,64 @@ export function computeStandings(matches: MatchDTO[]): StandingsRow[] {
   const second = ranked.find((r) => r.id === loserId);
   if (!first || !second) return ranked;
   return [first, second, ...ranked.filter((r) => r !== first && r !== second)];
+}
+
+/**
+ * The two team totals of a team americano.
+ *
+ * Every point a player wins belongs to their side, so this is the individual
+ * table added up by team — and it is the table that decides the event. A match
+ * always has one team on each side of the net (that is how the schedule is
+ * built), so a side's whole score goes to exactly one team.
+ *
+ * `won`/`lost` count MATCHES, not players: a 2-0 round for team A is one win
+ * per match played, which is what people mean when they ask the score.
+ */
+export function computeTeamStandings(matches: MatchDTO[]): StandingsRow[] {
+  const rows = new Map<number, StandingsRow>();
+  const ensure = (team: number) => {
+    if (!rows.has(team)) {
+      rows.set(team, { id: `team-${team}`, name: teamName(team), played: 0, won: 0, lost: 0, pointsFor: 0, pointsAgainst: 0 });
+    }
+    return rows.get(team)!;
+  };
+
+  for (const m of matches) {
+    const side1 = m.player1Members ?? [];
+    const side2 = m.player2Members ?? [];
+    const t1 = side1[0]?.team ?? 0;
+    const t2 = side2[0]?.team ?? 0;
+    if (!t1 || !t2 || t1 === t2) continue; // not a team fixture
+    ensure(t1);
+    ensure(t2);
+    if (m.status !== "completed" || !m.winnerId) continue;
+
+    const p1Won = m.winnerId === m.player1?.id;
+    let p1Pts = 0;
+    let p2Pts = 0;
+    for (const set of m.state.completedSets) {
+      p1Pts += pointsInSet(set, 0);
+      p2Pts += pointsInSet(set, 1);
+    }
+
+    const r1 = ensure(t1);
+    const r2 = ensure(t2);
+    r1.played++;
+    r2.played++;
+    r1.pointsFor += p1Pts;
+    r1.pointsAgainst += p2Pts;
+    r2.pointsFor += p2Pts;
+    r2.pointsAgainst += p1Pts;
+    if (p1Won) {
+      r1.won++;
+      r2.lost++;
+    } else {
+      r1.lost++;
+      r2.won++;
+    }
+  }
+
+  return [...rows.values()].sort(
+    (a, b) => b.pointsFor - a.pointsFor || b.won - a.won || a.pointsAgainst - b.pointsAgainst || a.name.localeCompare(b.name)
+  );
 }

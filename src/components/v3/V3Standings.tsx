@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { computeStandings, findDecider, type StandingsRow } from "@/lib/standings";
+import { computeStandings, computeTeamStandings, findDecider, type StandingsRow } from "@/lib/standings";
 import { isRotatingPartners, type MatchDTO } from "@/lib/types";
 
 /**
@@ -11,6 +11,15 @@ import { isRotatingPartners, type MatchDTO } from "@/lib/types";
  * shown on its own — which is also how the players read it.
  */
 function splitTables(matches: MatchDTO[], format?: string): Array<{ key: string; label: string | null; rows: StandingsRow[] }> {
+  // A team americano is decided by the two team totals, so that is the table —
+  // with the individual scorers beside it, since people still want to see who
+  // is actually winning the points for their side.
+  if (format === "team-americano") {
+    return [
+      { key: "teams", label: "Teams", rows: computeTeamStandings(matches) },
+      { key: "players", label: "Players", rows: computeStandings(matches) },
+    ].filter((t) => t.rows.length > 0);
+  }
   if (format === "two-group") {
     return [
       { key: "GA", label: "Group A", rows: computeStandings(matches.filter((m) => m.bracket === "GA")) },
@@ -177,7 +186,9 @@ export default function V3Standings({
           style={{ fontSize: "clamp(0.55rem, 1vw, 1rem)" }}
         >
           {subtitle ??
-            (format === "king-court"
+            (format === "team-americano"
+              ? "Every point you win goes to your team"
+              : format === "king-court"
               ? "Ranked on points won — winners climb a court each round"
               : format === "mexicano"
               ? "Ranked on points won — next round is drawn from this table"

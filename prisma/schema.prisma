@@ -39,6 +39,10 @@ model Player {
   id        String   @id @default(cuid())
   name      String
   seed      Int
+
+  /// Team americano only: which fixed side this player belongs to (1 or 2).
+  /// 0 everywhere else, where players have no standing team.
+  team      Int      @default(0)
   createdAt DateTime @default(now())
 
   matchesAsP1 Match[] @relation("MatchP1")

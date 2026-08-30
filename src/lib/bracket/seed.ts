@@ -5,6 +5,13 @@ import { generateTwoGroup, MIN_TWO_GROUP_TEAMS } from "./twoGroup";
 import { defaultRounds, generateAmericano, playersPerRound, MIN_AMERICANO_PLAYERS } from "./americano";
 import { pairByRank, MIN_MEXICANO_PLAYERS } from "./mexicano";
 import { isValidKingCourtField, openingLadder, MIN_KING_COURT_PLAYERS } from "./kingCourt";
+import {
+  defaultTeamRounds,
+  generateTeamAmericano,
+  isValidTeamField,
+  teamOf,
+  MIN_TEAM_AMERICANO_PLAYERS,
+} from "./teamAmericano";
 import { rebalanceCourts, DEFAULT_COURT_IDS } from "./courts";
 import { TiebreakMode, TournamentFormat } from "../types";
 import { resetV2State } from "../v2/reset";
@@ -50,8 +57,17 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
       `King of the court needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS} (got ${trimmed.length}) — every court on the ladder has to be full.`
     );
   }
-  const rotating = format === "americano" || format === "mexicano" || format === "king-court";
-  const amRounds = rotating ? opts.amRounds || defaultRounds(trimmed.length) : 0;
+  if (format === "team-americano" && !isValidTeamField(trimmed.length)) {
+    throw new Error(
+      `A team americano needs two equal teams that each divide into pairs — a multiple of four players, at least ${MIN_TEAM_AMERICANO_PLAYERS} (got ${trimmed.length})`
+    );
+  }
+  const rotating =
+    format === "americano" || format === "mexicano" || format === "king-court" || format === "team-americano";
+  const amRounds = rotating
+    ? opts.amRounds ||
+      (format === "team-americano" ? defaultTeamRounds(trimmed.length) : defaultRounds(trimmed.length))
+    : 0;
 
   return client.$transaction(
     async (tx) => {
@@ -71,7 +87,9 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
 
       const players = [];
       for (let i = 0; i < trimmed.length; i++) {
-        players.push(await tx.player.create({ data: { name: trimmed[i], seed: i } }));
+        // Only a team americano has standing sides; everywhere else team is 0.
+        const team = format === "team-americano" ? teamOf(i, trimmed.length) : 0;
+        players.push(await tx.player.create({ data: { name: trimmed[i], seed: i, team } }));
       }
 
       const courtIds = opts.courtIds?.length ? [...new Set(opts.courtIds)].sort((a, b) => a - b) : DEFAULT_COURT_IDS;
@@ -96,6 +114,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
         const round1 =
           format === "americano"
             ? generateAmericano(players.length, amRounds).matches
+            : format === "team-americano"
+            ? generateTeamAmericano(players.length, amRounds)
             : format === "king-court"
             ? // posIndex is the rung: 0 is the king court.
               openingLadder(trimmed.length).map((r) => ({ round: 1, posIndex: r.level, team1: r.team1, team2: r.team2 }))

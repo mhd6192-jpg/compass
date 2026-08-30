@@ -7,6 +7,7 @@ import { isPointsRace, isRotatingPartners, type TournamentFormat } from "@/lib/t
 import { MIN_TWO_GROUP_TEAMS } from "@/lib/bracket/twoGroup";
 import { MAX_AMERICANO_PLAYERS, MAX_AMERICANO_ROUNDS, MIN_AMERICANO_PLAYERS } from "@/lib/bracket/americano";
 import { MIN_KING_COURT_PLAYERS } from "@/lib/bracket/kingCourt";
+import { MIN_TEAM_AMERICANO_PLAYERS } from "@/lib/bracket/teamAmericano";
 import { getIO, EVENTS } from "@/lib/socket";
 
 export async function POST(req: Request) {
@@ -14,7 +15,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { names, bestOfSets, tiebreakMode, pin, seeds, arrange, format, discipline } = body;
     const fmt: TournamentFormat =
-      format === "round-robin" || format === "two-group" || format === "americano" || format === "mexicano" || format === "king-court"
+      format === "round-robin" ||
+      format === "two-group" ||
+      format === "americano" ||
+      format === "mexicano" ||
+      format === "king-court" ||
+      format === "team-americano"
         ? format
         : "compass";
     const rotating = isRotatingPartners(fmt);
@@ -24,6 +30,8 @@ export async function POST(req: Request) {
         ? MIN_TWO_GROUP_TEAMS
         : fmt === "king-court"
         ? MIN_KING_COURT_PLAYERS
+        : fmt === "team-americano"
+        ? MIN_TEAM_AMERICANO_PLAYERS
         : rotating
         ? MIN_AMERICANO_PLAYERS
         : 3;
@@ -47,6 +55,13 @@ export async function POST(req: Request) {
     if (fmt === "king-court" && names.length % 4 !== 0) {
       return NextResponse.json(
         { error: `King of the court needs a multiple of four players (got ${names.length})` },
+        { status: 400 }
+      );
+    }
+    // Two equal teams that each split into pairs.
+    if (fmt === "team-americano" && names.length % 4 !== 0) {
+      return NextResponse.json(
+        { error: `A team americano needs a multiple of four players (got ${names.length})` },
         { status: 400 }
       );
     }

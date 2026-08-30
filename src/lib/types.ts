@@ -9,19 +9,32 @@ export type TournamentFormat =
   | "two-group"
   | "americano"
   | "mexicano"
-  | "king-court";
+  | "king-court"
+  | "team-americano";
 
 /**
- * The formats whose entrants are individuals rather than sides: partners rotate
- * every round, so a match holds four people and nobody's result belongs to a
- * fixed team. They differ only in where the next round's pairings come from —
- * an americano draws them in advance, a mexicano re-ranks the whole field on
- * points, king of the court moves people up and down a ladder of courts.
- * Everything downstream — scoring, tables, podium, court booking — treats all
- * three identically.
+ * The formats entered as individuals, where a match holds four people and the
+ * pairings change every round. They differ in where the next round comes from —
+ * an americano draws the lot in advance, a mexicano re-ranks the field on
+ * points, king of the court moves people up and down a ladder, and a team
+ * americano rotates partners inside two fixed sides. Everything downstream —
+ * scoring, court booking, the four-people-per-match handling — treats them
+ * identically; only the team americano differs at the end, where the result
+ * belongs to a side rather than to a person.
  */
 export function isRotatingPartners(format: string | undefined): boolean {
-  return format === "americano" || format === "mexicano" || format === "king-court";
+  return (
+    format === "americano" || format === "mexicano" || format === "king-court" || format === "team-americano"
+  );
+}
+
+/**
+ * The one rotating format scored by side rather than by person: partners still
+ * rotate, but they rotate within a fixed team and every point lands on that
+ * team's total.
+ */
+export function isTeamAmericano(format: string | undefined): boolean {
+  return format === "team-americano";
 }
 
 /** Formats whose rounds are built as the night goes, so they cannot be previewed in full. */
@@ -226,6 +239,8 @@ export interface PlayerDTO {
   id: string;
   name: string;
   seed: number;
+  /** Team americano only: the fixed side this player belongs to (1 or 2). */
+  team?: number;
 }
 
 export interface MatchStateDTO {

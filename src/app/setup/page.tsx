@@ -19,6 +19,17 @@ import {
 } from "@/lib/bracket/americano";
 import { pairByRank, MIN_MEXICANO_PLAYERS } from "@/lib/bracket/mexicano";
 import { courtCount, courtLevelName, isValidKingCourtField, openingLadder, MIN_KING_COURT_PLAYERS } from "@/lib/bracket/kingCourt";
+import {
+  defaultTeamRounds,
+  generateTeamAmericano,
+  isValidTeamField,
+  maxTeamRounds,
+  teamName,
+  teamScheduleQuality,
+  teamSize,
+  matchesPerRound as teamMatchesPerRound,
+  MIN_TEAM_AMERICANO_PLAYERS,
+} from "@/lib/bracket/teamAmericano";
 
 /** The set-based options never change; the race options describe themselves with the chosen target. */
 function tiebreakOptions(target: number): { value: TiebreakMode; title: string; desc: string }[] {
@@ -87,8 +98,11 @@ export default function SetupPage() {
   // point of the format is that the pairs are made up as it goes.
   const mexicano = format === "mexicano";
   const kingCourt = format === "king-court";
-  // All three rotating-partner formats share this whole section of the form.
-  const americano = format === "americano" || mexicano || kingCourt;
+  const teamAmericano = format === "team-americano";
+  // All the rotating-partner formats share this whole section of the form.
+  const americano = format === "americano" || mexicano || kingCourt || teamAmericano;
+  // The two that need a full multiple of four rather than merely enough players.
+  const needsFours = kingCourt || teamAmericano;
   const entrantLabel = americano || discipline === "singles" ? "Player" : "Team";
   const entrantsLabel = americano || discipline === "singles" ? "Players" : "Teams";
   const [names, setNames] = useState<string[]>(Array(16).fill(""));
@@ -166,7 +180,14 @@ export default function SetupPage() {
   // The americano rotation, previewed from the same generator the seeder uses,
   // so what the organiser reads here is exactly the draw they get.
   const amPlayerCount = rrNames.filter((n) => n.trim()).length;
-  const effectiveRounds = amRounds || defaultRounds(Math.max(amPlayerCount, MIN_AMERICANO_PLAYERS));
+  // A team americano runs out of partner combinations far sooner than a plain
+  // one — a team of four has only three — so it gets its own default rather
+  // than the generic eight, which would schedule rounds of repeats by default.
+  const effectiveRounds =
+    amRounds ||
+    (teamAmericano && isValidTeamField(amPlayerCount)
+      ? defaultTeamRounds(amPlayerCount)
+      : defaultRounds(Math.max(amPlayerCount, MIN_AMERICANO_PLAYERS)));
   const amPreview = useMemo(() => {
     if (format !== "americano" || amPlayerCount < MIN_AMERICANO_PLAYERS || amPlayerCount > MAX_AMERICANO_PLAYERS) return null;
     try {
@@ -194,6 +215,25 @@ export default function SetupPage() {
     return { rungs: openingLadder(amPlayerCount), names };
   }, [kingCourt, amPlayerCount, rrNames]);
 
+  // The two sides and their opening rotation, from the same generator the
+  // seeder uses.
+  const taPreview = useMemo(() => {
+    if (!teamAmericano || !isValidTeamField(amPlayerCount)) return null;
+    const names = rrNames.map((n) => n.trim()).filter(Boolean);
+    const size = teamSize(amPlayerCount);
+    try {
+      const matches = generateTeamAmericano(amPlayerCount, effectiveRounds);
+      return {
+        names,
+        teams: [names.slice(0, size), names.slice(size)],
+        matches,
+        quality: teamScheduleQuality(matches, amPlayerCount),
+      };
+    } catch {
+      return null;
+    }
+  }, [teamAmericano, amPlayerCount, rrNames, effectiveRounds]);
+
   // Who lands in which group, using the same alternating split the seeder uses.
   const groupPreview = useMemo(() => {
     const teams = rrNames.map((n) => n.trim()).filter(Boolean);
@@ -217,13 +257,19 @@ export default function SetupPage() {
       setError("Enter at least 3 teams.");
       return;
     }
+    if (teamAmericano && !isValidTeamField(trimmed.filter(Boolean).length)) {
+      setError(
+        `A team americano needs a multiple of four players, at least ${MIN_TEAM_AMERICANO_PLAYERS} — two equal teams that each split into pairs.`
+      );
+      return;
+    }
     if (kingCourt && !isValidKingCourtField(trimmed.filter(Boolean).length)) {
       setError(
         `King of the court needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS} — every court on the ladder has to be full.`
       );
       return;
     }
-    if (americano && !kingCourt && trimmed.filter(Boolean).length < MIN_AMERICANO_PLAYERS) {
+    if (americano && !needsFours && trimmed.filter(Boolean).length < MIN_AMERICANO_PLAYERS) {
       setError(`Enter at least ${MIN_AMERICANO_PLAYERS} players for ${mexicano ? "a mexicano" : "an americano"}.`);
       return;
     }
@@ -340,7 +386,9 @@ export default function SetupPage() {
             {americano
               ? `Round 1 is on the courts. ${effectiveRounds} rounds are scheduled${
                   mexicano ? ", each drawn from the standings as they stand" : ""
-                }${kingCourt ? ", with winners climbing a court after each one" : ""}.`
+                }${kingCourt ? ", with winners climbing a court after each one" : ""}${
+                  teamAmericano ? ", with every point going to your team" : ""
+                }.`
               : format === "compass"
               ? "East Round of 16 is seeded and courts are assigned."
               : "The fixtures are generated and courts are assigned."}
@@ -371,7 +419,9 @@ export default function SetupPage() {
         <div>
           <h1 className="font-display text-3xl sm:text-4xl font-bold uppercase">Tournament Setup</h1>
           <p className="text-white/50 mt-2 text-sm">
-            {kingCourt
+            {teamAmericano
+              ? "Enter one team and then the other. Partners rotate within your team; every point goes to your side."
+              : kingCourt
               ? "Enter everyone playing, strongest first — that sets the opening ladder. Win and you climb a court."
               : mexicano
               ? "Enter everyone playing, strongest first. Partners are drawn from the standings and change every round."
@@ -426,6 +476,11 @@ export default function SetupPage() {
               desc: `Enter individuals, not pairs. Every round everyone gets a new partner and a new pair of opponents, and each player keeps their own running points total — the winner is the highest scorer, not a team. Needs at least ${MIN_AMERICANO_PLAYERS} players.`,
             },
             {
+              value: "team-americano",
+              title: "Team americano (two sides)",
+              desc: `Two fixed teams, entered one after the other. Every round you partner someone else from your own team and play two from the other side, and every point you win goes to your team's total. Needs a multiple of four players, at least ${MIN_TEAM_AMERICANO_PLAYERS}.`,
+            },
+            {
               value: "king-court",
               title: "King of the court (climb the ladder)",
               desc: `Courts are ranked, and the king court is the top one. Each round every court plays its own match: the two winners move up a court, the two losers move down, and your partner is always someone arriving from the other direction. Needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS}.`,
@@ -447,7 +502,12 @@ export default function SetupPage() {
                 }
                 // These are always a short race to a points total — that
                 // running total IS the tournament, so sets would make no sense.
-                if (opt.value === "americano" || opt.value === "mexicano" || opt.value === "king-court") {
+                if (
+                  opt.value === "americano" ||
+                  opt.value === "mexicano" ||
+                  opt.value === "king-court" ||
+                  opt.value === "team-americano"
+                ) {
                   setTiebreakMode("race-to-16");
                   setBestOfSets(1);
                   setRaceTarget(16);
@@ -559,12 +619,22 @@ export default function SetupPage() {
           {americano ? (
             <p
               className={`text-xs mt-3 ${
-                (kingCourt ? isValidKingCourtField(amPlayerCount) : amPlayerCount >= MIN_AMERICANO_PLAYERS)
+                (teamAmericano
+                  ? isValidTeamField(amPlayerCount)
+                  : kingCourt
+                  ? isValidKingCourtField(amPlayerCount)
+                  : amPlayerCount >= MIN_AMERICANO_PLAYERS)
                   ? "text-white/40"
                   : "text-live"
               }`}
             >
-              {kingCourt
+              {teamAmericano
+                ? isValidTeamField(amPlayerCount)
+                  ? `${amPlayerCount} players → two teams of ${teamSize(amPlayerCount)}, ${teamMatchesPerRound(amPlayerCount)} match${
+                      teamMatchesPerRound(amPlayerCount) === 1 ? "" : "es"
+                    } per round. The first ${teamSize(amPlayerCount)} names are ${teamName(1)}, the rest ${teamName(2)}.`
+                  : `A team americano needs a multiple of four players, at least ${MIN_TEAM_AMERICANO_PLAYERS} — two equal teams that each split into pairs. Currently ${amPlayerCount}.`
+                : kingCourt
                 ? isValidKingCourtField(amPlayerCount)
                   ? `${amPlayerCount} players → a ladder of ${courtCount(amPlayerCount)} courts, everyone playing every round.`
                   : `King of the court needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS} — every rung of the ladder has to be full. Currently ${amPlayerCount}.`
@@ -593,7 +663,13 @@ export default function SetupPage() {
         <section className="mb-6">
           <h2 className="font-display uppercase text-lg text-white/80 mb-1">Rounds</h2>
           <p className="text-white/40 text-xs mb-3">
-            {kingCourt
+            {teamAmericano
+              ? `How many times you change partner within your team.${
+                  isValidTeamField(amPlayerCount)
+                    ? ` A team of ${teamSize(amPlayerCount)} has ${maxTeamRounds(amPlayerCount)} rounds before anyone repeats a team-mate.`
+                    : ""
+                }`
+              : kingCourt
               ? "How many rounds are played. After each one the winners on every court move up a rung and the losers move down, so where you finish is where you climbed to."
               : mexicano
               ? "How many times the table is redrawn. Each round is made from the standings at that moment, so partners and opponents follow your results."
@@ -630,6 +706,50 @@ export default function SetupPage() {
               />
             </label>
           </div>
+
+          {taPreview && (
+            <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">
+              <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+                <p className="font-display uppercase text-sm text-gold">The two teams</p>
+                <p className="text-white/40 text-xs">
+                  {taPreview.matches.length} matches ·{" "}
+                  {taPreview.quality.repeatedPartnerships === 0
+                    ? "nobody repeats a team-mate"
+                    : `${taPreview.quality.repeatedPartnerships} repeated team-mate${
+                        taPreview.quality.repeatedPartnerships === 1 ? "" : "s"
+                      }`}
+                </p>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-2 mb-3">
+                {taPreview.teams.map((members, i) => (
+                  <div key={i} className="rounded-lg bg-court-panel2 px-3 py-2">
+                    <p className="font-display uppercase text-[10px] tracking-[0.25em] text-gold mb-1">{teamName(i + 1)}</p>
+                    {members.map((n) => (
+                      <p key={n} className="text-xs text-white/75 truncate py-0.5">
+                        {n}
+                      </p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <div className="grid gap-2 max-h-56 overflow-y-auto pr-1">
+                {Array.from({ length: effectiveRounds }, (_, r) => (
+                  <div key={r} className="rounded-lg bg-court-panel2 px-3 py-2">
+                    <p className="font-display uppercase text-[10px] tracking-[0.25em] text-white/35 mb-1">Round {r + 1}</p>
+                    {taPreview.matches
+                      .filter((m) => m.round === r + 1)
+                      .map((m) => (
+                        <p key={m.posIndex} className="text-xs text-white/75 truncate py-0.5">
+                          {taPreview.names[m.team1[0]]} &amp; {taPreview.names[m.team1[1]]}
+                          <span className="text-white/30 mx-1.5">vs</span>
+                          {taPreview.names[m.team2[0]]} &amp; {taPreview.names[m.team2[1]]}
+                        </p>
+                      ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {kcPreview && (
             <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">
