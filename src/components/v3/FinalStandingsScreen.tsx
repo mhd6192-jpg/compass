@@ -18,10 +18,13 @@ export default function FinalStandingsScreen({
   courtLabel,
   matches,
   format,
+  tiebreakMode,
 }: {
   courtLabel: string;
   matches: MatchDTO[];
   format?: string;
+  /** Whether the tally is points (a race) or games (set play). */
+  tiebreakMode?: string;
 }) {
   // The champion comes from the podium, not from a merged table: in a knockout
   // the title is settled by the final, and whoever tops a group table need not
@@ -67,7 +70,13 @@ export default function FinalStandingsScreen({
         </motion.div>
 
         <div className="flex-1 min-h-0 flex">
-          <V3Standings matches={matches} title="Final Standings" subtitle="Congratulations to every team" format={format} />
+          <V3Standings
+            matches={matches}
+            title="Final Standings"
+            subtitle="Congratulations to every team"
+            format={format}
+            tiebreakMode={tiebreakMode}
+          />
         </div>
       </main>
     </div>

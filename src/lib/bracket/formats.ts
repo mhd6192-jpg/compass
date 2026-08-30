@@ -91,9 +91,6 @@ export interface FormatSpec {
 const evenField = (min: number, what: string) => (n: number) =>
   n >= min && n % 2 === 0 ? null : `${what} needs an even number of players, at least ${min}, so the two groups come out equal (got ${n}).`;
 
-const quarterField = (min: number, what: string, why: string) => (n: number) =>
-  n >= min && n % 4 === 0 ? null : `${what} needs a multiple of four players, at least ${min} — ${why} (got ${n}).`;
-
 export const FORMATS = {
   compass: {
     title: "Compass (16, single elim)",

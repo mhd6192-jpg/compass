@@ -187,6 +187,22 @@ export function serveEveryOf(config: RaceConfigLike): number {
   return 4;
 }
 
+/**
+ * What a standings tally is actually counting.
+ *
+ * The rotating formats are normally a points race, and everything says
+ * "points". They can also be played as sets, and then the same column is
+ * counting GAMES — so the word has to follow the scoring, or a table reading
+ * "18 pts" after three 6-4 sets is quietly lying about what it shows.
+ */
+export function tallyUnit(tiebreakMode: string | undefined): { short: string; long: string } {
+  // Unknown means "not told", not "set play". Callers that never pass a mode —
+  // v2's screens, anything older — must keep saying points, which is both the
+  // historical wording and right for the races those screens were built around.
+  if (tiebreakMode === undefined) return { short: "pts", long: "points" };
+  return isPointsRace(tiebreakMode) ? { short: "pts", long: "points" } : { short: "gms", long: "games" };
+}
+
 /** One line describing the match format, e.g. "First to 18 points" — every screen shows the same words. */
 export function matchFormatLabel(bestOfSets: number, config: RaceConfigLike): string {
   if (config.tiebreakMode === "race-to-16") {

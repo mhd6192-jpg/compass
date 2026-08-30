@@ -1,5 +1,5 @@
 import { computeStandings } from "../standings";
-import { isRotatingPartners, type MatchDTO } from "../types";
+import { isRotatingPartners, tallyUnit, type MatchDTO } from "../types";
 import { formatSpec } from "../bracket/formats";
 import { formatDuration } from "./venue";
 
@@ -52,7 +52,7 @@ function winnerName(match: MatchDTO): string | null {
   return match.winnerId === match.player1?.id ? match.player1?.name ?? null : match.player2?.name ?? null;
 }
 
-export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight[] {
+export function buildSpotlights(matches: MatchDTO[], format?: string, tiebreakMode?: string): Spotlight[] {
   const done = matches.filter((m) => m.status === "completed" && !m.forcedEnd);
   const cards: Spotlight[] = [];
 
@@ -73,7 +73,7 @@ export function buildSpotlights(matches: MatchDTO[], format?: string): Spotlight
       eyebrow: americano ? formatSpec(format).leaderEyebrow ?? "Leading the americano" : "Team of the day",
       headline: leader.name,
       detail: americano
-        ? `${leader.pointsFor} points from ${played} ${played === 1 ? "match" : "matches"}`
+        ? `${leader.pointsFor} ${tallyUnit(tiebreakMode).long} from ${played} ${played === 1 ? "match" : "matches"}`
         : `${leader.won} ${leader.won === 1 ? "win" : "wins"} from ${played}`,
     });
   }

@@ -36,6 +36,7 @@ const LOGIC = [
 const DB = [
   ["checkRosters", "saved entrant lists"],
   ["checkAmericanoFlow", "americano end to end"],
+  ["checkRotatingSets", "rotating formats played as sets"],
   ["checkMexicano", "mexicano end to end"],
   ["checkKingCourtFlow", "king of the court end to end"],
   ["checkWinnerCourtFlow", "winner court end to end"],

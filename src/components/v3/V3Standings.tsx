@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { computeStandings, computeTeamStandings, findDecider, type StandingsRow } from "@/lib/standings";
-import { isGroupRanked, isRotatingPartners, isTeamScored, type MatchDTO } from "@/lib/types";
+import { isGroupRanked, isRotatingPartners, isTeamScored, tallyUnit, type MatchDTO } from "@/lib/types";
 import { mixicanoGroupName } from "@/lib/bracket/mixicano";
 import { formatSpec } from "@/lib/bracket/formats";
 
@@ -77,10 +77,13 @@ function Row({
   rank,
   ranked,
   pointsFirst,
+  unit,
 }: {
   row: StandingsRow;
   rank: number;
   ranked: boolean;
+  /** What the tally column counts: "pts" in a race, "gms" in set play. */
+  unit: string;
   /** Americano ranks on points, so points lead the row and carry the emphasis. */
   pointsFirst?: boolean;
 }) {
@@ -112,7 +115,7 @@ function Row({
         {pointsFirst && (
           <span className={`text-center font-bold ${podium ? podium.rank : "text-gold"}`} style={{ minWidth: "2.6em", fontSize: "1.15em" }}>
             {row.pointsFor}
-            <span className="text-white/30 text-[0.5em] uppercase tracking-widest ml-[0.25em]">pts</span>
+            <span className="text-white/30 text-[0.5em] uppercase tracking-widest ml-[0.25em]">{unit}</span>
           </span>
         )}
         <span className={`text-center ${pointsFirst ? "text-white/55" : podium ? podium.rank : "text-white/80"}`} style={{ minWidth: "1.6em" }}>
@@ -126,7 +129,7 @@ function Row({
         {!pointsFirst && (
           <span className="text-center text-white/70" style={{ minWidth: "2.6em" }}>
             {row.pointsFor}
-            <span className="text-white/25 text-[0.55em] uppercase tracking-widest ml-[0.25em]">pts</span>
+            <span className="text-white/25 text-[0.55em] uppercase tracking-widest ml-[0.25em]">{unit}</span>
           </span>
         )}
       </span>
@@ -148,13 +151,22 @@ export default function V3Standings({
   title = "Standings",
   subtitle,
   format,
+  tiebreakMode,
 }: {
   matches: MatchDTO[];
   title?: string;
   subtitle?: string;
   format?: string;
+  /** Decides whether the tally column says points or games. */
+  tiebreakMode?: string;
 }) {
   const tables = splitTables(matches, format);
+  // The rotating formats are usually a points race but can be played as sets,
+  // and then this column is counting games — so the word follows the scoring.
+  const unit = tallyUnit(tiebreakMode).short;
+  const standingsSubtitle =
+    formatSpec(format).standingsSubtitle?.replace("points won", `${tallyUnit(tiebreakMode).long} won`) ??
+    (findDecider(matches) ? "Top two settled by the deciding final" : "Ties broken by points scored");
   const boxRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -203,9 +215,7 @@ export default function V3Standings({
           className="text-white/40 uppercase tracking-wide text-right"
           style={{ fontSize: "clamp(0.55rem, 1vw, 1rem)" }}
         >
-          {subtitle ??
-            formatSpec(format).standingsSubtitle ??
-            (findDecider(matches) ? "Top two settled by the deciding final" : "Ties broken by points scored")}
+          {subtitle ?? standingsSubtitle}
         </p>
       </div>
 
@@ -225,6 +235,7 @@ export default function V3Standings({
                   rank={i + 1}
                   ranked={table.rows.some((r) => r.won + r.lost > 0)}
                   pointsFirst={isRotatingPartners(format)}
+                  unit={unit}
                 />
               ))}
             </div>

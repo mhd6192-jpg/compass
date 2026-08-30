@@ -77,6 +77,7 @@ export default function CourtIdleScreen({
   onDeck,
   matches,
   format,
+  tiebreakMode,
   progress,
 }: {
   courtLabel: string;
@@ -84,6 +85,8 @@ export default function CourtIdleScreen({
   onDeck: MatchDTO | null;
   matches: MatchDTO[];
   format?: string;
+  /** Whether the tally is points (a race) or games (set play). */
+  tiebreakMode?: string;
   progress: { completed: number; total: number };
 }) {
   return (
@@ -115,11 +118,11 @@ export default function CourtIdleScreen({
             sits idle for half an hour still has something to look at. */}
         <div className="flex-1 min-h-0 flex gap-[1.5vw]">
           <div className="flex-1 min-w-0 flex">
-            <V3Standings matches={matches} title="Standings" format={format} />
+            <V3Standings matches={matches} title="Standings" format={format} tiebreakMode={tiebreakMode} />
           </div>
           <div className="w-[26%] shrink-0 flex">
             <div className="flex-1 flex">
-              <IdleSpotlight matches={matches} format={format} />
+              <IdleSpotlight matches={matches} format={format} tiebreakMode={tiebreakMode} />
             </div>
           </div>
         </div>

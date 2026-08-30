@@ -178,7 +178,12 @@ function Board() {
 
       <section className="relative shrink-0 h-[26vh] px-[2.5vw] pb-[2vh] flex gap-[1.5vw]">
         <div className="flex-1 min-w-0 flex">
-          <V3Standings matches={snapshot.matches} title="Standings" format={snapshot.tournament.format} />
+          <V3Standings
+            matches={snapshot.matches}
+            title="Standings"
+            format={snapshot.tournament.format}
+            tiebreakMode={snapshot.tournament.tiebreakMode}
+          />
         </div>
 
         <div className="w-[26vw] shrink-0 rounded-2xl border border-court-line bg-court-panel px-[1.4vw] py-[1.4vh] flex flex-col overflow-hidden">
