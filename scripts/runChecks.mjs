@@ -30,6 +30,7 @@ const LOGIC = [
   ["checkDecider", "round-robin play-off"],
   ["checkTwoGroup", "two groups → semis → final"],
   ["checkOutbox429", "a lockout never eats queued points"],
+  ["checkFreshness", "a screen admits when it stops updating"],
   ["testNew", "seeding and score entry"],
 ];
 

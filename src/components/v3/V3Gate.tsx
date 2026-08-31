@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useV3Store } from "@/store/useV3Store";
+import FreshnessNotice from "@/components/shared/FreshnessNotice";
 import ClubLogo from "@/components/shared/ClubLogo";
 
 /**
@@ -14,6 +15,7 @@ import ClubLogo from "@/components/shared/ClubLogo";
 export default function V3Gate({ children }: { children: React.ReactNode }) {
   const connect = useV3Store((s) => s.connect);
   const snapshot = useV3Store((s) => s.snapshot);
+  const lastSyncAt = useV3Store((s) => s.lastSyncAt);
 
   useEffect(() => {
     connect();
@@ -50,5 +52,13 @@ export default function V3Gate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  // Rendered here rather than on each screen, so a screen cannot be built
+  // without it — a court display that silently stops updating is the one
+  // failure nobody in the venue can see for themselves.
+  return (
+    <>
+      {children}
+      <FreshnessNotice lastSyncAt={lastSyncAt} />
+    </>
+  );
 }
