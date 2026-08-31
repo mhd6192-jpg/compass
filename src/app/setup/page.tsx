@@ -539,7 +539,7 @@ export default function SetupPage() {
             </Link>
           </div>
           <details className="text-left">
-            <summary className="text-white/40 text-xs cursor-pointer text-center">Restart tournament (erases all results)</summary>
+            <summary className="text-white/40 text-xs cursor-pointer text-center">Restart tournament (results are saved to Past events first)</summary>
             <div className="mt-3 flex gap-2">
               <input
                 value={pin}

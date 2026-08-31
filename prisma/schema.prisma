@@ -221,3 +221,46 @@ model SavedRoster {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+/// A finished tournament, kept after the draw it came from is wiped.
+///
+/// Resetting deletes every Player, Match and PointEvent — that is what makes a
+/// new event possible — and until this existed it also destroyed the record of
+/// the night that had just been played. The archive is written BEFORE the wipe,
+/// so a reset stops being a way to lose results.
+///
+/// Everything needed to render it is denormalised into the JSON columns on
+/// purpose: the rows it described are gone, so a foreign key would point at
+/// nothing, and a format's label or scoring rules may have changed by the time
+/// anyone looks back.
+model ArchivedTournament {
+  id        String   @id @default(cuid())
+
+  /// What to call it in a list — "Round robin · 30 Aug 2026", editable later.
+  label     String
+  format    String
+  /// The format's display title as it read on the night.
+  formatName String
+  /// One line describing the scoring, e.g. "First to 16, win by 2".
+  scoring   String
+  /// "pts" or "gms" — what the standings numbers are counting.
+  tallyUnit String   @default("pts")
+
+  entrants  Int
+  matches   Int
+
+  /// Ranked table as it finished. For a team format this is the team table.
+  standings Json
+  /// The individual table as well, when the format ranks by side.
+  players   Json?
+  /// The podium the ceremony would have announced.
+  podium    Json
+  /// Every completed match: who played, who won, the score line.
+  results   Json
+
+  startedAt DateTime?
+  endedAt   DateTime  @default(now())
+  createdAt DateTime  @default(now())
+
+  @@index([endedAt])
+}

@@ -69,6 +69,10 @@ export default function Home() {
       </Link>
 
       <div className="flex items-center gap-4 flex-wrap justify-center">
+        <Link href="/history" className="text-white/40 text-sm underline underline-offset-4 hover:text-white/70">
+          Past events
+        </Link>
+        <span className="text-white/20">·</span>
         <Link href="/draw" className="text-white/40 text-sm underline underline-offset-4 hover:text-white/70">
           Full draw sheet
         </Link>

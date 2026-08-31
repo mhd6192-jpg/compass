@@ -35,6 +35,7 @@ const LOGIC = [
 /** Each of these needs its own fresh database. */
 const DB = [
   ["checkRosters", "saved entrant lists"],
+  ["checkArchive", "past events survive a reset"],
   ["checkAmericanoFlow", "americano end to end"],
   ["checkRotatingSets", "rotating formats played as sets"],
   ["checkMexicano", "mexicano end to end"],

@@ -1,0 +1,39 @@
+name: checks
+
+# The suite catches real bugs — a default that scheduled repeated partners, a
+# validator that disagreed with its generator, a reset that destroyed results —
+# but only when somebody remembers to run it. This runs it on every push.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` runs the postinstall `prisma generate`, which needs no database.
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npx next build
+        env:
+          # The build never queries, but Prisma insists the URLs parse.
+          POSTGRES_PRISMA_URL: postgresql://postgres:postgres@127.0.0.1:5433/postgres
+          POSTGRES_URL_NON_POOLING: postgresql://postgres:postgres@127.0.0.1:5433/postgres
+
+      # The database flows run against PGlite — Postgres compiled to WASM — so
+      # there is no service container to wait on and nothing to install.
+      - name: Checks
+        run: npm run check:db
