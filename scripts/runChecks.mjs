@@ -29,6 +29,7 @@ const LOGIC = [
   ["checkRace16", "the historical race rules"],
   ["checkDecider", "round-robin play-off"],
   ["checkTwoGroup", "two groups → semis → final"],
+  ["checkOutbox429", "a lockout never eats queued points"],
   ["testNew", "seeding and score entry"],
 ];
 

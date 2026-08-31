@@ -35,7 +35,12 @@ export default function PinGate({ children, title = "Staff access" }: { children
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function check(candidate: string): Promise<boolean> {
+  /**
+   * Being locked out is not the same as being wrong, so it is reported
+   * separately — otherwise a coach whose PIN is correct is told it is not, and
+   * goes hunting for the organiser in the middle of a match.
+   */
+  async function check(candidate: string): Promise<{ ok: boolean; lockedOut?: string }> {
     try {
       const res = await fetch("/api/auth/check", {
         method: "POST",
@@ -43,9 +48,10 @@ export default function PinGate({ children, title = "Staff access" }: { children
         body: JSON.stringify({ pin: candidate }),
       });
       const data = await res.json();
-      return !!data.ok;
+      if (data.ok) return { ok: true };
+      return { ok: false, lockedOut: data.lockedOut ? data.error : undefined };
     } catch {
-      return false;
+      return { ok: false };
     }
   }
 
@@ -59,7 +65,7 @@ export default function PinGate({ children, title = "Staff access" }: { children
     const candidate = pin || initialPinRef.current || "";
     let cancelled = false;
     (async () => {
-      if (candidate && (await check(candidate))) {
+      if (candidate && (await check(candidate)).ok) {
         if (!cancelled) setState("open");
       } else if (!cancelled) {
         setState((prev) => (prev === "open" ? prev : "locked"));
@@ -74,15 +80,21 @@ export default function PinGate({ children, title = "Staff access" }: { children
   async function submit() {
     setError(null);
     setBusy(true);
-    const ok = await check(draft.trim());
+    const result = await check(draft.trim());
     setBusy(false);
-    if (ok) {
+    if (result.ok) {
       setPin(draft.trim());
       setState("open");
-    } else {
-      setError("Incorrect PIN");
-      setDraft("");
+      return;
     }
+    if (result.lockedOut) {
+      // Keep what they typed: it may well have been right, and making them
+      // retype it after the wait would be a second insult.
+      setError(result.lockedOut);
+      return;
+    }
+    setError("Incorrect PIN");
+    setDraft("");
   }
 
   if (state === "open") return <>{children}</>;

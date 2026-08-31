@@ -246,6 +246,24 @@ export async function drain(handlers: DrainHandlers): Promise<void> {
         return;
       }
 
+      if (res.status === 429) {
+        // Rate limited, which is temporary — the caller has simply tried too
+        // many wrong PINs, or shares an address with someone who has. The
+        // points below MUST survive it. Falling through to the branch under
+        // this one would treat a passing lockout as an unrecoverable rejection
+        // and delete a coach's saved points mid-match, which is the one thing
+        // this queue exists to prevent. Keep everything and try again on the
+        // next tick, exactly as for a dropped connection.
+        let message = "Too many PIN attempts — points are saved and will send shortly.";
+        try {
+          message = (await res.json())?.error ?? message;
+        } catch {
+          /* keep the default */
+        }
+        setStatus("offline", message);
+        return;
+      }
+
       if (!res.ok) {
         let message = "The server rejected a point.";
         try {
