@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { verifyOrganiser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +16,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
+    // Past events are the one thing here that cannot be recreated.
+    if (!(await verifyOrganiser(new URL(req.url).searchParams.get("pin")))) {
+      return NextResponse.json({ error: "The organiser PIN is needed to delete a past event." }, { status: 401 });
+    }
     await prisma.archivedTournament.delete({ where: { id: params.id } });
     return NextResponse.json({ ok: true });
   } catch (e) {

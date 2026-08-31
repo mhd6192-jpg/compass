@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { verifyOrganiser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Saved entrant lists.
  *
- * Deliberately not PIN-protected, for the same reason seeding a draw is not:
- * resetting a tournament deletes the config row the PIN lives on, and re-typing
- * the roster is exactly what an organiser is trying to avoid at that moment. A
- * roster is a list of names with no results attached to it.
+ * Reading is open, like every other read in this app — the TVs have to show
+ * names without logging in, so a roster leaks nothing the court screens do not.
+ * Writing and deleting need the organiser PIN, which is kept outside the
+ * tournament precisely so it still exists at the moment a list is being saved
+ * for the next one.
  */
 export async function GET() {
   try {
@@ -33,6 +35,9 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    if (!(await verifyOrganiser(body.pin))) {
+      return NextResponse.json({ error: "The organiser PIN is needed to save a list." }, { status: 401 });
+    }
     const label = typeof body.label === "string" ? body.label.trim() : "";
     const names = Array.isArray(body.names) ? body.names.map((n: unknown) => String(n).trim()).filter(Boolean) : [];
 
@@ -55,7 +60,11 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const id = new URL(req.url).searchParams.get("id");
+    const url = new URL(req.url);
+    if (!(await verifyOrganiser(url.searchParams.get("pin")))) {
+      return NextResponse.json({ error: "The organiser PIN is needed to delete a list." }, { status: 401 });
+    }
+    const id = url.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Which list?" }, { status: 400 });
     await prisma.savedRoster.delete({ where: { id } });
     return NextResponse.json({ ok: true });

@@ -232,12 +232,14 @@ export default function SetupPage() {
     setRosterNote(null);
     if (!label) return setRosterNote("Give the list a name first.");
     if (list.length < 2) return setRosterNote("Enter at least two entrants first.");
+    if (!pin.trim()) return setRosterNote("Enter the organiser PIN further down the page first.");
     setRosterBusy(true);
     try {
       const res = await fetch("/api/rosters", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label, names: list, format }),
+        // The organiser PIN gates writes; it is the same PIN typed below.
+        body: JSON.stringify({ label, names: list, format, pin: pin.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not save");
@@ -265,10 +267,18 @@ export default function SetupPage() {
   }
 
   async function deleteRoster(r: SavedRoster) {
+    if (!pin.trim()) return setRosterNote("Enter the organiser PIN further down the page first.");
     setRosterBusy(true);
     setRosterNote(null);
     try {
-      await fetch(`/api/rosters?id=${encodeURIComponent(r.id)}`, { method: "DELETE" });
+      const res = await fetch(`/api/rosters?id=${encodeURIComponent(r.id)}&pin=${encodeURIComponent(pin.trim())}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setRosterNote(data.error ?? "Could not delete that list.");
+        return;
+      }
       await refreshRosters();
       setRosterNote(`Deleted "${r.label}".`);
     } finally {

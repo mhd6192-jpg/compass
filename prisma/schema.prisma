@@ -264,3 +264,23 @@ model ArchivedTournament {
 
   @@index([endedAt])
 }
+
+/// Settings that belong to the installation rather than to any one tournament.
+///
+/// The organiser PIN lives here for one reason: resetting a draw deletes the
+/// TournamentConfig row, and with it the only PIN the app knew. That is why
+/// seeding had to be left unauthenticated — at the moment a new event is
+/// created there was nothing to check against. This row is never deleted, so
+/// there always is.
+model AppSettings {
+  id           String   @id @default("default")
+
+  /// Null means the installation is unclaimed: the first person to seed a
+  /// tournament sets it, and from then on writes need it. That keeps an
+  /// existing deployment working on the day it updates, instead of locking the
+  /// organiser out of their own app.
+  organiserPin String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

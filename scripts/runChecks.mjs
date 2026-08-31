@@ -34,6 +34,7 @@ const LOGIC = [
 
 /** Each of these needs its own fresh database. */
 const DB = [
+  ["checkAuth", "who may write"],
   ["checkRosters", "saved entrant lists"],
   ["checkArchive", "past events survive a reset"],
   ["checkStateRev", "the polling revision misses nothing"],

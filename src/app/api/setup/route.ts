@@ -6,6 +6,7 @@ import { broadcastSnapshot } from "@/lib/broadcast";
 import { isPointsRace, isRotatingPartners, type TournamentFormat } from "@/lib/types";
 import { isTournamentFormat, validateField } from "@/lib/bracket/formats";
 import { MAX_AMERICANO_ROUNDS } from "@/lib/bracket/americano";
+import { claimOrganiser, verifyOrganiser } from "@/lib/auth";
 import { getIO, EVENTS } from "@/lib/socket";
 
 export async function POST(req: Request) {
@@ -31,6 +32,15 @@ export async function POST(req: Request) {
     }
     if (!pin || typeof pin !== "string" || pin.length < 4) {
       return NextResponse.json({ error: "PIN must be at least 4 digits/characters" }, { status: 400 });
+    }
+    // Seeding is what a stranger with the URL could otherwise do, so it is
+    // gated on the organiser PIN rather than the tournament's — the tournament
+    // does not exist yet, and after a reset neither did the PIN.
+    if (!(await verifyOrganiser(pin))) {
+      return NextResponse.json(
+        { error: "That PIN does not match the organiser PIN for this app." },
+        { status: 401 }
+      );
     }
     if (!["standard", "match-tiebreak", "advantage", "race-to-9", "race-to-16"].includes(tiebreakMode)) {
       return NextResponse.json({ error: "Invalid tiebreak mode" }, { status: 400 });
@@ -90,6 +100,9 @@ export async function POST(req: Request) {
       discipline: discipline === "singles" ? "singles" : "doubles",
       courtIds: courtIds.length ? courtIds : undefined,
     });
+    // The first event an organiser sets up claims the installation, so the
+    // door locks behind them without anyone having to configure anything.
+    await claimOrganiser(pin);
     await broadcastSnapshot();
     getIO()?.emit(EVENTS.TOURNAMENT_STARTED, {});
 
