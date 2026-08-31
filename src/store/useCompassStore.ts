@@ -63,6 +63,8 @@ interface StoreState {
 }
 
 let polling = false;
+/** The revision of the last snapshot received, so unchanged polls cost nothing. */
+let lastRev: string | null = null;
 let prevMatches: Map<string, MatchDTO> | null = null;
 const pendingCounts = new Map<string, number>();
 
@@ -81,9 +83,16 @@ export const useCompassStore = create<StoreState>((set, get) => ({
     polling = true;
 
     const poll = () =>
-      fetch("/api/state")
+      fetch(`/api/state${lastRev ? `?since=${encodeURIComponent(lastRev)}` : ""}`)
         .then((r) => r.json())
-        .then((snap: Snapshot) => {
+        .then((snap: Snapshot & { unchanged?: boolean; rev?: string }) => {
+          // Nothing has changed since the last poll, so there is nothing to
+          // diff for celebrations and nothing to re-render.
+          if (snap.unchanged) {
+            set({ connected: true });
+            return;
+          }
+          if (snap.rev) lastRev = snap.rev;
           const newlyCompleted: CompletedEvt[] = [];
           if (prevMatches) {
             for (const m of snap.matches) {
@@ -169,9 +178,14 @@ export const useCompassStore = create<StoreState>((set, get) => ({
     else pendingCounts.set(matchId, n);
   },
   refresh: () => {
+    // Unconditional, for the same reason as the poll's counterpart: this is
+    // called right after this device changed something.
     fetch("/api/state")
       .then((r) => r.json())
-      .then((snap: Snapshot) => set({ snapshot: snap }))
+      .then((snap: Snapshot & { rev?: string }) => {
+        if (snap.rev) lastRev = snap.rev;
+        set({ snapshot: snap });
+      })
       .catch(() => {});
   },
 }));

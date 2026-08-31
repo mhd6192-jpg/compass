@@ -29,7 +29,7 @@ export async function GET(req: Request) {
 
   // Several devices poll within milliseconds of each other, especially right
   // after a point is scored. They can share one build.
-  const cached = readMemo(rev);
+  const cached = readMemo("v2", rev);
   if (cached) return NextResponse.json(cached);
 
   const snapshot = await getFullSnapshot(prisma);
@@ -37,6 +37,6 @@ export async function GET(req: Request) {
   const v2 = await readV2State(prisma, courtIds);
   const podium = computePodium(snapshot.matches as MatchDTO[], snapshot.tournament.format);
   const body = { ...snapshot, v2: { ...v2, podium }, rev };
-  writeMemo(rev, body);
+  writeMemo("v2", rev, body);
   return NextResponse.json(body);
 }

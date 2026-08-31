@@ -119,6 +119,20 @@ async function main() {
   await runCeremonyAction(prisma, "next", { expectedRev: undefined });
   check("revealing the next award moves it", beforeNext !== (await rev()));
 
+  // --- the memo must not cross the two endpoints ------------------------------
+  // v1 returns the bare snapshot; v2 wraps it with court stages and the podium.
+  // They share a revision, so a memo keyed on that alone would let one serve the
+  // other's body — which would strip the court stages off every v2 screen.
+  {
+    const { readMemo, writeMemo } = await import("../src/lib/stateRev");
+    const r = await rev();
+    writeMemo("v1", r, { shape: "bare" });
+    writeMemo("v2", r, { shape: "wrapped" });
+    check("each endpoint memoises separately", JSON.stringify(readMemo("v1", r)) === JSON.stringify({ shape: "bare" }));
+    check("...and does not serve the other's body", JSON.stringify(readMemo("v2", r)) === JSON.stringify({ shape: "wrapped" }));
+    check("a different revision misses the memo", readMemo("v1", r + "x") === null);
+  }
+
   // --- and one last stability check, after all that ---------------------------
   const x = await rev();
   const y = await rev();

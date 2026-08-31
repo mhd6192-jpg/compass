@@ -74,14 +74,21 @@ export async function computeStateRev(prisma: PrismaClient): Promise<string> {
  * fine, since this is an optimisation and not a source of truth.
  */
 const MEMO_MS = 400;
-let memo: { rev: string; body: unknown; at: number } | null = null;
+const memo = new Map<string, { rev: string; body: unknown; at: number }>();
 
-export function readMemo(rev: string): unknown | null {
-  if (!memo || memo.rev !== rev) return null;
-  if (Date.now() - memo.at > MEMO_MS) return null;
-  return memo.body;
+/**
+ * `scope` separates the two endpoints that share this: v1's `/api/state`
+ * returns the bare snapshot, while `/api/v2/state` wraps it with the court
+ * stages and the podium. Same revision, different bodies — so keying on the
+ * revision alone would let one endpoint serve the other's payload.
+ */
+export function readMemo(scope: string, rev: string): unknown | null {
+  const hit = memo.get(scope);
+  if (!hit || hit.rev !== rev) return null;
+  if (Date.now() - hit.at > MEMO_MS) return null;
+  return hit.body;
 }
 
-export function writeMemo(rev: string, body: unknown): void {
-  memo = { rev, body, at: Date.now() };
+export function writeMemo(scope: string, rev: string, body: unknown): void {
+  memo.set(scope, { rev, body, at: Date.now() });
 }
