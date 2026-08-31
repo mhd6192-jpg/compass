@@ -74,3 +74,20 @@ export async function claimOrganiser(pin: string): Promise<void> {
     // A missing table must not stop someone starting their event.
   }
 }
+
+/**
+ * Changes the organiser PIN.
+ *
+ * Separate from `claimOrganiser`, which only ever fills an empty slot. Callers
+ * must have verified the current PIN first — this does not re-check, because
+ * the environment key is also a legitimate way to prove it, and that check
+ * belongs where the request is handled.
+ */
+export async function setOrganiserPin(pin: string): Promise<void> {
+  if (!pin) return;
+  await prisma.appSettings.upsert({
+    where: { id: "default" },
+    create: { id: "default", organiserPin: pin },
+    update: { organiserPin: pin },
+  });
+}

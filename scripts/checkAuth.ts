@@ -25,7 +25,7 @@ function check(name: string, cond: boolean, extra = "") {
 async function main() {
   // Imported here, not at the top: tsx emits CommonJS, so there is no top-level
   // await, and these must not load until the URLs above are in the environment.
-  const { claimOrganiser, organiserPin, verifyOrganiser, verifyPin } = await import("../src/lib/auth");
+  const { claimOrganiser, organiserPin, setOrganiserPin, verifyOrganiser, verifyPin } = await import("../src/lib/auth");
   const { prisma } = await import("../src/lib/db");
 
   delete process.env.ORGANISER_PIN;
@@ -71,6 +71,24 @@ async function main() {
   check("...but the organiser PIN survives", await verifyOrganiser("2468"));
   check("...which is what makes seeding checkable at all", (await organiserPin()) === "2468");
 
+  // --- rotation ---------------------------------------------------------------
+  // Claiming only ever fills an empty slot, so changing the PIN is its own act —
+  // and the caller must have proved the current one first, which is the API's job.
+  await setOrganiserPin("1357");
+  check("the organiser PIN can be changed", (await organiserPin()) === "1357");
+  check("the new PIN is accepted", await verifyOrganiser("1357"));
+  check("the old PIN stops working", !(await verifyOrganiser("2468")));
+
+  // --- what the separation is actually for -------------------------------------
+  // A coach holding the scoring PIN must not be able to wipe the draw. Reset and
+  // seeding check the organiser PIN; scoring checks the tournament's.
+  await prisma.tournamentConfig.create({ data: { id: "default", pin: "coach-pin", status: "active" } });
+  check("a coach can score with the coach PIN", await verifyPin("coach-pin"));
+  check("a coach CANNOT pass the organiser check", !(await verifyOrganiser("coach-pin")));
+  check("the organiser can still score if they know the coach PIN", await verifyPin("coach-pin"));
+  check("the organiser PIN is not accepted for scoring", !(await verifyPin("1357")));
+
+  await prisma.tournamentConfig.deleteMany({});
   await prisma.appSettings.deleteMany({});
   await prisma.$disconnect();
   console.log(failures ? `\n${failures} CHECK(S) FAILED` : "\nALL CHECKS PASSED");

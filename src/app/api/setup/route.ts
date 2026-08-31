@@ -6,7 +6,7 @@ import { broadcastSnapshot } from "@/lib/broadcast";
 import { isPointsRace, isRotatingPartners, type TournamentFormat } from "@/lib/types";
 import { isTournamentFormat, validateField } from "@/lib/bracket/formats";
 import { MAX_AMERICANO_ROUNDS } from "@/lib/bracket/americano";
-import { claimOrganiser, verifyOrganiser } from "@/lib/auth";
+import { claimOrganiser, setOrganiserPin, verifyOrganiser } from "@/lib/auth";
 import { getIO, EVENTS } from "@/lib/socket";
 
 export async function POST(req: Request) {
@@ -33,12 +33,14 @@ export async function POST(req: Request) {
     if (!pin || typeof pin !== "string" || pin.length < 4) {
       return NextResponse.json({ error: "PIN must be at least 4 digits/characters" }, { status: 400 });
     }
-    // Seeding is what a stranger with the URL could otherwise do, so it is
-    // gated on the organiser PIN rather than the tournament's — the tournament
-    // does not exist yet, and after a reset neither did the PIN.
-    if (!(await verifyOrganiser(pin))) {
+    // Two different PINs, doing two different jobs. `pin` is the coach PIN for
+    // the event about to start; `organiserPin` authorises starting it at all.
+    // They are separate so that handing the scoring PIN to eight coaches does
+    // not also hand out the ability to wipe the draw and re-seed it.
+    const organiserPin = typeof body.organiserPin === "string" ? body.organiserPin : "";
+    if (!(await verifyOrganiser(organiserPin))) {
       return NextResponse.json(
-        { error: "That PIN does not match the organiser PIN for this app." },
+        { error: "That organiser PIN is not right for this app." },
         { status: 401 }
       );
     }
@@ -100,9 +102,17 @@ export async function POST(req: Request) {
       discipline: discipline === "singles" ? "singles" : "doubles",
       courtIds: courtIds.length ? courtIds : undefined,
     });
-    // The first event an organiser sets up claims the installation, so the
-    // door locks behind them without anyone having to configure anything.
-    await claimOrganiser(pin);
+    // The first event claims the installation, so the door locks behind the
+    // organiser without them configuring anything. A rotation is only honoured
+    // after the current PIN has been verified above.
+    await claimOrganiser(organiserPin);
+    const nextOrganiser = typeof body.newOrganiserPin === "string" ? body.newOrganiserPin.trim() : "";
+    if (nextOrganiser) {
+      if (nextOrganiser.length < 4) {
+        return NextResponse.json({ error: "A new organiser PIN needs at least 4 characters" }, { status: 400 });
+      }
+      await setOrganiserPin(nextOrganiser);
+    }
     await broadcastSnapshot();
     getIO()?.emit(EVENTS.TOURNAMENT_STARTED, {});
 

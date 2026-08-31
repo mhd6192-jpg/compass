@@ -179,6 +179,9 @@ export default function SetupPage() {
   const [raceWinBy, setRaceWinBy] = useState<1 | 2>(1);
   const [serveEvery, setServeEvery] = useState(4);
   const [pin, setPin] = useState("");
+  // Separate from the coach PIN: this one authorises creating and wiping events.
+  const [orgPin, setOrgPin] = useState("");
+  const [newOrgPin, setNewOrgPin] = useState("");
   const [courtIds, setCourtIds] = useState<number[]>([2, 3]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -232,14 +235,14 @@ export default function SetupPage() {
     setRosterNote(null);
     if (!label) return setRosterNote("Give the list a name first.");
     if (list.length < 2) return setRosterNote("Enter at least two entrants first.");
-    if (!pin.trim()) return setRosterNote("Enter the organiser PIN further down the page first.");
+    if (!orgPin.trim()) return setRosterNote("Enter the organiser PIN further down the page first.");
     setRosterBusy(true);
     try {
       const res = await fetch("/api/rosters", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // The organiser PIN gates writes; it is the same PIN typed below.
-        body: JSON.stringify({ label, names: list, format, pin: pin.trim() }),
+        body: JSON.stringify({ label, names: list, format, pin: orgPin.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not save");
@@ -267,11 +270,11 @@ export default function SetupPage() {
   }
 
   async function deleteRoster(r: SavedRoster) {
-    if (!pin.trim()) return setRosterNote("Enter the organiser PIN further down the page first.");
+    if (!orgPin.trim()) return setRosterNote("Enter the organiser PIN further down the page first.");
     setRosterBusy(true);
     setRosterNote(null);
     try {
-      const res = await fetch(`/api/rosters?id=${encodeURIComponent(r.id)}&pin=${encodeURIComponent(pin.trim())}`, {
+      const res = await fetch(`/api/rosters?id=${encodeURIComponent(r.id)}&pin=${encodeURIComponent(orgPin.trim())}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -487,7 +490,15 @@ export default function SetupPage() {
       return;
     }
     if (pin.trim().length < 4) {
-      setError("PIN must be at least 4 characters.");
+      setError("The coach PIN must be at least 4 characters.");
+      return;
+    }
+    if (orgPin.trim().length < 4) {
+      setError("Enter the organiser PIN — at least 4 characters. On a brand-new app, whatever you type here becomes it.");
+      return;
+    }
+    if (newOrgPin.trim() && newOrgPin.trim().length < 4) {
+      setError("A new organiser PIN must be at least 4 characters.");
       return;
     }
     if (courtIds.length === 0) {
@@ -513,6 +524,8 @@ export default function SetupPage() {
           raceWinBy,
           amRounds: amRounds || effectiveRounds,
           pin: pin.trim(),
+          organiserPin: orgPin.trim(),
+          newOrganiserPin: newOrgPin.trim(),
         }),
       });
       const data = await res.json();
@@ -552,9 +565,9 @@ export default function SetupPage() {
             <summary className="text-white/40 text-xs cursor-pointer text-center">Restart tournament (results are saved to Past events first)</summary>
             <div className="mt-3 flex gap-2">
               <input
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                placeholder="PIN"
+                value={orgPin}
+                onChange={(e) => setOrgPin(e.target.value)}
+                placeholder="Organiser PIN"
                 type="password"
                 inputMode="numeric"
                 className="flex-1 bg-court-panel2 border border-court-line rounded-lg px-3 py-2 text-sm outline-none"
@@ -565,7 +578,7 @@ export default function SetupPage() {
                   const res = await fetch("/api/reset", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ pin: pin.trim() }),
+                    body: JSON.stringify({ pin: orgPin.trim() }),
                   });
                   if (!res.ok) {
                     const data = await res.json();
@@ -613,6 +626,7 @@ export default function SetupPage() {
           </p>
           <p className="text-white/70 mb-6">
             Coach PIN: <span className="font-mono font-bold text-gold">{pin}</span>
+            <span className="block text-white/40 text-xs mt-1">Your organiser PIN is unchanged — do not share it with coaches.</span>
           </p>
           <div className="flex flex-col gap-3">
             <Link href="/display" className="rounded-xl bg-gold text-court-bg font-display uppercase py-3 font-bold">
@@ -1514,18 +1528,55 @@ export default function SetupPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="font-display uppercase text-lg text-white/80 mb-3">Coach PIN</h2>
-        <input
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          placeholder="e.g. 1234"
-          inputMode="numeric"
-          className="w-full bg-court-panel2 border border-court-line rounded-lg px-3 py-3 text-sm outline-none focus:ring-2 ring-gold/50"
-        />
-        <p className="text-white/40 text-xs mt-2">
-          Coaches enter this once to unlock the scorer and TV control, and it&apos;s required to submit results. Spectators who open the URL
-          from the TV just hit a lock screen.
+        <h2 className="font-display uppercase text-lg text-white/80 mb-1">PINs</h2>
+        <p className="text-white/40 text-xs mb-3">
+          Two different jobs, so they are two different PINs. Every coach needs the first one; only you need the second.
         </p>
+
+        <label className="block mb-4">
+          <span className="font-display uppercase text-sm text-white/70">Coach PIN</span>
+          <input
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+            placeholder="e.g. 1234"
+            inputMode="numeric"
+            className="mt-1 w-full bg-court-panel2 border border-court-line rounded-lg px-3 py-3 text-sm outline-none focus:ring-2 ring-gold/50"
+          />
+          <span className="block text-white/40 text-xs mt-1.5">
+            Coaches enter this once to unlock the scorer and TV control, and it is required to submit results.
+            Spectators who open the URL from the TV just hit a lock screen.
+          </span>
+        </label>
+
+        <label className="block">
+          <span className="font-display uppercase text-sm text-white/70">Organiser PIN</span>
+          <input
+            value={orgPin}
+            onChange={(e) => setOrgPin(e.target.value)}
+            placeholder="only you know this one"
+            inputMode="numeric"
+            className="mt-1 w-full bg-court-panel2 border border-gold/30 rounded-lg px-3 py-3 text-sm outline-none focus:ring-2 ring-gold/50"
+          />
+          <span className="block text-white/40 text-xs mt-1.5">
+            Starts and wipes events, and saves entrant lists. Keep it to yourself — a coach with the PIN above can
+            score, but cannot erase the draw. On a brand-new app, whatever you type here becomes the organiser PIN.
+          </span>
+        </label>
+
+        <details className="mt-3">
+          <summary className="text-white/35 text-xs cursor-pointer">Change the organiser PIN</summary>
+          <input
+            value={newOrgPin}
+            onChange={(e) => setNewOrgPin(e.target.value)}
+            placeholder="new organiser PIN"
+            inputMode="numeric"
+            className="mt-2 w-full bg-court-panel2 border border-court-line rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 ring-gold/50"
+          />
+          <span className="block text-white/35 text-xs mt-1.5">
+            Enter the current one above and the new one here; it changes when the draw starts. If it is ever
+            forgotten, set ORGANISER_PIN on the host to get back in.
+          </span>
+        </details>
       </section>
 
       {error && <p className="text-live text-sm mb-4 text-center">{error}</p>}
