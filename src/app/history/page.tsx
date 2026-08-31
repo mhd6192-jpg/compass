@@ -78,6 +78,10 @@ export default function HistoryPage() {
           Home
         </Link>
         <span className="text-white/15">·</span>
+        <Link href="/players" className="text-white/35 text-sm underline underline-offset-4">
+          Players
+        </Link>
+        <span className="text-white/15">·</span>
         <Link href="/setup" className="text-white/35 text-sm underline underline-offset-4">
           Set up an event
         </Link>
