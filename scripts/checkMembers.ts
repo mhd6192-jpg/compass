@@ -193,6 +193,26 @@ async function main() {
   const brokenTable = { memberResult: { findMany: async () => { throw new Error("relation does not exist"); } } } as never;
   check("...and reads back an empty club table", (await seasonTable(brokenTable)).length === 0);
 
+  // --- a field of pairs is not a field of people ---------------------------------
+  // A doubles draw enters "Alpha/Bravo" as one row. Recording that as somebody
+  // would list pairs in the club table alongside the people inside them.
+  const peopleBefore = await prisma.clubMember.count();
+  await prisma.tournamentConfig.updateMany({ data: { status: "setup" } }).catch(() => {});
+  await seedTournament(prisma, ["Alpha/Bravo", "Chi/Delta", "Echo/Fox", "Golf/Hotel"], {
+    bestOfSets: 1, tiebreakMode: "race-to-16", raceTarget: TARGET,
+    pin: "1234", format: "round-robin", discipline: "doubles", courtIds: [2],
+  });
+  check("a doubles draw records no members", (await prisma.clubMember.count()) === peopleBefore, `${await prisma.clubMember.count()} vs ${peopleBefore}`);
+  check("...and its entrants point at nobody", (await prisma.player.findMany()).every((p) => p.memberId === null));
+
+  // The same size of field played as singles is four people.
+  await prisma.tournamentConfig.updateMany({ data: { status: "setup" } }).catch(() => {});
+  await seedTournament(prisma, ["Nadia", "Omar", "Pia", "Rafi"], {
+    bestOfSets: 1, tiebreakMode: "race-to-16", raceTarget: TARGET,
+    pin: "1234", format: "round-robin", discipline: "singles", courtIds: [2],
+  });
+  check("a singles draw does record them", (await prisma.clubMember.count()) === peopleBefore + 4, `${await prisma.clubMember.count()}`);
+
   // The same name twice in one draw is one person, not two.
   const twice = await resolveMembers(prisma, ["Ben", "ben"]);
   check("one name entered twice is one person", twice[0] === twice[1] && !!twice[0]);

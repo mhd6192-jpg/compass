@@ -44,12 +44,18 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
   const invalid = validateField(format, trimmed.length);
   if (invalid) throw new Error(invalid);
 
+  // An entrant is a person only where the field is made of people. A doubles
+  // compass draw enters "Alpha/Bravo" as one row, and recording that as a
+  // member of the club would list pairs among the players. Same rule the setup
+  // form uses to decide whether to call a row a Player or a Team.
+  const peopleNotPairs = isRotatingPartners(format) || opts.discipline === "singles";
+
   // Resolved before the transaction rather than inside it. On a database where
   // the members table has not been created yet the statement fails, and a
   // failed statement inside a transaction poisons the whole thing — which would
   // mean no draw could be seeded at all. Out here it degrades to a list of
   // nulls and the evening runs exactly as it did before members existed.
-  const memberIds = await resolveMembers(client, trimmed);
+  const memberIds = peopleNotPairs ? await resolveMembers(client, trimmed) : trimmed.map(() => null);
 
   const rotating = isRotatingPartners(format);
   const amRounds = rotating ? opts.amRounds || defaultRoundsFor(format, trimmed.length) : 0;

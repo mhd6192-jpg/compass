@@ -226,6 +226,20 @@ export default function SetupPage() {
     void refreshRosters();
   }, []);
 
+  // --- names the club already knows ------------------------------------------
+  // Entrants are matched to their record by name, so a new spelling of somebody
+  // who already exists quietly forks them into two people. Offering the names
+  // back as you type is the cheapest place to stop that happening — far cheaper
+  // than merging the two halves afterwards.
+  const [knownNames, setKnownNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/members/names")
+      .then((r) => r.json())
+      .then((d) => setKnownNames(d.names ?? []))
+      .catch(() => setKnownNames([]));
+  }, []);
+
   /** The names currently typed in, for whichever entry list this format uses. */
   const currentNames = () => (format === "compass" ? names : rrNames).map((n) => n.trim()).filter(Boolean);
 
@@ -646,6 +660,15 @@ export default function SetupPage() {
 
   return (
     <main className="min-h-screen p-4 sm:p-8 max-w-3xl mx-auto">
+      {/* A plain datalist rather than a custom dropdown: it suggests without
+          constraining, so a genuinely new player is still just typed in, and it
+          behaves like the keyboard people already know on a phone. */}
+      <datalist id="known-players">
+        {knownNames.map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
+
       <header className="mb-6 text-center flex flex-col items-center gap-3">
         <ClubLogo size={44} />
         <div>
@@ -829,6 +852,9 @@ export default function SetupPage() {
                 <input
                   value={names[i]}
                   onChange={(e) => updateName(i, e.target.value)}
+                  // Only where a row is one person. A doubles draw enters pairs,
+                  // and suggesting "Ana" for a team called "Ana/Ben" is noise.
+                  list={discipline === "singles" ? "known-players" : undefined}
                   placeholder={`${entrantLabel} ${i + 1}`}
                   className="flex-1 min-w-0 bg-court-panel2 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 ring-gold/50"
                 />
@@ -877,6 +903,7 @@ export default function SetupPage() {
                 <input
                   value={n}
                   onChange={(e) => updateRrName(i, e.target.value)}
+                  list={americano || discipline === "singles" ? "known-players" : undefined}
                   placeholder={`${entrantLabel} ${i + 1}${!americano && discipline === "doubles" ? " (e.g. Alpha/Bravo)" : ""}`}
                   className="flex-1 min-w-0 bg-court-panel2 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 ring-gold/50"
                 />
