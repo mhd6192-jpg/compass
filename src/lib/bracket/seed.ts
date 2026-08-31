@@ -14,6 +14,7 @@ import { rebalanceCourts, DEFAULT_COURT_IDS } from "./courts";
 import { TiebreakMode, TournamentFormat, isRotatingPartners } from "../types";
 import { defaultRoundsFor, validateField } from "./formats";
 import { resetV2State } from "../v2/reset";
+import { resolveMembers } from "../members";
 
 export type { TournamentFormat };
 
@@ -42,6 +43,13 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
   // this all read the same rule and print the same sentence.
   const invalid = validateField(format, trimmed.length);
   if (invalid) throw new Error(invalid);
+
+  // Resolved before the transaction rather than inside it. On a database where
+  // the members table has not been created yet the statement fails, and a
+  // failed statement inside a transaction poisons the whole thing — which would
+  // mean no draw could be seeded at all. Out here it degrades to a list of
+  // nulls and the evening runs exactly as it did before members existed.
+  const memberIds = await resolveMembers(client, trimmed);
 
   const rotating = isRotatingPartners(format);
   const amRounds = rotating ? opts.amRounds || defaultRoundsFor(format, trimmed.length) : 0;
@@ -79,7 +87,7 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
         // Only the mixed team americano needs a second division: which half of
         // your own side you are allowed to partner across.
         const pairGroup = format === "mixed-team-americano" ? pairGroupOf(i, trimmed.length) : 0;
-        players.push(await tx.player.create({ data: { name: trimmed[i], seed: i, team, pairGroup } }));
+        players.push(await tx.player.create({ data: { name: trimmed[i], seed: i, team, pairGroup, memberId: memberIds[i] } }));
       }
 
       const courtIds = opts.courtIds?.length ? [...new Set(opts.courtIds)].sort((a, b) => a - b) : DEFAULT_COURT_IDS;

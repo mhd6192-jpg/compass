@@ -33,6 +33,18 @@ export interface ArchivedResult {
   completedAt: string | null;
 }
 
+/** One person's line, ready to be written against a club member. */
+export interface ArchivedMemberResult {
+  memberId: string;
+  playedAs: string;
+  rank: number;
+  played: number;
+  won: number;
+  lost: number;
+  pointsFor: number;
+  pointsAgainst: number;
+}
+
 export interface ArchivePayload {
   label: string;
   format: string;
@@ -47,6 +59,12 @@ export interface ArchivePayload {
   results: ArchivedResult[];
   startedAt: Date | null;
   endedAt: Date;
+  /**
+   * The individual table again, keyed to people who outlive the reset. Empty
+   * where no entrant matched a member — an older draw, or a database without
+   * the members tables — and the archive is written exactly as before.
+   */
+  members: ArchivedMemberResult[];
 }
 
 function sideName(match: MatchDTO, slot: 1 | 2): string {
@@ -59,6 +77,48 @@ function sideName(match: MatchDTO, slot: 1 | 2): string {
 export function defaultLabel(formatName: string, when: Date): string {
   const date = when.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   return `${formatName} · ${date}`;
+}
+
+/**
+ * Attaches the individual table to the people it belongs to.
+ *
+ * The standings are keyed by Player, which is about to be deleted. This walks
+ * back to the ClubMember each entrant was matched to when the draw was seeded,
+ * so the same numbers survive as somebody's record.
+ *
+ * Entrants with no member — an older draw, a database without the tables — are
+ * simply left out. And where one person was entered twice, only their better
+ * finish is kept: one row per person per event is what the record means.
+ */
+async function memberRows(prisma: PrismaClient, individual: StandingsRow[]): Promise<ArchivedMemberResult[]> {
+  let roster: { id: string; memberId: string | null }[];
+  try {
+    roster = await prisma.player.findMany({ select: { id: true, memberId: true } });
+  } catch {
+    return [];
+  }
+  const memberOf = new Map(roster.map((p) => [p.id, p.memberId]));
+
+  const seen = new Set<string>();
+  const rows: ArchivedMemberResult[] = [];
+  // The table arrives already ranked, so the first sighting of a member is
+  // their best placing and the index is the position the table showed.
+  individual.forEach((row, i) => {
+    const memberId = memberOf.get(row.id);
+    if (!memberId || seen.has(memberId)) return;
+    seen.add(memberId);
+    rows.push({
+      memberId,
+      playedAs: row.name,
+      rank: i + 1,
+      played: row.played,
+      won: row.won,
+      lost: row.lost,
+      pointsFor: row.pointsFor,
+      pointsAgainst: row.pointsAgainst,
+    });
+  });
+  return rows;
 }
 
 /**
@@ -98,6 +158,9 @@ export async function buildArchive(prisma: PrismaClient, label?: string): Promis
 
   const endedAt = new Date();
   const formatName = formatSpec(format).title;
+  const members = await memberRows(prisma, individual);
+
+
 
   return {
     label: label?.trim() || defaultLabel(formatName, endedAt),
@@ -115,6 +178,7 @@ export async function buildArchive(prisma: PrismaClient, label?: string): Promis
     results,
     startedAt: snapshot.tournament.startedAt ? new Date(snapshot.tournament.startedAt) : null,
     endedAt,
+    members,
   };
 }
 
@@ -140,6 +204,19 @@ export async function archiveCurrentTournament(prisma: PrismaClient, label?: str
         endedAt: payload.endedAt,
       },
     });
+    // Written separately, and allowed to fail on its own. The event record is
+    // the thing that must not be lost; a club that cannot yet keep per-person
+    // history should still get its night saved.
+    if (payload.members.length > 0) {
+      try {
+        await prisma.memberResult.createMany({
+          data: payload.members.map((m) => ({ ...m, eventId: row.id, endedAt: payload.endedAt })),
+        });
+      } catch {
+        // No table yet, or a member deleted between building and writing.
+      }
+    }
+
     return row.id;
   } catch {
     // A database without the table yet must not make resetting impossible —

@@ -40,6 +40,7 @@ const DB = [
   ["checkRateLimit", "PIN guessing is slowed, coaches are not"],
   ["checkRosters", "saved entrant lists"],
   ["checkArchive", "past events survive a reset"],
+  ["checkMembers", "who plays here, across events"],
   ["checkStateRev", "the polling revision misses nothing"],
   ["checkAmericanoFlow", "americano end to end"],
   ["checkRotatingSets", "rotating formats played as sets"],

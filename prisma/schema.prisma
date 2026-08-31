@@ -9,54 +9,60 @@ datasource db {
 }
 
 model TournamentConfig {
-  id           String    @id @default("default")
-  status       String    @default("setup") // setup | active | completed
-  format       String    @default("compass") // compass | round-robin | two-group | americano
+  id     String @id @default("default")
+  status String @default("setup") // setup | active | completed
+  format String @default("compass") // compass | round-robin | two-group | americano
 
   /// Americano only: how many rounds of rotating partners are scheduled.
-  amRounds     Int       @default(0)
+  amRounds Int @default(0)
 
   /// singles | doubles. Purely how the entrants are described and drawn on
   /// screen — the draw itself is identical either way, since an entrant is one
   /// Player row whether that is a person or a pair.
-  discipline   String    @default("doubles")
-  bestOfSets   Int       @default(3)
-  tiebreakMode String    @default("standard") // standard | match-tiebreak | advantage | race-to-9 | race-to-16
+  discipline   String @default("doubles")
+  bestOfSets   Int    @default(3)
+  tiebreakMode String @default("standard") // standard | match-tiebreak | advantage | race-to-9 | race-to-16
 
   /// Points target for the race formats (e.g. 16 or 18). 0 = not configured,
   /// which keeps the historical defaults (9 for the points-total rule, 16 for
   /// first-to) so tournaments seeded before this existed score unchanged.
-  raceTarget   Int       @default(0)
+  raceTarget Int @default(0)
 
   /// The serve changes hands every N points in a race. 0 = the house default of 4.
-  serveEvery   Int       @default(0)
+  serveEvery Int @default(0)
 
   /// Race formats only: the margin needed to take it. 0 or 1 = the point that
   /// reaches the target wins outright (sudden death at target-1 all). 2 = it
   /// must be won by two, so the race carries on past the target like a tiebreak.
-  raceWinBy    Int       @default(0)
-  pin          String    @default("1234")
-  startedAt    DateTime?
-  createdAt    DateTime  @default(now())
+  raceWinBy Int       @default(0)
+  pin       String    @default("1234")
+  startedAt DateTime?
+  createdAt DateTime  @default(now())
 }
 
 model Player {
-  id        String   @id @default(cuid())
-  name      String
-  seed      Int
+  id   String @id @default(cuid())
+  name String
+  seed Int
 
   /// Which of the two entry groups this player belongs to (1 or 2), for every
   /// format that splits the field in half. The formats use it for different
   /// purposes — a team americano pairs you WITH your group and scores it as a
   /// side, a mixicano pairs you ACROSS the divide, a mixed americano only ranks
   /// the two halves separately. 0 where players are not grouped at all.
-  team      Int      @default(0)
+  team Int @default(0)
 
   /// Mixed team americano only: the half WITHIN your team that pairs across
   /// (1 or 2). That format needs both dimensions — `team` is the side you score
   /// for, this is who you may partner — which no other format does. 0 elsewhere.
   pairGroup Int      @default(0)
   createdAt DateTime @default(now())
+
+  /// The club member this entry is, when the name matched one. Null on a
+  /// database where members have not been created yet, and on a draw seeded
+  /// before they existed — the tournament runs identically either way.
+  memberId String?
+  member   ClubMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
 
   matchesAsP1 Match[] @relation("MatchP1")
   matchesAsP2 Match[] @relation("MatchP2")
@@ -139,7 +145,7 @@ model PointEvent {
   /// burst, milliseconds apart. Only intervals between taps from the same
   /// device are trustworthy here, which is all that is ever compared: one court
   /// has one coach on one phone.
-  tappedAt  DateTime?
+  tappedAt DateTime?
 
   @@index([matchId, seq])
 }
@@ -234,20 +240,20 @@ model SavedRoster {
 /// nothing, and a format's label or scoring rules may have changed by the time
 /// anyone looks back.
 model ArchivedTournament {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
 
   /// What to call it in a list — "Round robin · 30 Aug 2026", editable later.
-  label     String
-  format    String
+  label      String
+  format     String
   /// The format's display title as it read on the night.
   formatName String
   /// One line describing the scoring, e.g. "First to 16, win by 2".
-  scoring   String
+  scoring    String
   /// "pts" or "gms" — what the standings numbers are counting.
-  tallyUnit String   @default("pts")
+  tallyUnit  String @default("pts")
 
-  entrants  Int
-  matches   Int
+  entrants Int
+  matches  Int
 
   /// Ranked table as it finished. For a team format this is the team table.
   standings Json
@@ -262,6 +268,8 @@ model ArchivedTournament {
   endedAt   DateTime  @default(now())
   createdAt DateTime  @default(now())
 
+  memberResults MemberResult[]
+
   @@index([endedAt])
 }
 
@@ -273,7 +281,7 @@ model ArchivedTournament {
 /// created there was nothing to check against. This row is never deleted, so
 /// there always is.
 model AppSettings {
-  id           String   @id @default("default")
+  id String @id @default("default")
 
   /// Null means the installation is unclaimed: the first person to seed a
   /// tournament sets it, and from then on writes need it. That keeps an
@@ -281,8 +289,8 @@ model AppSettings {
   /// organiser out of their own app.
   organiserPin String?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 /// Failed PIN attempts, so guessing can be slowed down.
@@ -295,19 +303,80 @@ model PinAttempt {
   /// coach mistyping the scoring PIN cannot lock the organiser out, or the
   /// reverse. A whole club shares one public address, which is exactly why the
   /// limits below are generous and the lock is short.
-  key         String    @id
+  key String @id
 
-  fails       Int       @default(0)
-  windowStart DateTime  @default(now())
+  fails       Int      @default(0)
+  windowStart DateTime @default(now())
 
   /// Set once the failures pass the limit; attempts are refused until it passes.
   lockedUntil DateTime?
 
   /// How many times this key has been locked in a row, so a determined guesser
   /// waits longer each time while a fumbled PIN costs a minute once.
-  lockCount   Int       @default(0)
+  lockCount Int @default(0)
 
-  updatedAt   DateTime  @updatedAt
+  updatedAt DateTime @updatedAt
 
   @@index([lockedUntil])
+}
+
+/// A person at the club, as opposed to an entry in tonight's draw.
+///
+/// `Player` rows are made by the draw and destroyed by the next reset, so
+/// nothing about a person survived the evening they played in: the history was
+/// a pile of name strings and the club had no record of who actually turns up.
+/// This is the row that persists. A draw matches its entrants to these by name
+/// as it is seeded, and every archived result points at one.
+model ClubMember {
+  id String @id @default(cuid())
+
+  /// As last entered, and what every screen shows.
+  name String
+
+  /// `name` reduced to the form two entries count as the same person on: case
+  /// folded, whitespace collapsed. Two spellings that differ by more than that
+  /// become two people — which is what merging exists to repair, because the
+  /// alternative is asking an organiser to confirm every name every week.
+  nameKey String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  players Player[]
+  results MemberResult[]
+}
+
+/// One person's line from one finished event.
+///
+/// `ArchivedTournament` keeps what the screens showed, denormalised, because
+/// the rows it describes are about to be deleted. This is the other half of
+/// that: the same numbers keyed to somebody who persists, so "played 12, won 3"
+/// is a group-by rather than a scan through every stored JSON blob.
+model MemberResult {
+  id String @id @default(cuid())
+
+  memberId String
+  member   ClubMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  eventId String
+  event   ArchivedTournament @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  /// The name they were entered under that night, which may not be the one
+  /// they go by now.
+  playedAs String
+
+  /// Where they finished in the individual table, counting from 1.
+  rank          Int
+  played        Int
+  won           Int
+  lost          Int
+  pointsFor     Int
+  pointsAgainst Int
+
+  /// Copied from the event, so a season table can be cut by date without a join.
+  endedAt DateTime
+
+  @@unique([eventId, memberId])
+  @@index([memberId])
+  @@index([endedAt])
 }
