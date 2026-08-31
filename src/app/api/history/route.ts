@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { archiveCurrentTournament } from "@/lib/archive";
-import { verifyOrganiser } from "@/lib/auth";
+import { checkPin } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +35,8 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    if (!(await verifyOrganiser(body.pin))) {
-      return NextResponse.json({ error: "The organiser PIN is needed to save an event." }, { status: 401 });
-    }
+    const auth = await checkPin(req, "organiser", body.pin);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
     const id = await archiveCurrentTournament(prisma, typeof body.label === "string" ? body.label : undefined);
     if (!id) {
       return NextResponse.json({ error: "Nothing to save yet — no match has been completed." }, { status: 400 });

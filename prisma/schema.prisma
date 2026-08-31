@@ -284,3 +284,30 @@ model AppSettings {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+/// Failed PIN attempts, so guessing can be slowed down.
+///
+/// In the database rather than in memory because each request on a serverless
+/// host can land on a different instance — a per-process counter would let an
+/// attacker simply spread their guesses and never trip it.
+model PinAttempt {
+  /// Who and what: the caller's address plus the kind of PIN being tried, so a
+  /// coach mistyping the scoring PIN cannot lock the organiser out, or the
+  /// reverse. A whole club shares one public address, which is exactly why the
+  /// limits below are generous and the lock is short.
+  key         String    @id
+
+  fails       Int       @default(0)
+  windowStart DateTime  @default(now())
+
+  /// Set once the failures pass the limit; attempts are refused until it passes.
+  lockedUntil DateTime?
+
+  /// How many times this key has been locked in a row, so a determined guesser
+  /// waits longer each time while a fumbled PIN costs a minute once.
+  lockCount   Int       @default(0)
+
+  updatedAt   DateTime  @updatedAt
+
+  @@index([lockedUntil])
+}

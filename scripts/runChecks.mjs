@@ -35,6 +35,7 @@ const LOGIC = [
 /** Each of these needs its own fresh database. */
 const DB = [
   ["checkAuth", "who may write"],
+  ["checkRateLimit", "PIN guessing is slowed, coaches are not"],
   ["checkRosters", "saved entrant lists"],
   ["checkArchive", "past events survive a reset"],
   ["checkStateRev", "the polling revision misses nothing"],

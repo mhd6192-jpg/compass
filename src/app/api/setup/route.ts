@@ -6,7 +6,8 @@ import { broadcastSnapshot } from "@/lib/broadcast";
 import { isPointsRace, isRotatingPartners, type TournamentFormat } from "@/lib/types";
 import { isTournamentFormat, validateField } from "@/lib/bracket/formats";
 import { MAX_AMERICANO_ROUNDS } from "@/lib/bracket/americano";
-import { claimOrganiser, setOrganiserPin, verifyOrganiser } from "@/lib/auth";
+import { claimOrganiser, setOrganiserPin } from "@/lib/auth";
+import { checkPin } from "@/lib/rateLimit";
 import { getIO, EVENTS } from "@/lib/socket";
 
 export async function POST(req: Request) {
@@ -38,12 +39,8 @@ export async function POST(req: Request) {
     // They are separate so that handing the scoring PIN to eight coaches does
     // not also hand out the ability to wipe the draw and re-seed it.
     const organiserPin = typeof body.organiserPin === "string" ? body.organiserPin : "";
-    if (!(await verifyOrganiser(organiserPin))) {
-      return NextResponse.json(
-        { error: "That organiser PIN is not right for this app." },
-        { status: 401 }
-      );
-    }
+    const auth = await checkPin(req, "organiser", organiserPin);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
     if (!["standard", "match-tiebreak", "advantage", "race-to-9", "race-to-16"].includes(tiebreakMode)) {
       return NextResponse.json({ error: "Invalid tiebreak mode" }, { status: 400 });
     }

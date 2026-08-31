@@ -16,6 +16,8 @@ process.env.POSTGRES_URL_NON_POOLING = DEV_DB;
 process.env.DATABASE_URL = DEV_DB;
 
 
+export {};
+
 let failures = 0;
 function check(name: string, cond: boolean, extra = "") {
   console.log(`${cond ? "PASS" : "FAIL"}  ${name}${extra ? ` — ${extra}` : ""}`);

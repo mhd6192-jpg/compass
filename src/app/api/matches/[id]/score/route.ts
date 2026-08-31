@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { applyManualScore } from "@/lib/bracket/routing";
 import { getMatchDTO } from "@/lib/bracket/dto";
 import { formatMatchScoreLine } from "@/lib/scoring/format";
-import { verifyPin } from "@/lib/auth";
+import { checkPin } from "@/lib/rateLimit";
 import { broadcastSnapshot } from "@/lib/broadcast";
 import { getIO, EVENTS } from "@/lib/socket";
 import { SetInput } from "@/lib/scoring/synth";
@@ -11,9 +11,8 @@ import { SetInput } from "@/lib/scoring/synth";
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();
-    if (!(await verifyPin(body.pin))) {
-      return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
-    }
+    const auth = await checkPin(req, "coach", body.pin);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const finalize = body.finalize === true;
     const completedSets: SetInput[] = Array.isArray(body.completedSets)

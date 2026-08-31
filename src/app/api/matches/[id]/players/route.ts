@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyPin } from "@/lib/auth";
+import { checkPin } from "@/lib/rateLimit";
 import { broadcastSnapshot } from "@/lib/broadcast";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();
-    if (!(await verifyPin(body.pin))) {
-      return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
-    }
+    const auth = await checkPin(req, "coach", body.pin);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const player1Name = typeof body.player1Name === "string" ? body.player1Name.trim() : undefined;
     const player2Name = typeof body.player2Name === "string" ? body.player2Name.trim() : undefined;

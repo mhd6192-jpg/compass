@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyOrganiser } from "@/lib/auth";
+import { checkPin } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +35,8 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    if (!(await verifyOrganiser(body.pin))) {
-      return NextResponse.json({ error: "The organiser PIN is needed to save a list." }, { status: 401 });
-    }
+    const auth = await checkPin(req, "organiser", body.pin);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
     const label = typeof body.label === "string" ? body.label.trim() : "";
     const names = Array.isArray(body.names) ? body.names.map((n: unknown) => String(n).trim()).filter(Boolean) : [];
 
@@ -61,9 +60,8 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const url = new URL(req.url);
-    if (!(await verifyOrganiser(url.searchParams.get("pin")))) {
-      return NextResponse.json({ error: "The organiser PIN is needed to delete a list." }, { status: 401 });
-    }
+    const auth = await checkPin(req, "organiser", url.searchParams.get("pin"));
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
     const id = url.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Which list?" }, { status: 400 });
     await prisma.savedRoster.delete({ where: { id } });

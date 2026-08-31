@@ -3,16 +3,15 @@ import { prisma } from "@/lib/db";
 import { forceEndMatch } from "@/lib/bracket/routing";
 import { getMatchDTO } from "@/lib/bracket/dto";
 import { formatMatchScoreLine } from "@/lib/scoring/format";
-import { verifyPin } from "@/lib/auth";
+import { checkPin } from "@/lib/rateLimit";
 import { broadcastSnapshot } from "@/lib/broadcast";
 import { getIO, EVENTS } from "@/lib/socket";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();
-    if (!(await verifyPin(body.pin))) {
-      return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
-    }
+    const auth = await checkPin(req, "coach", body.pin);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
     const winnerSlot = body.winnerSlot === 1 || body.winnerSlot === 2 ? body.winnerSlot : null;
     if (!winnerSlot) {
       return NextResponse.json({ error: "winnerSlot must be 1 or 2" }, { status: 400 });

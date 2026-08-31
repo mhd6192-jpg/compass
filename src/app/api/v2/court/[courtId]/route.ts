@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyPin } from "@/lib/auth";
+import { checkPin } from "@/lib/rateLimit";
 import { writeCourtStage } from "@/lib/v2/server";
 
 /**
@@ -13,9 +13,8 @@ import { writeCourtStage } from "@/lib/v2/server";
 export async function POST(req: Request, { params }: { params: { courtId: string } }) {
   try {
     const body = await req.json();
-    if (!(await verifyPin(body.pin))) {
-      return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
-    }
+    const auth = await checkPin(req, "coach", body.pin);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const courtId = Number(params.courtId);
     if (!Number.isInteger(courtId)) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyPin } from "@/lib/auth";
+import { checkPin } from "@/lib/rateLimit";
 import { CeremonyAction, runCeremonyAction } from "@/lib/v2/server";
 
 const ACTIONS: CeremonyAction[] = ["configure", "start", "next", "back", "reset", "sound"];
@@ -8,9 +8,8 @@ const ACTIONS: CeremonyAction[] = ["configure", "start", "next", "back", "reset"
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    if (!(await verifyPin(body.pin))) {
-      return NextResponse.json({ error: "Invalid PIN" }, { status: 401 });
-    }
+    const auth = await checkPin(req, "coach", body.pin);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
     if (!ACTIONS.includes(body.action)) {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyOrganiser } from "@/lib/auth";
+import { checkPin } from "@/lib/rateLimit";
 import { broadcastSnapshot } from "@/lib/broadcast";
 import { resetV2State } from "@/lib/v2/reset";
 import { archiveCurrentTournament } from "@/lib/archive";
@@ -13,9 +13,8 @@ export async function POST(req: Request) {
     // the eight people holding the scoring PIN cannot do it. It also has to be
     // a PIN that outlives the tournament, since this is what deletes the row
     // the coach PIN lives on.
-    if (!(await verifyOrganiser(body.pin))) {
-      return NextResponse.json({ error: "The organiser PIN is needed to erase an event." }, { status: 401 });
-    }
+    const auth = await checkPin(req, "organiser", body.pin);
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     // Keep the night before deleting it. This is the whole reason the archive
     // exists: a reset is how you start the next event, and it used to be the
