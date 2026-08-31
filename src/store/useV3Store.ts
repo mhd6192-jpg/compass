@@ -37,6 +37,14 @@ interface V2StoreState {
 
 const POLL_MS = 800;
 let polling = false;
+/**
+ * The revision of the last snapshot actually received.
+ *
+ * Sent back with every poll so the server can answer "unchanged" instead of
+ * rebuilding and resending a state nobody has changed — which is most polls,
+ * since the score moves every few seconds and this asks every 800ms.
+ */
+let lastRev: string | null = null;
 /** Match state as the server last reported it, keyed by match. */
 const serverStates = new Map<string, MatchStateDTO>();
 
@@ -50,9 +58,15 @@ export const useV3Store = create<V2StoreState>((set, get) => ({
     if (polling) return;
     polling = true;
     const poll = () =>
-      fetch("/api/v2/state")
+      fetch(`/api/v2/state${lastRev ? `?since=${encodeURIComponent(lastRev)}` : ""}`)
         .then((r) => r.json())
-        .then((snap: V2Snapshot) => {
+        .then((snap: V2Snapshot & { unchanged?: boolean; rev?: string }) => {
+          // Nothing has moved: keep what is on screen and say we are connected.
+          if (snap.unchanged) {
+            set({ connected: true });
+            return;
+          }
+          if (snap.rev) lastRev = snap.rev;
           for (const m of snap.matches) serverStates.set(m.id, m.state);
           set((s) => {
             // While taps are still queued for a match, the server's score is
@@ -75,8 +89,14 @@ export const useV3Store = create<V2StoreState>((set, get) => ({
   },
 
   refresh: () => {
+    // Deliberately unconditional: refresh is called right after this device
+    // changed something, and it wants the result of that change, not a "no news".
     fetch("/api/v2/state")
       .then((r) => r.json())
+      .then((snap: V2Snapshot & { rev?: string }) => {
+        if (snap.rev) lastRev = snap.rev;
+        return snap;
+      })
       .then((snap: V2Snapshot) =>
         set((s) => {
           for (const m of snap.matches) serverStates.set(m.id, m.state);
