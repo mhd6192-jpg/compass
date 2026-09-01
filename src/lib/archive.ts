@@ -130,7 +130,7 @@ async function memberRows(prisma: PrismaClient, individual: StandingsRow[]): Pro
  */
 export async function buildArchive(prisma: PrismaClient, label?: string): Promise<ArchivePayload | null> {
   const snapshot = (await getFullSnapshot(prisma)) as unknown as {
-    tournament: { format: string; bestOfSets: number; tiebreakMode: string; raceTarget?: number; serveEvery?: number; raceWinBy?: number; startedAt?: string | null };
+    tournament: { format: string; bestOfSets: number; tiebreakMode: string; raceTarget?: number; serveEvery?: number; raceWinBy?: number };
     matches: MatchDTO[];
   };
 
@@ -158,9 +158,17 @@ export async function buildArchive(prisma: PrismaClient, label?: string): Promis
 
   const endedAt = new Date();
   const formatName = formatSpec(format).title;
+
+  // Read from the config rather than the snapshot. The snapshot is what every
+  // screen polls several times a second and it has no business carrying a field
+  // only the archive reads — and this one has to be exact, because it is what
+  // says whether two saves describe the same night.
+  const started = await prisma.tournamentConfig.findUnique({
+    where: { id: "default" },
+    select: { startedAt: true },
+  });
+  const startedAt = started?.startedAt ?? null;
   const members = await memberRows(prisma, individual);
-
-
 
   return {
     label: label?.trim() || defaultLabel(formatName, endedAt),
@@ -176,7 +184,7 @@ export async function buildArchive(prisma: PrismaClient, label?: string): Promis
     players: teamScored ? individual : null,
     podium: computePodium(snapshot.matches, format),
     results,
-    startedAt: snapshot.tournament.startedAt ? new Date(snapshot.tournament.startedAt) : null,
+    startedAt,
     endedAt,
     members,
   };
@@ -186,35 +194,60 @@ export async function buildArchive(prisma: PrismaClient, label?: string): Promis
 export async function archiveCurrentTournament(prisma: PrismaClient, label?: string): Promise<string | null> {
   const payload = await buildArchive(prisma, label);
   if (!payload) return null;
+
+  // Whether the organiser actually typed a name. `buildArchive` has already
+  // filled in a default, which must not be allowed to overwrite a name they
+  // gave earlier in the evening.
+  const named = typeof label === "string" && label.trim().length > 0;
+
   try {
-    const row = await prisma.archivedTournament.create({
-      data: {
-        label: payload.label,
-        format: payload.format,
-        formatName: payload.formatName,
-        scoring: payload.scoring,
-        tallyUnit: payload.tallyUnit,
-        entrants: payload.entrants,
-        matches: payload.matches,
-        standings: payload.standings as unknown as object[],
-        players: (payload.players ?? undefined) as unknown as object[] | undefined,
-        podium: payload.podium as unknown as object[],
-        results: payload.results as unknown as object[],
-        startedAt: payload.startedAt,
-        endedAt: payload.endedAt,
-      },
-    });
+    const fields = {
+      format: payload.format,
+      formatName: payload.formatName,
+      scoring: payload.scoring,
+      tallyUnit: payload.tallyUnit,
+      entrants: payload.entrants,
+      matches: payload.matches,
+      standings: payload.standings as unknown as object[],
+      players: (payload.players ?? undefined) as unknown as object[] | undefined,
+      podium: payload.podium as unknown as object[],
+      results: payload.results as unknown as object[],
+      endedAt: payload.endedAt,
+    };
+
+    // Saving mid-evening and then resetting at the end is now the ordinary
+    // flow, and both writes describe the same night — so the second updates the
+    // first instead of leaving a half-played duplicate sitting in the history
+    // beside the finished one. `startedAt` is stamped when the draw is seeded,
+    // to the millisecond, so it names one run of one event and nothing else.
+    const existing = payload.startedAt
+      ? await prisma.archivedTournament.findFirst({ where: { startedAt: payload.startedAt } })
+      : null;
+
+    const row = existing
+      ? await prisma.archivedTournament.update({
+          where: { id: existing.id },
+          data: named ? { ...fields, label: payload.label } : fields,
+        })
+      : await prisma.archivedTournament.create({
+          data: { ...fields, label: payload.label, startedAt: payload.startedAt },
+        });
+
     // Written separately, and allowed to fail on its own. The event record is
     // the thing that must not be lost; a club that cannot yet keep per-person
     // history should still get its night saved.
-    if (payload.members.length > 0) {
-      try {
+    try {
+      // Replaced rather than merged: an update is a later, fuller picture of
+      // the same night, and a line from the earlier save would otherwise stay
+      // behind reporting a score that has since moved on.
+      if (existing) await prisma.memberResult.deleteMany({ where: { eventId: row.id } });
+      if (payload.members.length > 0) {
         await prisma.memberResult.createMany({
           data: payload.members.map((m) => ({ ...m, eventId: row.id, endedAt: payload.endedAt })),
         });
-      } catch {
-        // No table yet, or a member deleted between building and writing.
       }
+    } catch {
+      // No table yet, or a member deleted between building and writing.
     }
 
     return row.id;

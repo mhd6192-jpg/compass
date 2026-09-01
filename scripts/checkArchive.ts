@@ -47,7 +47,7 @@ async function resetLikeTheApp(label?: string) {
   return archivedId;
 }
 
-async function seedAndPlay(format: "americano" | "team-americano", names: string[], rounds: number) {
+async function seedAndPlay(format: "americano" | "team-americano", names: string[], rounds: number, playRounds = rounds) {
   await prisma.tournamentConfig.updateMany({ data: { status: "setup" } }).catch(() => {});
   await seedTournament(prisma, names, {
     bestOfSets: 1,
@@ -58,7 +58,7 @@ async function seedAndPlay(format: "americano" | "team-americano", names: string
     format,
     courtIds: [2, 3],
   });
-  for (let round = 1; round <= rounds; round++) {
+  for (let round = 1; round <= playRounds; round++) {
     const s = (await getFullSnapshot(prisma)) as unknown as { matches: MatchDTO[] };
     const live = s.matches.filter((m) => m.bracket === "AM" && m.round === round);
     for (const [i, m] of live.entries()) await playMatch(m.id, i === 0, 4 + i * 3);
@@ -138,6 +138,48 @@ async function main() {
   const teamRows = team!.standings as unknown as Array<{ name: string }>;
   check("a team event archives the team table", teamRows.length === 2 && teamRows.every((r) => r.name.startsWith("Team")), teamRows.map((r) => r.name).join(","));
   check("...and keeps the individual scorers beside it", ((team!.players ?? []) as unknown as unknown[]).length === 8);
+
+  // --- saving mid-evening, then finishing it -----------------------------------
+  // The control screen can save without wiping now, so an organiser sends the
+  // results out before the last match and then resets at the end. Both writes
+  // describe the same night, and the history has to end up with one entry for
+  // it rather than a half-played duplicate beside the finished one.
+  const historyBefore = await prisma.archivedTournament.count();
+  await seedAndPlay("americano", ["Ivy", "Jack", "Kim", "Leo", "Mia", "Nate", "Omar", "Pia"], 3, 1);
+
+  const midway = await archiveCurrentTournament(prisma, "Thursday night");
+  check("saving mid-evening writes a record", typeof midway === "string");
+  check("...adding exactly one entry", (await prisma.archivedTournament.count()) === historyBefore + 1);
+  const partialMatches = (await prisma.archivedTournament.findUnique({ where: { id: midway! } }))!.matches;
+  check("...of the night so far, not the whole thing", partialMatches === 2, `${partialMatches} of an eventual 6`);
+
+  // Now play it out and save again, the way the reset at the end does.
+  for (let round = 2; round <= 3; round++) {
+    const s2 = (await getFullSnapshot(prisma)) as unknown as { matches: MatchDTO[] };
+    for (const [i, m] of s2.matches.filter((m) => m.bracket === "AM" && m.round === round).entries()) {
+      await playMatch(m.id, i === 0, 4 + i * 3);
+    }
+  }
+  const again = await archiveCurrentTournament(prisma);
+
+  check("saving again does not add a second entry", (await prisma.archivedTournament.count()) === historyBefore + 1, `${await prisma.archivedTournament.count()}`);
+  check("...it updates the one already there", again === midway, `${again} vs ${midway}`);
+  const finished = (await prisma.archivedTournament.findUnique({ where: { id: midway! } }))!;
+  check("...with the matches played since", finished.matches === 6, `${finished.matches}, was ${partialMatches}`);
+  check("...and the name the organiser gave it, not a generated one", finished.label === "Thursday night", finished.label);
+
+  // One line per person per event, even across two saves.
+  const lines = await prisma.memberResult.count({ where: { eventId: midway! } });
+  check("each player still has one result line", lines === 8, `${lines}`);
+  const ivy = await prisma.memberResult.findFirst({ where: { eventId: midway!, member: { name: "Ivy" } } });
+  check("...carrying the final numbers, not the half-time ones", (ivy?.played ?? 0) === 3, `played ${ivy?.played}`);
+
+  // A later save may rename it, but must not undo a name with a generated one.
+  await archiveCurrentTournament(prisma, "Thursday social night");
+  check("a new name given later is taken", (await prisma.archivedTournament.findUnique({ where: { id: midway! } }))!.label === "Thursday social night");
+
+  await resetLikeTheApp();
+  check("...and the reset that ends the night adds nothing more", (await prisma.archivedTournament.count()) === historyBefore + 1, `${await prisma.archivedTournament.count()}`);
 
   await prisma.archivedTournament.deleteMany({});
   await prisma.$disconnect();
