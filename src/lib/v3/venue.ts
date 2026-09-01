@@ -35,7 +35,29 @@ export interface CourtCard {
   elapsedMs: number | null;
   /** Milliseconds a finished match has been sitting on the celebration screen. */
   heldMs: number | null;
+  /**
+   * Milliseconds this court has been waiting for its players. Null once a point
+   * is scored, which is the only real proof they turned up.
+   */
+  waitingMs: number | null;
   alert: { level: AlertLevel; text: string } | null;
+}
+
+/**
+ * A court standing empty with its four players somewhere else in the building.
+ *
+ * The single biggest waste of time at a social night, and the one thing none of
+ * the screens said out loud: a court card showing a match at 0-0 looks exactly
+ * like a match about to start. This names the people who are wanted and where,
+ * loudly enough to be read from across the room.
+ */
+export interface Callout {
+  courtId: number;
+  courtLabel: string;
+  /** The four who should be on that court. */
+  names: string[];
+  /** How long the court has been waiting for them. */
+  waitingMs: number;
 }
 
 export interface VenueView {
@@ -45,10 +67,22 @@ export interface VenueView {
   progress: { completed: number; total: number };
   ceremonyRunning: boolean;
   alertCount: number;
+  /** Courts overdue to start, longest wait first. Usually empty. */
+  callouts: Callout[];
 }
 
 /** A celebration left up this long usually means the coach has walked off. */
 const HELD_TOO_LONG_MS = 4 * 60 * 1000;
+
+/**
+ * How long a court may sit waiting before anybody is called for.
+ *
+ * A changeover takes a minute or two at a social night — people finish a point,
+ * shake hands, fetch water, walk over — and shouting at them for that would
+ * train the room to ignore the shouting. Past two minutes it is not a
+ * changeover any more, it is somebody who has wandered off.
+ */
+export const OVERDUE_MS = 2 * 60 * 1000;
 
 function ms(from: string | null, now: number): number | null {
   if (!from) return null;
@@ -70,10 +104,11 @@ function alertFor(args: {
   screen: CourtScreen;
   match: MatchDTO | null;
   heldMs: number | null;
+  waitingMs: number | null;
   queueLength: number;
   onAir: boolean;
 }): CourtCard["alert"] {
-  const { screen, match, heldMs, queueLength, onAir } = args;
+  const { screen, match, heldMs, waitingMs, queueLength, onAir } = args;
 
   // The one that actually costs the event time: a finished match still on the
   // TV, court empty, everyone waiting for someone to tap Finish.
@@ -83,10 +118,23 @@ function alertFor(args: {
   if (!match && queueLength > 0) {
     return { level: "warn", text: `Court free — ${queueLength} match${queueLength === 1 ? "" : "es"} waiting` };
   }
-  if (match && !onAir && screen !== "winner" && match.state.totalPoints === 0) {
-    return { level: "info", text: "Ready to start" };
+  if (match && screen !== "winner" && match.state.totalPoints === 0) {
+    // Past the changeover, an unstarted match is not "ready" — it is a court
+    // standing empty while somebody is looked for, which is the thing an
+    // organiser wants pushed at them rather than left as a grey note.
+    if (waitingMs !== null && waitingMs > OVERDUE_MS) {
+      return { level: "warn", text: `Waiting ${formatDuration(waitingMs)} — players not on court` };
+    }
+    if (!onAir) return { level: "info", text: "Ready to start" };
   }
   return null;
+}
+
+/** Everyone due on a court, however the format splits the sides. */
+function peopleIn(match: MatchDTO): string[] {
+  const side1 = match.player1Members ?? (match.player1 ? [match.player1] : []);
+  const side2 = match.player2Members ?? (match.player2 ? [match.player2] : []);
+  return [...side1, ...side2].map((p) => p.name);
 }
 
 export function buildVenueView(
@@ -115,6 +163,10 @@ export function buildVenueView(
     const match = view.screen === "live" || view.screen === "winner" ? view.match : currentOnCourt(snapshot.matches, court.id);
     const onAir = stage.stage === "live";
     const heldMs = view.screen === "winner" ? ms(match?.completedAt ?? null, now) : null;
+    // Only meaningful while nothing has been scored: the first point is proof
+    // the players arrived, whatever the clock says.
+    const waitingMs =
+      match && match.status !== "completed" && match.state.totalPoints === 0 ? ms(match.calledAt, now) : null;
 
     return {
       courtId: court.id,
@@ -126,9 +178,22 @@ export function buildVenueView(
       onAir,
       elapsedMs: view.screen === "live" ? ms(match?.startedAt ?? null, now) : null,
       heldMs,
-      alert: alertFor({ screen: view.screen, match, heldMs, queueLength: queue.length, onAir }),
+      alert: alertFor({ screen: view.screen, match, heldMs, waitingMs, queueLength: queue.length, onAir }),
+      waitingMs,
     };
   });
+
+  const callouts: Callout[] = courts
+    .filter((c) => c.match && c.waitingMs !== null && c.waitingMs > OVERDUE_MS)
+    .map((c) => ({
+      courtId: c.courtId,
+      courtLabel: c.label,
+      names: peopleIn(c.match!),
+      waitingMs: c.waitingMs!,
+    }))
+    // Longest wait first: if two courts are stuck, the one holding the evening
+    // up most is the one to read out.
+    .sort((a, b) => b.waitingMs - a.waitingMs);
 
   return {
     courts,
@@ -136,6 +201,7 @@ export function buildVenueView(
     progress: snapshot.progress,
     ceremonyRunning: snapshot.v2.ceremony.stage !== "idle",
     alertCount: courts.filter((c) => c.alert?.level === "warn").length,
+    callouts,
   };
 }
 

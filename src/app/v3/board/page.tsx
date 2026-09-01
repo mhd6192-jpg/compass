@@ -167,6 +167,44 @@ function Board() {
         </div>
       </header>
 
+      {/* Only ever on screen when a court is genuinely standing empty. Sized to
+          be read from the far side of the room, because the person it is aimed
+          at is the one who is not looking at it. */}
+      {venue.callouts.length > 0 && (
+        <motion.section
+          // Opacity only. Animating the height of a flex child leaves framer
+          // measuring a strip whose text is sized in viewport units, and it
+          // settles on a few clipped pixels — which is the one thing this must
+          // never be, since it exists to be read across a room.
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="relative shrink-0 border-y-2 border-gold bg-gold/15 px-[2.5vw] py-[1.6vh]"
+        >
+          {venue.callouts.map((call) => (
+            <div key={call.courtId} className="flex items-baseline gap-[1.5vw] min-w-0">
+              <span
+                className="font-display uppercase font-bold text-gold shrink-0 tracking-[0.15em]"
+                style={{ fontSize: "clamp(0.9rem, 2.2vw, 2.6rem)" }}
+              >
+                {call.courtLabel} needs
+              </span>
+              <span
+                className="font-display uppercase font-bold truncate min-w-0"
+                style={{ fontSize: "clamp(0.9rem, 2.2vw, 2.6rem)" }}
+              >
+                {call.names.join(" · ")}
+              </span>
+              <span
+                className="ml-auto shrink-0 font-display uppercase tabular-nums text-gold/70"
+                style={{ fontSize: "clamp(0.55rem, 1.1vw, 1.2rem)" }}
+              >
+                waiting {formatDuration(call.waitingMs)}
+              </span>
+            </div>
+          ))}
+        </motion.section>
+      )}
+
       <main className="relative flex-1 min-h-0 flex gap-[1.5vw] px-[2.5vw] py-[2vh]">
         {venue.courts.map((card) => (
           <BoardCourt key={card.courtId} card={card} columns={columns} />

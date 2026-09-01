@@ -152,7 +152,30 @@ export async function rebalanceCourts(prisma: DB): Promise<string[]> {
     changed.push(parked.id);
   }
 
+  await stampCalled(prisma);
   return changed;
+}
+
+/**
+ * Records when each match reached the front of a court, and forgets it again
+ * when one is bumped off.
+ *
+ * Done in one pass at the end rather than at each of the four places a match
+ * can become "current", so a path added later cannot forget to stamp it. Both
+ * statements are guarded, so calling this repeatedly changes nothing.
+ *
+ * A completed match keeps its stamp: it is a record of when those four were
+ * called, and the match is over either way.
+ */
+async function stampCalled(prisma: DB): Promise<void> {
+  await prisma.match.updateMany({
+    where: { courtSlot: "current", status: { not: "completed" }, calledAt: null },
+    data: { calledAt: new Date() },
+  });
+  await prisma.match.updateMany({
+    where: { calledAt: { not: null }, status: { not: "completed" }, NOT: { courtSlot: "current" } },
+    data: { calledAt: null },
+  });
 }
 
 /** A match nobody may quietly shove aside: it is being played right now. */
@@ -256,5 +279,6 @@ export async function manualAssignCourt(
   });
   changed.push(source.id);
 
+  await stampCalled(prisma);
   return changed;
 }

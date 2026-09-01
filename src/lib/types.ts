@@ -352,6 +352,8 @@ export interface MatchDTO {
   isChampionshipFinal: boolean; // East Final only
   forcedEnd: boolean;
   forcedEndReason: string | null;
+  /** When this match reached the front of a court and its four were called. */
+  calledAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
   state: MatchStateDTO;

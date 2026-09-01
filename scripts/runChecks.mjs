@@ -31,6 +31,7 @@ const LOGIC = [
   ["checkTwoGroup", "two groups → semis → final"],
   ["checkOutbox429", "a lockout never eats queued points"],
   ["checkExport", "results that can leave the building"],
+  ["checkCallout", "calling players who have wandered off"],
   ["checkFreshness", "a screen admits when it stops updating"],
   ["testNew", "seeding and score entry"],
 ];

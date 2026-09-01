@@ -110,6 +110,7 @@ function fakeMatch(tb: [number, number], mode: TiebreakMode): MatchDTO {
     isChampionshipFinal: false,
     forcedEnd: false,
     forcedEndReason: null,
+    calledAt: null,
     startedAt: null,
     completedAt: null,
     comeback: null,

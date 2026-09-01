@@ -119,6 +119,13 @@ model Match {
   status  String    @default("pending") // pending | ready | scheduled | in_progress | completed
   readyAt DateTime? // set the moment both players become known; drives FIFO court queue order
 
+  /// When this match reached the front of a court — the moment its four players
+  /// should have started walking over. `readyAt` is a different thing: it is
+  /// when the match became playable at all, which can be an hour earlier while
+  /// it sits in the queue. Cleared if the match is bumped back off the front,
+  /// so a second call is timed from the second call.
+  calledAt DateTime?
+
   courtId   Int?
   courtSlot String? // current | next
 
