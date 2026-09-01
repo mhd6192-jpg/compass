@@ -32,6 +32,7 @@ const LOGIC = [
   ["checkOutbox429", "a lockout never eats queued points"],
   ["checkExport", "results that can leave the building"],
   ["checkCallout", "calling players who have wandered off"],
+  ["checkStrengthOrder", "entry order from past results"],
   ["checkFreshness", "a screen admits when it stops updating"],
   ["testNew", "seeding and score entry"],
 ];

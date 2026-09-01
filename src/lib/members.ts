@@ -86,6 +86,13 @@ export interface MemberSeasonRow {
   winRate: number;
   /** Best finishing position across the events counted. */
   bestRank: number | null;
+  /**
+   * Mean finishing position as a fraction of the field: 0 is always first, 1 is
+   * always last. Normalised on purpose — a third of eight and a third of
+   * twenty-four are not the same result, and raw points cannot be compared
+   * across a race to 16 and a race to 21 either.
+   */
+  standing: number;
   /** How many times they finished first. */
   firsts: number;
   lastPlayed: string | null;
@@ -104,7 +111,9 @@ export async function seasonTable(db: Db, since?: Date): Promise<MemberSeasonRow
   try {
     rows = await db.memberResult.findMany({
       where: since ? { endedAt: { gte: since } } : undefined,
-      include: { member: { select: { name: true } } },
+      // The field size comes from the event: finishing third of eight and third
+      // of twenty-four are not the same result.
+      include: { member: { select: { name: true } }, event: { select: { entrants: true } } },
       orderBy: { endedAt: "desc" },
     });
   } catch {
@@ -112,6 +121,7 @@ export async function seasonTable(db: Db, since?: Date): Promise<MemberSeasonRow
   }
 
   const byMember = new Map<string, MemberSeasonRow>();
+  const standingSum = new Map<string, number>();
   for (const r of rows) {
     let row = byMember.get(r.memberId);
     if (!row) {
@@ -126,6 +136,7 @@ export async function seasonTable(db: Db, since?: Date): Promise<MemberSeasonRow
         pointsAgainst: 0,
         winRate: 0,
         bestRank: null,
+        standing: 0,
         firsts: 0,
         // Rows arrive newest first, so the first one seen is the latest.
         lastPlayed: r.endedAt.toISOString(),
@@ -140,10 +151,17 @@ export async function seasonTable(db: Db, since?: Date): Promise<MemberSeasonRow
     row.pointsAgainst += r.pointsAgainst;
     if (row.bestRank === null || r.rank < row.bestRank) row.bestRank = r.rank;
     if (r.rank === 1) row.firsts += 1;
+    // Summed here, averaged below. A field of one has no spread to place
+    // anybody in, so it counts as a win rather than dividing by zero.
+    const field = r.event.entrants;
+    standingSum.set(r.memberId, (standingSum.get(r.memberId) ?? 0) + (field > 1 ? (r.rank - 1) / (field - 1) : 0));
   }
 
   const table = [...byMember.values()];
-  for (const row of table) row.winRate = row.played > 0 ? row.won / row.played : 0;
+  for (const row of table) {
+    row.winRate = row.played > 0 ? row.won / row.played : 0;
+    row.standing = (standingSum.get(row.memberId) ?? 0) / row.events;
+  }
 
   return table.sort(
     (a, b) =>
@@ -199,4 +217,46 @@ export async function mergeMembers(db: Db, keepId: string, dropId: string): Prom
 
   await db.clubMember.delete({ where: { id: dropId } });
   return moved;
+}
+
+/**
+ * Puts a list of entered names into strength order for the draw.
+ *
+ * Several formats read the entry order as a ranking. A mexicano draws its first
+ * round straight off it — top four on the first court, next four on the second —
+ * and king of the court builds its opening ladder the same way. Organisers were
+ * guessing at that order from memory every week, and a wrong guess makes the
+ * first round lopsided for everybody.
+ *
+ * `standing` is a mean finishing position as a fraction of the field, so it
+ * compares across different field sizes and different race targets. Lower is
+ * stronger.
+ *
+ * Anyone with no history goes last, keeping the order they were typed in.
+ * Putting a newcomer in the middle would be a guess dressed up as a ranking,
+ * and in these formats round one sorts them out anyway.
+ */
+export function orderByStrength(
+  names: string[],
+  standings: Map<string, number>
+): { ordered: string[]; ranked: number; unranked: string[] } {
+  const known: { name: string; standing: number; at: number }[] = [];
+  const unknown: string[] = [];
+
+  names.forEach((name, at) => {
+    const standing = standings.get(nameKeyOf(name));
+    if (standing === undefined) unknown.push(name);
+    else known.push({ name, standing, at });
+  });
+
+  // Entry order breaks ties, so re-ordering an already-sorted list is a no-op
+  // rather than a shuffle — an organiser pressing the button twice should not
+  // watch the field move.
+  known.sort((a, b) => a.standing - b.standing || a.at - b.at);
+
+  return {
+    ordered: [...known.map((k) => k.name), ...unknown],
+    ranked: known.length,
+    unranked: unknown,
+  };
 }

@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import ClubLogo from "@/components/shared/ClubLogo";
 import { arrangeDraw } from "@/lib/bracket/seedArrange";
 
-import { isPointsRace, type TiebreakMode, type TournamentFormat } from "@/lib/types";
+import { isPointsRace, isTwoGroupEntry, type TiebreakMode, type TournamentFormat } from "@/lib/types";
 import { MIN_TWO_GROUP_TEAMS, splitGroups, twoGroupMatchCount } from "@/lib/bracket/twoGroup";
 import { FORMAT_FAMILIES, describeField, formatsInFamily, validateField } from "@/lib/bracket/formats";
 
@@ -27,6 +27,7 @@ import {
   MIN_AMERICANO_PLAYERS,
 } from "@/lib/bracket/americano";
 import { pairByRank, MIN_MEXICANO_PLAYERS } from "@/lib/bracket/mexicano";
+import { nameKeyOf, orderByStrength } from "@/lib/members";
 import { courtCount, courtLevelName, isValidKingCourtField, openingLadder, MIN_KING_COURT_PLAYERS } from "@/lib/bracket/kingCourt";
 import {
   defaultTeamRounds,
@@ -232,13 +233,53 @@ export default function SetupPage() {
   // back as you type is the cheapest place to stop that happening — far cheaper
   // than merging the two halves afterwards.
   const [knownNames, setKnownNames] = useState<string[]>([]);
+  /** Mean finishing position per person, for putting the entry list in order. */
+  const [standings, setStandings] = useState<Map<string, number>>(new Map());
+  const [orderNote, setOrderNote] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/members/names")
       .then((r) => r.json())
       .then((d) => setKnownNames(d.names ?? []))
       .catch(() => setKnownNames([]));
+    fetch("/api/members")
+      .then((r) => r.json())
+      .then((d: { members?: { name: string; standing: number }[] }) =>
+        setStandings(new Map((d.members ?? []).map((m) => [nameKeyOf(m.name), m.standing])))
+      )
+      .catch(() => setStandings(new Map()));
   }, []);
+
+  /**
+   * Whether ordering the entry list by past results is meaningful here.
+   *
+   * It needs three things: entrants who are people rather than pairs, a format
+   * that reads the order as a ranking rather than as group membership, and a
+   * club with some history to order from.
+   */
+  const canOrderByStrength =
+    (americano || discipline === "singles") && !isTwoGroupEntry(format) && format !== "compass" && standings.size > 0;
+
+  /**
+   * Puts the entry list in strength order.
+   *
+   * Only offered where the order actually means something. A mexicano reads it
+   * as a ranking and draws round one off it; the two-group formats read it as
+   * membership, and sorting those by strength would quietly put every strong
+   * player in one half.
+   */
+  function orderEntrantsByStrength() {
+    const typed = rrNames.map((n) => n.trim());
+    const { ordered, ranked, unranked } = orderByStrength(typed.filter(Boolean), standings);
+    setRrNames([...ordered, ...typed.filter((n) => !n).map(() => "")]);
+    setOrderNote(
+      unranked.length === 0
+        ? `Ordered ${ranked} from past results — strongest first.`
+        : `Ordered ${ranked} from past results. ${unranked.join(", ")} ${
+            unranked.length === 1 ? "has" : "have"
+          } not played here before, so they are at the bottom — move them up if you know better.`
+    );
+  }
 
   /** The names currently typed in, for whichever entry list this format uses. */
   const currentNames = () => (format === "compass" ? names : rrNames).map((n) => n.trim()).filter(Boolean);
@@ -885,16 +926,28 @@ export default function SetupPage() {
         <section className="mb-6">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h2 className="font-display uppercase text-lg text-white/80">{entrantsLabel}</h2>
-            {americano ? (
-              <button onClick={loadAmericanoDemo} type="button" className="text-xs text-gold underline underline-offset-4">
-                Load 8 demo players
-              </button>
-            ) : (
-              <button onClick={loadGroupDraw} type="button" className="text-xs text-gold underline underline-offset-4">
-                Load example group (7 {entrantsLabel.toLowerCase()})
-              </button>
-            )}
+            <div className="flex items-center gap-4">
+              {/* Only where the entry order is read as a ranking. The two-group
+                  formats read it as membership, and sorting those by strength
+                  would quietly stack every strong player into one half. */}
+              {canOrderByStrength && (
+                <button onClick={orderEntrantsByStrength} type="button" className="text-xs text-gold underline underline-offset-4">
+                  Order by past results
+                </button>
+              )}
+              {americano ? (
+                <button onClick={loadAmericanoDemo} type="button" className="text-xs text-gold underline underline-offset-4">
+                  Load 8 demo players
+                </button>
+              ) : (
+                <button onClick={loadGroupDraw} type="button" className="text-xs text-gold underline underline-offset-4">
+                  Load example group (7 {entrantsLabel.toLowerCase()})
+                </button>
+              )}
+            </div>
           </div>
+
+          {orderNote && <p className="text-white/45 text-xs mb-3">{orderNote}</p>}
 
           <div className="grid gap-1.5">
             {rrNames.map((n, i) => (
