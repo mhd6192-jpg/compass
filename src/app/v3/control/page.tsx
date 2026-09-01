@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import V3Gate from "@/components/v3/V3Gate";
 import SwapMatchSheet from "@/components/v3/SwapMatchSheet";
+import FieldSheet from "@/components/v3/FieldSheet";
 import BracketBadge from "@/components/shared/BracketBadge";
 import ClubLogo from "@/components/shared/ClubLogo";
 import { useNow } from "@/components/v3/useNow";
@@ -207,6 +208,8 @@ function ControlRoom() {
           <p className="text-white/40 text-sm">No courts configured — seed the tournament in setup.</p>
         )}
       </section>
+
+      <FieldSheet />
 
       {/* the pool nobody has been called from yet */}
       <section className="rounded-2xl border border-court-line bg-court-panel p-4">
