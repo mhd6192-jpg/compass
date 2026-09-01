@@ -7,6 +7,7 @@ import { chooseSitters, pairByRank } from "./mexicano";
 import { pairAcrossRanked } from "./mixedMexicano";
 import { MATCH_INCLUDE, buildMatchDTO } from "./dto";
 import { getScoringConfig } from "./config";
+import { applyStandIns } from "./standIns";
 
 type Tx = Prisma.TransactionClient;
 
@@ -82,6 +83,10 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
 
   // --- winner court: the winning pair holds, the queue supplies the next ----
   if (cfg?.format === "winner-court") {
+    // Everyone who was ever entered, including anybody who has since been
+    // replaced. The queue is replayed from results that name the players who
+    // actually played, so leaving them in is what keeps the replay honest —
+    // the stand-in is swapped in at the end instead.
     const roster = await tx.player.findMany({ orderBy: { seed: "asc" }, select: { id: true } });
     const history: WinnerCourtResult[] = [...rows]
       .sort((a, b) => a.round - b.round)
@@ -112,6 +117,7 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
         readyAt: new Date(),
       },
     });
+    await applyStandIns(tx, [row.id]);
     return [row.id];
   }
 
@@ -149,6 +155,7 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
       });
       created.push(row.id);
     }
+    await applyStandIns(tx, created);
     return created;
   }
 
@@ -163,7 +170,9 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
   // ranking off it alone drops anyone who sat out the opening round — and once
   // they are missing there is no bye to hand out, the same four pairs get drawn
   // again, and those players never get on court all night.
-  const roster = await tx.player.findMany({ orderBy: { seed: "asc" } });
+  // Only the players still here. This is where a withdrawal takes effect and
+  // where somebody who joined late first appears.
+  const roster = await tx.player.findMany({ where: { withdrawnAt: null }, orderBy: { seed: "asc" } });
   const byStanding = (a: { id: string; seed: number }, b: { id: string; seed: number }) => {
     const ra = byId.get(a.id);
     const rb = byId.get(b.id);
@@ -201,6 +210,7 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
       });
       created.push(row.id);
     }
+    await applyStandIns(tx, created);
     return created;
   }
 
@@ -229,6 +239,7 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
     });
     created.push(row.id);
   }
+  await applyStandIns(tx, created);
   return created;
 }
 

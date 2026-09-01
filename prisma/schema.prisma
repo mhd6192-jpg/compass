@@ -64,6 +64,19 @@ model Player {
   memberId String?
   member   ClubMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
 
+  /// Set when somebody leaves part-way through an evening. They keep every
+  /// point they earned — those matches were played and the standings still say
+  /// so — but no round drawn after this moment includes them.
+  withdrawnAt DateTime?
+
+  /// Who took their place, when somebody did. The formats that derive a round
+  /// from the last one rebuild it out of the players who actually played, so a
+  /// stand-in is swapped in afterwards rather than the ladder or the queue
+  /// being rebuilt around them.
+  replacedById String?
+  replacedBy   Player?  @relation("StandIn", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces     Player[] @relation("StandIn")
+
   matchesAsP1 Match[] @relation("MatchP1")
   matchesAsP2 Match[] @relation("MatchP2")
   wonMatches  Match[] @relation("MatchWinner")
