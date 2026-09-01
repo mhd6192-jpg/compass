@@ -11,6 +11,7 @@ import FinalStandingsScreen from "@/components/v3/FinalStandingsScreen";
 import CeremonyScreen from "@/components/v3/CeremonyScreen";
 import ClubLogo from "@/components/shared/ClubLogo";
 import { useV3Store } from "@/store/useV3Store";
+import { useWakeLock } from "@/components/v3/useWakeLock";
 import { emptyCourtStage, nextOnCourt, resolveCourtScreen } from "@/lib/v2/stage";
 
 function TvContent({ courtId }: { courtId: number }) {
@@ -111,6 +112,11 @@ function TvContent({ courtId }: { courtId: number }) {
 export default function CourtTvPage() {
   const params = useParams<{ courtId: string }>();
   const courtId = Number(params.courtId);
+
+  // Held here rather than inside the content, so the screen stays awake while
+  // the gate is still connecting and while a court sits idle between rounds —
+  // the two moments a screensaver is most likely to arrive.
+  useWakeLock();
 
   if (!Number.isInteger(courtId)) {
     return (

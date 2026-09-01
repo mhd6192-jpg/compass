@@ -9,6 +9,7 @@ import ClubLogo from "@/components/shared/ClubLogo";
 import PlayerQr from "@/components/v3/PlayerQr";
 import { BRACKET_STYLE } from "@/lib/bracketStyle";
 import { useNow } from "@/components/v3/useNow";
+import { useWakeLock } from "@/components/v3/useWakeLock";
 import { useV3Store } from "@/store/useV3Store";
 import { buildVenueView, formatDuration, scoreLine, type CourtCard } from "@/lib/v3/venue";
 import { serveInfo } from "@/lib/scoring/serve";
@@ -250,6 +251,10 @@ function Board() {
 }
 
 export default function BoardPage() {
+  // Outside the gate, so the board stays awake while it is still connecting
+  // and while it is showing an empty venue between events.
+  useWakeLock();
+
   return (
     <V3Gate>
       <Board />
