@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import ClubLogo from "@/components/shared/ClubLogo";
+import { eventSummaryText } from "@/lib/exportEvent";
 
 interface Row {
   id: string;
@@ -71,6 +72,64 @@ function Table({ title, rows, unit }: { title: string; rows: Row[]; unit: string
   );
 }
 
+/**
+ * The two ways a result leaves the building.
+ *
+ * A club circulates its results — a message to the group chat that evening, a
+ * sheet on the noticeboard the next morning — and until now the only way to do
+ * either was to photograph a television.
+ *
+ * Copying falls back to showing the text rather than failing quietly. The
+ * clipboard needs a secure context and can simply refuse, and a button that
+ * appears to do nothing is worse than one that hands you the text to select.
+ */
+function ExportBar({ event }: { event: ArchivedEvent }) {
+  const [copied, setCopied] = useState(false);
+  const [fallback, setFallback] = useState<string | null>(null);
+
+  async function copy() {
+    const text = eventSummaryText(event);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setFallback(text);
+    }
+  }
+
+  return (
+    <div className="no-print mb-6">
+      <div className="flex gap-2">
+        <button
+          onClick={copy}
+          className="flex-1 rounded-xl border border-court-line bg-court-panel py-2.5 font-display uppercase text-xs text-white/70 hover:border-gold/60 transition-colors"
+        >
+          {copied ? "✓ Copied — paste it in the group" : "Copy results"}
+        </button>
+        <button
+          onClick={() => window.print()}
+          className="flex-1 rounded-xl border border-court-line bg-court-panel py-2.5 font-display uppercase text-xs text-white/70 hover:border-gold/60 transition-colors"
+        >
+          Print / Save as PDF
+        </button>
+      </div>
+      {fallback && (
+        <div className="mt-2">
+          <p className="text-white/35 text-xs mb-1">Copy this:</p>
+          <textarea
+            readOnly
+            value={fallback}
+            rows={10}
+            onFocus={(e) => e.currentTarget.select()}
+            className="w-full rounded-xl border border-court-line bg-court-bg p-3 text-xs font-mono"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ArchivedEventPage() {
   const params = useParams<{ id: string }>();
   const [event, setEvent] = useState<ArchivedEvent | null>(null);
@@ -98,7 +157,7 @@ export default function ArchivedEventPage() {
   const played = new Date(event.endedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <main className="min-h-screen p-4 sm:p-8 max-w-3xl mx-auto">
+    <main className="print-sheet min-h-screen p-4 sm:p-8 max-w-3xl mx-auto">
       <header className="mb-6 text-center flex flex-col items-center gap-3">
         <ClubLogo size={40} />
         <div>
@@ -122,6 +181,8 @@ export default function ArchivedEventPage() {
         </section>
       )}
 
+      <ExportBar event={event} />
+
       <Table title={event.players ? "Teams" : "Final standings"} rows={event.standings} unit={event.tallyUnit} />
       {event.players && <Table title="Players" rows={event.players} unit={event.tallyUnit} />}
 
@@ -143,11 +204,41 @@ export default function ArchivedEventPage() {
         </div>
       </section>
 
-      <div className="flex items-center justify-center gap-4 mb-8">
+      <div className="no-print flex items-center justify-center gap-4 mb-8">
         <Link href="/history" className="text-white/35 text-sm underline underline-offset-4">
           All past events
         </Link>
       </div>
+
+      {/* The screen is dark because it lives in a dark venue; paper is not.
+          Everything is forced back to black on white wholesale rather than each
+          class being given a print variant, so a colour added to this page later
+          cannot come out of the printer as a block of ink. */}
+      <style jsx global>{`
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+          html,
+          body {
+            background: #fff !important;
+          }
+          .print-sheet,
+          .print-sheet * {
+            background: transparent !important;
+            color: #111827 !important;
+            border-color: #d1d5db !important;
+            box-shadow: none !important;
+          }
+          .print-sheet {
+            max-width: none !important;
+            padding: 0 !important;
+          }
+          section {
+            break-inside: avoid;
+          }
+        }
+      `}</style>
     </main>
   );
 }
