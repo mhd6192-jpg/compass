@@ -41,7 +41,10 @@ interface V2StoreState {
   serverStateFor: (matchId: string) => MatchStateDTO | null;
 }
 
-const POLL_MS = 800;
+/** While a court has a match on it — somebody is watching a number change. */
+const POLL_LIVE_MS = 350;
+/** Nothing on court: between events, or before the draw is seeded. */
+const POLL_IDLE_MS = 2000;
 /** A poll that has not answered by now is not going to. */
 const POLL_TIMEOUT_MS = 10_000;
 let polling = false;
@@ -109,15 +112,53 @@ export const useV3Store = create<V2StoreState>((set, get) => ({
         });
     };
 
-    poll();
-    setInterval(poll, POLL_MS);
+    /**
+     * How long to wait before asking again.
+     *
+     * The wait between polls turned out to matter as much as the request
+     * itself. Measured from Muscat, a poll takes about 400ms — so a fixed
+     * 800ms tick meant a point took 400ms to fetch and, on average, another
+     * 400ms just sitting there before anybody asked for it.
+     *
+     * So the rate follows what is actually happening. While a court has a
+     * match on it the screens ask three times a second, because that is when
+     * somebody is watching a number they expect to change. With nothing on
+     * court — between events, or before the draw is seeded — they drop to once
+     * every two seconds, which is both kinder than the old fixed rate and
+     * completely unnoticeable.
+     */
+    const nextDelay = () => {
+      const snap = get().snapshot;
+      if (!snap) return POLL_LIVE_MS; // still connecting: keep asking
+      const onCourt = snap.matches.some((m) => m.courtId !== null && m.status !== "completed");
+      return onCourt ? POLL_LIVE_MS : POLL_IDLE_MS;
+    };
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tick = async () => {
+      const started = Date.now();
+      await poll();
+
+      // Timed from when the request STARTED, not when it came back. Waiting
+      // the full delay after the answer would add the round trip to every
+      // cycle — with a 400ms request a 350ms delay becomes a 750ms cycle,
+      // which is barely different from the fixed 800ms tick this replaced.
+      // Measured this way the delay is a target rate, and a server slower than
+      // the target simply paces itself instead of stacking requests up.
+      const spent = Date.now() - started;
+      timer = setTimeout(tick, Math.max(0, nextDelay() - spent));
+    };
+
+    void tick();
 
     // Browsers throttle a hidden tab's timers to about once a minute, so a
     // screen that has just been woken — a phone out of a pocket, a TV whose
     // input was switched back — is showing a minute-old score. Ask again the
     // moment it returns rather than waiting for the next tick.
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") poll();
+      if (document.visibilityState !== "visible") return;
+      if (timer) clearTimeout(timer);
+      void tick();
     });
   },
 
