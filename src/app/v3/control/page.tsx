@@ -85,12 +85,17 @@ function CourtPanel({ card, onSwap }: { card: CourtCard; onSwap: () => void }) {
         </p>
       )}
 
-      <div className="flex items-center justify-between gap-2 text-[11px] text-white/35">
+      {/* Stacked on a phone, side by side from sm up. This used to be one row
+          with `truncate shrink-0` on the second span, which is a contradiction:
+          truncate makes it nowrap so its base width is the whole string, and
+          shrink-0 forbids reducing it to fit. Short demo names hid it; a pair of
+          real ones pushed the whole control room sideways. */}
+      <div className="flex flex-col gap-0.5 text-[11px] text-white/40 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
         <span className="truncate">
           {card.coachName ? `Coach: ${card.coachName}` : "No coach signed in"}
         </span>
         {card.upcoming && (
-          <span className="truncate shrink-0">
+          <span className="truncate sm:text-right">
             Then: {card.upcoming.player1?.name ?? "TBD"} v {card.upcoming.player2?.name ?? "TBD"}
           </span>
         )}
@@ -99,20 +104,20 @@ function CourtPanel({ card, onSwap }: { card: CourtCard; onSwap: () => void }) {
       <div className="flex gap-2">
         <Link
           href={`/v3/tv/${card.courtId}`}
-          className="flex-1 text-center rounded-xl border border-court-line font-display uppercase text-xs py-2 text-white/60"
+          className="flex-1 text-center rounded-xl border border-court-line font-display uppercase text-xs py-3.5 text-white/70"
         >
           📺 TV
         </Link>
         <Link
           href={`/v3/coach/${card.courtId}`}
-          className="flex-1 text-center rounded-xl border border-court-line font-display uppercase text-xs py-2 text-white/60"
+          className="flex-1 text-center rounded-xl border border-court-line font-display uppercase text-xs py-3.5 text-white/70"
         >
           📱 Console
         </Link>
         {canSwapOut(match) && (
           <button
             onClick={onSwap}
-            className="flex-1 rounded-xl border border-court-line font-display uppercase text-xs py-2 text-white/60"
+            className="flex-1 rounded-xl border border-court-line font-display uppercase text-xs py-3.5 text-white/70"
           >
             ⇄ Change
           </button>
@@ -169,8 +174,11 @@ function ControlRoom() {
             <h1 className="font-display uppercase font-bold text-xl truncate">Whole venue</h1>
           </div>
         </div>
-        <Link href="/v3" className="text-white/35 text-xs underline underline-offset-4 shrink-0">
-          v2 hub
+        <Link
+          href="/v3"
+          className="text-white/45 text-xs underline underline-offset-4 shrink-0 px-2 py-3 -my-3"
+        >
+          Hub
         </Link>
       </header>
 
@@ -239,7 +247,10 @@ function ControlRoom() {
         </p>
       </section>
 
-      <div className="flex gap-2 pb-8">
+      {/* Clearance for the fixed "not updating" band, which would otherwise sit
+          permanently on top of these two buttons the moment the poll drops —
+          exactly when somebody reaches for the board. */}
+      <div className="flex gap-2 pb-28 safe-bottom">
         <Link
           href="/v3/board"
           className="flex-1 text-center rounded-2xl border border-court-line font-display uppercase text-sm py-3 text-white/70"

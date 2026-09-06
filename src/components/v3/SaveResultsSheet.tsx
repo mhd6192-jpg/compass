@@ -46,7 +46,7 @@ export default function SaveResultsSheet() {
 
   return (
     <section className="rounded-2xl border border-court-line bg-court-panel p-4">
-      <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center justify-between gap-3 text-left">
+      <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center justify-between gap-3 text-left py-2 -my-2">
         <h2 className="font-display uppercase text-sm text-white/60">Tonight&apos;s results</h2>
         <span className="text-white/30 text-xs font-display uppercase">{open ? "Hide" : "Send them out now?"}</span>
       </button>
@@ -63,6 +63,8 @@ export default function SaveResultsSheet() {
             type="password"
             value={pin}
             onChange={(e) => setPin(e.target.value)}
+            inputMode="numeric"
+            autoComplete="off"
             placeholder="Organiser PIN"
             className="w-full rounded-xl border border-court-line bg-court-bg px-3 py-2 text-sm"
           />

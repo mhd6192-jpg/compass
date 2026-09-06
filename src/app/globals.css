@@ -42,3 +42,44 @@ body {
   -webkit-mask-image: radial-gradient(circle, black 18%, transparent 62%);
   mask-image: radial-gradient(circle, black 18%, transparent 62%);
 }
+
+/* ---------------------------------------------------------------------------
+   Phones
+   --------------------------------------------------------------------------- */
+
+/*
+ * iOS Safari zooms the whole page in whenever a focused field's text is under
+ * 16px, and only zooms back out if the user pinches. Every input in this app
+ * was `text-sm` (14px) — measured at 375px, 36 of the setup form's 37 fields —
+ * so entering a draw on a phone meant the page lurching in and out on every
+ * single tap, thirty-seven times.
+ *
+ * Set here rather than on each field: it is one rule against a browser
+ * behaviour, not a design decision anybody should have to remember when adding
+ * the next input. Above 640px the design's own sizing takes over again, since
+ * a desktop browser does no such thing.
+ *
+ * !important because every one of these fields carries Tailwind's `text-sm`,
+ * and a class beats a bare element selector on specificity no matter what order
+ * the rules are in. This is not a style preference being forced through — it is
+ * a browser behaviour that has to win.
+ */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/*
+ * Anything pinned to the bottom of the screen has to clear the iPhone home
+ * indicator, and an installed PWA has no browser chrome to do it for you —
+ * which is exactly when a control ends up under the bar you swipe.
+ */
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+.safe-top {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}

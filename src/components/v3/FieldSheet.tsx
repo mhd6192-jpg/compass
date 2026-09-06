@@ -93,7 +93,7 @@ export default function FieldSheet() {
     <section className="rounded-2xl border border-court-line bg-court-panel p-4">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 text-left"
+        className="w-full flex items-center justify-between gap-3 text-left py-2 -my-2"
       >
         <h2 className="font-display uppercase text-sm text-white/60">
           Who&apos;s playing{field ? <span className="text-white/30"> ({playing.length})</span> : null}
@@ -113,6 +113,8 @@ export default function FieldSheet() {
                 type="password"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
+                inputMode="numeric"
+                autoComplete="off"
                 placeholder="Organiser PIN"
                 className="w-full rounded-xl border border-court-line bg-court-bg px-3 py-2 text-sm"
               />
@@ -134,7 +136,7 @@ export default function FieldSheet() {
                           setError(null);
                         }}
                         disabled={busy}
-                        className="rounded-lg border border-court-line px-2.5 py-1 text-[11px] font-display uppercase text-white/55 disabled:opacity-40"
+                        className="rounded-lg border border-court-line px-3 py-2.5 text-[11px] font-display uppercase text-white/55 disabled:opacity-40"
                       >
                         ⇄ Swap
                       </button>
@@ -147,7 +149,7 @@ export default function FieldSheet() {
                           }
                         }}
                         disabled={busy || !pin}
-                        className="rounded-lg border border-live/40 px-2.5 py-1 text-[11px] font-display uppercase text-live disabled:opacity-40"
+                        className="rounded-lg border border-live/40 px-3 py-2.5 text-[11px] font-display uppercase text-live disabled:opacity-40"
                       >
                         Leaves
                       </button>
@@ -167,7 +169,10 @@ export default function FieldSheet() {
                       value={standIn}
                       onChange={(e) => setStandIn(e.target.value)}
                       placeholder="Who is coming in"
-                      className="flex-1 rounded-lg border border-court-line bg-court-bg px-3 py-2 text-sm"
+                      autoCapitalize="words"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      className="flex-1 min-w-0 rounded-lg border border-court-line bg-court-bg px-3 py-2 text-sm"
                     />
                     <button
                       onClick={() =>
@@ -191,7 +196,10 @@ export default function FieldSheet() {
                     value={joining}
                     onChange={(e) => setJoining(e.target.value)}
                     placeholder="Somebody arriving late"
-                    className="flex-1 rounded-xl border border-court-line bg-court-bg px-3 py-2 text-sm"
+                    autoCapitalize="words"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className="flex-1 min-w-0 rounded-xl border border-court-line bg-court-bg px-3 py-2 text-sm"
                   />
                   <button
                     onClick={() => void send({ action: "add", name: joining }, `${joining.trim()} is in from the next round.`)}

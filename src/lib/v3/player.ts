@@ -50,6 +50,24 @@ function involves(match: MatchDTO, teamId: string): boolean {
   return participantIds(match).includes(teamId);
 }
 
+/**
+ * Which side of the net this person is on, 1 or 2 — null if they are not in
+ * this match at all.
+ *
+ * `match.player1.id` is NOT the side. In an americano it is the id of that
+ * side's FIRST member only (see the contract on `MatchDTO.player1`), so
+ * comparing a person against it silently answers "no" for the second member of
+ * every pair. Anything that attributes a score or a result to a person has to
+ * go through the member list, which is what this does.
+ */
+export function sideOf(match: MatchDTO, playerId: string): 1 | 2 | null {
+  const side1 = match.player1Members ?? (match.player1 ? [match.player1] : []);
+  if (side1.some((p) => p.id === playerId)) return 1;
+  const side2 = match.player2Members ?? (match.player2 ? [match.player2] : []);
+  if (side2.some((p) => p.id === playerId)) return 2;
+  return null;
+}
+
 /** The side this person is up against — in an americano, the other pair. */
 export function opponentOf(match: MatchDTO, teamId: string): PlayerDTO | null {
   const onSide1 = (match.player1Members ?? (match.player1 ? [match.player1] : [])).some((p) => p.id === teamId);

@@ -38,7 +38,7 @@ export default function PinBar({ invalid, onDismissInvalid }: { invalid?: boolea
         placeholder="Coach PIN"
         inputMode="numeric"
         autoFocus
-        className={`bg-court-panel2 border rounded-lg px-3 py-2 text-sm w-24 outline-none focus:ring-2 ring-gold/50 ${
+        className={`bg-court-panel2 border rounded-lg px-3 py-3 text-sm w-24 outline-none focus:ring-2 ring-gold/50 ${
           invalid ? "border-live" : "border-court-line"
         }`}
       />
@@ -48,7 +48,7 @@ export default function PinBar({ invalid, onDismissInvalid }: { invalid?: boolea
           setEditing(false);
           onDismissInvalid?.();
         }}
-        className="rounded-lg bg-gold text-court-bg text-xs font-bold px-3 py-2 shrink-0"
+        className="rounded-lg bg-gold text-court-bg text-xs font-bold px-4 py-3 shrink-0"
       >
         Save
       </button>

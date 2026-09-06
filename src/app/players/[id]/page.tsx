@@ -223,6 +223,8 @@ export default function PlayerPage() {
           type="password"
           value={pin}
           onChange={(e) => setPin(e.target.value)}
+          inputMode="numeric"
+          autoComplete="off"
           placeholder="Organiser PIN"
           className="mt-3 w-full rounded-xl border border-court-line bg-court-bg px-3 py-2 text-sm"
         />

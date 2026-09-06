@@ -8,7 +8,7 @@ import BracketBadge from "@/components/shared/BracketBadge";
 import { Ball } from "@/components/v3/ServeIndicator";
 import { useV3Store } from "@/store/useV3Store";
 import { useV3PlayerStore } from "@/store/useV3PlayerStore";
-import { buildPlayerView, opponentOf, ordinal, partnerOf, teamsIn, type PlayerStatus, type PlayerView } from "@/lib/v3/player";
+import { buildPlayerView, opponentOf, ordinal, partnerOf, sideOf, teamsIn, type PlayerStatus, type PlayerView } from "@/lib/v3/player";
 import { scoreLine } from "@/lib/v3/venue";
 import { formatMatchScoreLine } from "@/lib/scoring/format";
 import type { MatchDTO, PlayerDTO } from "@/lib/types";
@@ -61,8 +61,12 @@ function NextUp({ status, teamId }: { status: PlayerStatus; teamId: string }) {
 
   if (status.kind === "playing") {
     const score = scoreLine(status.match);
-    const mine = status.match.player1?.id === teamId ? score.a : score.b;
-    const theirs = status.match.player1?.id === teamId ? score.b : score.a;
+    // Via sideOf, not player1.id: that id names only the FIRST member of the
+    // pair, so comparing against it hands the second-listed player their
+    // opponents' score as their own.
+    const onSide1 = sideOf(status.match, teamId) === 1;
+    const mine = onSide1 ? score.a : score.b;
+    const theirs = onSide1 ? score.b : score.a;
     return (
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -153,7 +157,12 @@ function NextUp({ status, teamId }: { status: PlayerStatus; teamId: string }) {
 }
 
 function ResultRow({ match, teamId }: { match: MatchDTO; teamId: string }) {
-  const won = match.winnerId === teamId;
+  // The same trap as the live score: winnerId names the winning SIDE, which is
+  // that side's first member. Compared against a person it reads as a loss for
+  // everyone who happened to be listed second, on matches they actually won.
+  const side = sideOf(match, teamId);
+  const won =
+    match.winnerId !== null && side !== null && side === (match.winnerId === match.player1?.id ? 1 : 2);
   const opponent = opponentOf(match, teamId);
   return (
     <div className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2.5">

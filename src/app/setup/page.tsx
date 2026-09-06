@@ -625,7 +625,7 @@ export default function SetupPage() {
                 placeholder="Organiser PIN"
                 type="password"
                 inputMode="numeric"
-                className="flex-1 bg-court-panel2 border border-court-line rounded-lg px-3 py-2 text-sm outline-none"
+                className="flex-1 min-w-0 bg-court-panel2 border border-court-line rounded-lg px-3 py-2 text-sm outline-none"
               />
               <button
                 onClick={async () => {
@@ -888,7 +888,7 @@ export default function SetupPage() {
 
           <div className="grid gap-1.5">
             {Array.from({ length: 16 }, (_, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-lg border border-court-line bg-court-panel px-2 py-1.5">
+              <div key={i} className="flex items-center gap-2 rounded-lg border border-court-line bg-court-panel px-2 py-1.5 min-w-0">
                 <span className="w-6 shrink-0 text-xs text-white/30 font-mono text-center">{i + 1}</span>
                 <input
                   value={names[i]}
@@ -896,6 +896,9 @@ export default function SetupPage() {
                   // Only where a row is one person. A doubles draw enters pairs,
                   // and suggesting "Ana" for a team called "Ana/Ben" is noise.
                   list={discipline === "singles" ? "known-players" : undefined}
+                  autoCapitalize="words"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder={`${entrantLabel} ${i + 1}`}
                   className="flex-1 min-w-0 bg-court-panel2 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 ring-gold/50"
                 />
@@ -951,12 +954,15 @@ export default function SetupPage() {
 
           <div className="grid gap-1.5">
             {rrNames.map((n, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-lg border border-court-line bg-court-panel px-2 py-1.5">
+              <div key={i} className="flex items-center gap-2 rounded-lg border border-court-line bg-court-panel px-2 py-1.5 min-w-0">
                 <span className="w-6 shrink-0 text-xs text-white/30 font-mono text-center">{i + 1}</span>
                 <input
                   value={n}
                   onChange={(e) => updateRrName(i, e.target.value)}
                   list={americano || discipline === "singles" ? "known-players" : undefined}
+                  autoCapitalize="words"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder={`${entrantLabel} ${i + 1}${!americano && discipline === "doubles" ? " (e.g. Alpha/Bravo)" : ""}`}
                   className="flex-1 min-w-0 bg-court-panel2 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 ring-gold/50"
                 />
@@ -964,7 +970,8 @@ export default function SetupPage() {
                   <button
                     type="button"
                     onClick={() => setRrNames((prev) => prev.filter((_, idx) => idx !== i))}
-                    className="text-white/30 hover:text-live text-lg px-1"
+                    aria-label={`Remove ${entrantLabel.toLowerCase()} ${i + 1}`}
+                    className="shrink-0 text-white/40 hover:text-live text-lg leading-none px-3 py-3 -my-1.5"
                   >
                     ×
                   </button>

@@ -1,21 +1,23 @@
 {
-  "name": "Alhayat Compass Draw",
-  "short_name": "Scorer",
-  "description": "Live tournament scoring, standings and TV display for Alhayat Padel & Tennis.",
-  "start_url": "/scorer",
+  "id": "/v3",
+  "name": "Alhayat Compass",
+  "short_name": "Compass",
+  "description": "Live tournament scoring, standings and court screens for Alhayat Tennis Center.",
+  "start_url": "/v3",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#040906",
   "theme_color": "#040906",
+  "categories": ["sports", "utilities"],
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Scorer", "url": "/scorer" },
-    { "name": "Standings", "url": "/standings" },
-    { "name": "TV Display", "url": "/display" }
+    { "name": "Score a court", "short_name": "Score", "url": "/v3/coach" },
+    { "name": "Control room", "short_name": "Control", "url": "/v3/control" },
+    { "name": "Big board", "short_name": "Board", "url": "/v3/board" },
+    { "name": "Players", "short_name": "Players", "url": "/players" }
   ]
 }

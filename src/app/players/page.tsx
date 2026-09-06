@@ -119,7 +119,7 @@ export default function PlayersPage() {
                 <button
                   key={s.key}
                   onClick={() => setSort(s.key)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-display uppercase tracking-wider border transition-colors ${
+                  className={`rounded-full px-3.5 py-2.5 text-xs font-display uppercase tracking-wider border transition-colors ${
                     sort === s.key
                       ? "border-gold/60 bg-gold/15 text-gold"
                       : "border-court-line text-white/45 hover:text-white/70"
@@ -134,7 +134,7 @@ export default function PlayersPage() {
                 <button
                   key={r}
                   onClick={() => setRange(r)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-display uppercase tracking-wider border transition-colors ${
+                  className={`rounded-full px-3.5 py-2.5 text-xs font-display uppercase tracking-wider border transition-colors ${
                     range === r
                       ? "border-gold/60 bg-gold/15 text-gold"
                       : "border-court-line text-white/45 hover:text-white/70"
@@ -162,16 +162,16 @@ export default function PlayersPage() {
           )}
 
           <div className="overflow-x-auto rounded-2xl border border-court-line bg-court-panel">
-            <table className="w-full text-sm min-w-[560px]">
+            <table className="w-full text-sm sm:min-w-[560px]">
               <thead>
-                <tr className="text-white/35 text-[11px] uppercase tracking-wider font-display">
+                <tr className="text-white/45 text-xs uppercase tracking-wider font-display">
                   <th className="text-left py-3 pl-4 pr-2 font-normal w-10">#</th>
                   <th className="text-left py-3 pr-2 font-normal">Player</th>
                   <th className="text-right py-3 px-2 font-normal">Events</th>
-                  <th className="text-right py-3 px-2 font-normal">Played</th>
+                  <th className="hidden sm:table-cell text-right py-3 px-2 font-normal">Played</th>
                   <th className="text-right py-3 px-2 font-normal">W–L</th>
                   <th className="text-right py-3 px-2 font-normal">Win rate</th>
-                  <th className="text-right py-3 pl-2 pr-4 font-normal">Last played</th>
+                  <th className="hidden sm:table-cell text-right py-3 pl-2 pr-4 font-normal">Last played</th>
                 </tr>
               </thead>
               <tbody>
@@ -189,14 +189,14 @@ export default function PlayersPage() {
                       </Link>
                     </td>
                     <td className="py-3 px-2 text-right tabular-nums text-white/60">{r.events}</td>
-                    <td className="py-3 px-2 text-right tabular-nums text-white/60">{r.played}</td>
+                    <td className="hidden sm:table-cell py-3 px-2 text-right tabular-nums text-white/60">{r.played}</td>
                     <td className="py-3 px-2 text-right tabular-nums">
                       <span className="text-gold">{r.won}</span>
                       <span className="text-white/25">–</span>
                       <span className="text-white/50">{r.lost}</span>
                     </td>
                     <td className="py-3 px-2 text-right tabular-nums text-white/60">{pct(r.winRate)}</td>
-                    <td className="py-3 pl-2 pr-4 text-right text-white/35 text-xs whitespace-nowrap">
+                    <td className="hidden sm:table-cell py-3 pl-2 pr-4 text-right text-white/35 text-xs whitespace-nowrap">
                       {whenLabel(r.lastPlayed)}
                     </td>
                   </tr>

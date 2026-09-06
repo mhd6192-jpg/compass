@@ -34,6 +34,7 @@ const LOGIC = [
   ["checkCallout", "calling players who have wandered off"],
   ["checkStrengthOrder", "entry order from past results"],
   ["checkFreshness", "a screen admits when it stops updating"],
+  ["checkPlayerCard", "whose score is whose on the player card"],
   ["testNew", "seeding and score entry"],
 ];
 
