@@ -55,7 +55,7 @@ export default function SwapMatchSheet({
         <button
           onClick={onClose}
           disabled={busy}
-          className="shrink-0 rounded-xl border border-court-line px-4 py-2 font-display uppercase text-xs text-white/60"
+          className="shrink-0 rounded-xl border border-court-line px-4 py-3.5 font-display uppercase text-xs text-white/70"
         >
           Cancel
         </button>

@@ -452,16 +452,16 @@ function CoachConsole({ courtId }: { courtId: number }) {
   );
 
   const footerLinks = (
-    <div className="flex items-center justify-center gap-4 mt-6 pb-6">
-      <Link href="/v3/coach?change=1" className="text-white/35 text-xs underline underline-offset-4">
+    <div className="flex items-center justify-center gap-3 mt-6 pb-10 safe-bottom flex-wrap">
+      <Link href="/v3/coach?change=1" className="text-white/45 text-xs underline underline-offset-4 py-2.5 px-1">
         Change court
       </Link>
       <span className="text-white/15">·</span>
-      <Link href={`/v3/tv/${courtId}`} className="text-white/35 text-xs underline underline-offset-4">
+      <Link href={`/v3/tv/${courtId}`} className="text-white/45 text-xs underline underline-offset-4 py-2.5 px-1">
         Open this court&apos;s TV
       </Link>
       <span className="text-white/15">·</span>
-      <Link href="/v3/ceremony" className="text-white/35 text-xs underline underline-offset-4">
+      <Link href="/v3/ceremony" className="text-white/45 text-xs underline underline-offset-4 py-2.5 px-1">
         Awards
       </Link>
     </div>

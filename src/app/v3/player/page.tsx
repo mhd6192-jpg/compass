@@ -148,7 +148,7 @@ function NextUp({ status, teamId }: { status: PlayerStatus; teamId: string }) {
         Waiting for a court — {status.onCourtNow} match{status.onCourtNow === 1 ? "" : "es"} being played, {status.waiting}{" "}
         waiting to be called.
       </p>
-      <p className="text-white/30 text-xs mt-3">
+      <p className="text-white/45 text-xs mt-3">
         Courts are filled as they free up, giving the longest rest to whoever just played — so there is no fixed time.
         Keep an eye on this page.
       </p>
@@ -194,7 +194,7 @@ function PlayerCard({ view, onChange }: { view: PlayerView; onChange: () => void
             <h1 className="font-display uppercase font-bold text-lg truncate">{team.name}</h1>
           </div>
         </div>
-        <button onClick={onChange} className="text-white/35 text-xs underline underline-offset-4 shrink-0">
+        <button onClick={onChange} className="text-white/45 text-xs underline underline-offset-4 shrink-0 py-2.5 px-1 -my-2.5">
           Not you?
         </button>
       </header>
@@ -221,7 +221,7 @@ function PlayerCard({ view, onChange }: { view: PlayerView; onChange: () => void
             ].map((s) => (
               <div key={s.label} className="rounded-xl bg-white/[0.03] py-2.5">
                 <p className="font-display font-bold text-2xl tabular-nums">{s.value}</p>
-                <p className="text-white/35 text-[10px] uppercase tracking-widest">{s.label}</p>
+                <p className="text-white/50 text-[11px] uppercase tracking-widest">{s.label}</p>
               </div>
             ))}
           </div>
@@ -260,7 +260,7 @@ function PlayerCard({ view, onChange }: { view: PlayerView; onChange: () => void
       )}
 
       <div className="text-center pb-8 pt-2">
-        <Link href="/v3/board" className="text-white/30 text-xs underline underline-offset-4">
+        <Link href="/v3/board" className="inline-block text-white/45 text-xs underline underline-offset-4 py-2.5">
           See every court
         </Link>
       </div>

@@ -983,7 +983,7 @@ export default function SetupPage() {
           <button
             type="button"
             onClick={() => setRrNames((prev) => [...prev, ""])}
-            className="mt-2 text-xs text-white/50 underline underline-offset-4 hover:text-white/80"
+            className="mt-2 inline-block text-xs text-white/60 underline underline-offset-4 hover:text-white/80 py-2.5 px-1 -mx-1"
           >
             + Add {entrantLabel.toLowerCase()}
           </button>
@@ -1346,7 +1346,7 @@ export default function SetupPage() {
                   </div>
                 ))}
                 {mxPreview.sitting.length > 0 && (
-                  <p className="text-[11px] text-white/30">Sitting out round 1: {mxPreview.sitting.join(", ")}</p>
+                  <p className="text-[11px] text-white/45">Sitting out round 1: {mxPreview.sitting.join(", ")}</p>
                 )}
               </div>
             </div>
@@ -1385,7 +1385,7 @@ export default function SetupPage() {
                         </p>
                       ))}
                       {sitting.length > 0 && (
-                        <p className="text-[11px] text-white/30 mt-0.5">Sitting out: {sitting.map(nameOf).join(", ")}</p>
+                        <p className="text-[11px] text-white/45 mt-0.5">Sitting out: {sitting.map(nameOf).join(", ")}</p>
                       )}
                     </div>
                   );

@@ -53,7 +53,7 @@ function Table({ title, rows, unit }: { title: string; rows: Row[]; unit: string
         {rows.map((r, i) => (
           <div key={r.id} className="flex items-center gap-3 rounded-lg border border-court-line bg-court-panel px-3 py-2">
             <span className="w-6 text-center shrink-0">
-              {MEDAL[i + 1] ?? <span className="text-white/30 text-xs font-mono">{i + 1}</span>}
+              {MEDAL[i + 1] ?? <span className="text-white/45 text-sm font-mono">{i + 1}</span>}
             </span>
             <span className="flex-1 min-w-0 truncate font-display uppercase text-sm">{r.name}</span>
             <span className="shrink-0 flex items-center gap-3 font-display tabular-nums text-sm">
@@ -172,7 +172,7 @@ export default function ArchivedEventPage() {
         <section className="mb-6 rounded-2xl border border-gold/40 bg-gold/5 p-4">
           <h2 className="font-display uppercase text-sm text-gold mb-2">Podium</h2>
           {event.podium.slice(0, 3).map((a) => (
-            <p key={a.place} className="flex items-baseline gap-2 py-0.5">
+            <p key={a.place} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-0.5 min-w-0">
               <span>{MEDAL[a.place] ?? a.place}</span>
               <span className="font-display uppercase">{a.name}</span>
               {a.detail && <span className="text-white/40 text-xs">{a.detail}</span>}

@@ -217,7 +217,7 @@ export default function FieldSheet() {
                 // Worth saying before rather than after: an americano's promise
                 // is that everybody partners everybody once, and that can only
                 // hold across a single draw.
-                <p className="text-white/25 text-[11px]">
+                <p className="text-white/45 text-xs">
                   Changing the field draws the rounds not yet played again, so a pairing from earlier in the night can
                   come round a second time. Everything already played stays exactly as it was.
                 </p>
