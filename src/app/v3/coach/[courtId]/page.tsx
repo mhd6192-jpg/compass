@@ -30,18 +30,30 @@ import { currentOnCourt, emptyCourtStage, nextOnCourt, resolveCourtScreen } from
  * ones — which replayed the score's pop-in animation on every 800ms poll and
  * made the numbers look like they were permanently twitching.
  */
+/**
+ * One side of the scoring pad.
+ *
+ * Deliberately has no disabled state. It used to take one, wired to the same
+ * `busy` flag as the administrative buttons — so a coach who scored the first
+ * point before pressing Go Live triggered a court call that, on dead wifi,
+ * retries for about thirty-seven seconds, and the pad went dead for all of it.
+ * The message on screen said "keep scoring, it will catch up" while the only
+ * way to score was greyed out.
+ *
+ * Scoring must never be blocked on the network. That is the entire reason the
+ * point queue exists: a tap is a fact that already happened, recorded locally
+ * and sent whenever the signal comes back.
+ */
 function TapSide({
   match,
   slot,
   onTap,
-  disabled,
   serve,
   pressure,
 }: {
   match: MatchDTO;
   slot: 1 | 2;
   onTap: (slot: 1 | 2) => void;
-  disabled: boolean;
   serve: ReturnType<typeof serveInfo>;
   pressure: ReturnType<typeof pressureInfo>;
 }) {
@@ -58,8 +70,7 @@ function TapSide({
   return (
     <button
       onClick={() => onTap(slot)}
-      disabled={disabled}
-      className={`flex-1 min-h-0 rounded-3xl border-2 bg-court-panel active:border-gold active:bg-court-panel2 disabled:opacity-40 flex flex-col items-center justify-center gap-1 px-4 py-6 relative ${
+      className={`flex-1 min-h-0 rounded-3xl border-2 bg-court-panel active:border-gold active:bg-court-panel2 flex flex-col items-center justify-center gap-1 px-4 py-6 relative ${
         serve?.slot === slot ? "border-gold/70" : "border-court-line"
       }`}
     >
@@ -128,7 +139,7 @@ function OutboxBanner({ queued, status }: { queued: number; status: string }) {
   );
 }
 
-function ScorePad({ match, onTap, disabled }: { match: MatchDTO; onTap: (slot: 1 | 2) => void; disabled: boolean }) {
+function ScorePad({ match, onTap }: { match: MatchDTO; onTap: (slot: 1 | 2) => void }) {
   const serve = serveInfo(match.state);
   const handedTo = useServeHandover(serve, match.id);
   const handoverName = handedTo === 1 ? match.player1?.name : handedTo === 2 ? match.player2?.name : null;
@@ -136,8 +147,8 @@ function ScorePad({ match, onTap, disabled }: { match: MatchDTO; onTap: (slot: 1
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-3 relative">
-      <TapSide match={match} slot={1} onTap={onTap} disabled={disabled} serve={serve} pressure={pressure} />
-      <TapSide match={match} slot={2} onTap={onTap} disabled={disabled} serve={serve} pressure={pressure} />
+      <TapSide match={match} slot={1} onTap={onTap} serve={serve} pressure={pressure} />
+      <TapSide match={match} slot={2} onTap={onTap} serve={serve} pressure={pressure} />
       {handoverName && <ServeHandover key={`serve-${handedTo}-${match.state.totalPoints}`} name={handoverName} />}
     </div>
   );
@@ -543,7 +554,7 @@ function CoachConsole({ courtId }: { courtId: number }) {
             </span>
           </div>
 
-          <ScorePad match={match} onTap={handleTap} disabled={busy} />
+          <ScorePad match={match} onTap={handleTap} />
 
           <div className="grid grid-cols-3 gap-2">
             <button

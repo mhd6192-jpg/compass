@@ -35,6 +35,7 @@ const LOGIC = [
   ["checkStrengthOrder", "entry order from past results"],
   ["checkFreshness", "a screen admits when it stops updating"],
   ["checkPlayerCard", "whose score is whose on the player card"],
+  ["checkScorePad", "the network can never disable scoring"],
   ["testNew", "seeding and score entry"],
 ];
 
