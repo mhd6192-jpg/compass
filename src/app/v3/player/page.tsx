@@ -174,7 +174,7 @@ function ResultRow({ match, teamId }: { match: MatchDTO; teamId: string }) {
         {won ? "W" : "L"}
       </span>
       <span className="flex-1 min-w-0 truncate text-white/75 text-sm">{opponent?.name ?? "TBD"}</span>
-      <span className="shrink-0 text-white/45 text-sm tabular-nums">
+      <span className="shrink-0 max-w-[45%] truncate text-white/45 text-sm tabular-nums">
         {match.forcedEnd ? match.forcedEndReason ?? "Walkover" : formatMatchScoreLine(match)}
       </span>
     </div>
@@ -259,7 +259,7 @@ function PlayerCard({ view, onChange }: { view: PlayerView; onChange: () => void
         </section>
       )}
 
-      <div className="text-center pb-8 pt-2">
+      <div className="text-center pb-28 pt-2 safe-bottom">
         <Link href="/v3/board" className="inline-block text-white/45 text-xs underline underline-offset-4 py-2.5">
           See every court
         </Link>

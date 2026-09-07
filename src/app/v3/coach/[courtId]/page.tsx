@@ -70,7 +70,7 @@ function TapSide({
   return (
     <button
       onClick={() => onTap(slot)}
-      className={`flex-1 min-h-0 rounded-3xl border-2 bg-court-panel active:border-gold active:bg-court-panel2 flex flex-col items-center justify-center gap-1 px-4 py-6 relative ${
+      className={`flex-1 min-h-0 rounded-3xl border-2 bg-court-panel active:border-gold active:bg-court-panel2 flex flex-col items-center justify-center gap-1 px-4 py-4 relative ${
         serve?.slot === slot ? "border-gold/70" : "border-court-line"
       }`}
     >
@@ -91,7 +91,7 @@ function TapSide({
       <span className="font-display uppercase font-bold text-2xl text-center leading-tight break-words">
         {player?.name ?? "TBD"}
       </span>
-      <span className="text-white/40 text-xs uppercase tracking-widest">{caption}</span>
+      <span className="text-white/40 text-xs uppercase tracking-widest [@media(max-height:560px)]:hidden">{caption}</span>
       {/* Animates only when the displayed point actually changes — no `key` on a
           poll-varying value, so a re-render with the same score is silent. */}
       <motion.span
@@ -100,11 +100,13 @@ function TapSide({
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", bounce: 0.45, duration: 0.3 }}
         className="font-display font-bold text-gold tabular-nums leading-none mt-1"
-        style={{ fontSize: "clamp(3rem, 16vw, 6rem)" }}
+        style={{ fontSize: "clamp(1.75rem, 9vh, 6rem)" }}
       >
         {points}
       </motion.span>
-      <span className="text-white/30 text-[11px] uppercase tracking-widest mt-1">Tap to score</span>
+      <span className="text-white/30 text-[11px] uppercase tracking-widest mt-1 [@media(max-height:620px)]:hidden">
+        Tap to score
+      </span>
     </button>
   );
 }
@@ -496,8 +498,17 @@ function CoachConsole({ courtId }: { courtId: number }) {
     );
   }
 
+  // The live pad is a fixed tapping surface, so it gets a definite height and
+  // is not allowed to scroll; every other state on this console is an ordinary
+  // page that may run as long as it likes.
+  const scoring = view.screen === "live";
+
   return (
-    <main className="min-h-screen p-4 max-w-lg mx-auto flex flex-col">
+    <main
+      className={`p-4 max-w-lg mx-auto flex flex-col ${
+        scoring ? "h-[100svh] overflow-hidden" : "min-h-[100svh]"
+      }`}
+    >
       {header}
 
       {error && <p className="text-live text-sm text-center mt-3">{error}</p>}
@@ -640,7 +651,7 @@ function CoachConsole({ courtId }: { courtId: number }) {
         </div>
       )}
 
-      {footerLinks}
+      {!scoring && footerLinks}
 
       {/* --- confirm the match-winning point -------------------------------- */}
       {confirmWin && match && (
