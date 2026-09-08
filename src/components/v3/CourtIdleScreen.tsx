@@ -78,6 +78,7 @@ export default function CourtIdleScreen({
   matches,
   format,
   tiebreakMode,
+  discipline,
   progress,
 }: {
   courtLabel: string;
@@ -87,6 +88,8 @@ export default function CourtIdleScreen({
   format?: string;
   /** Whether the tally is points (a race) or games (set play). */
   tiebreakMode?: string;
+  /** Singles or doubles — decides what the screen calls an entrant. */
+  discipline?: string;
   progress: { completed: number; total: number };
 }) {
   return (
@@ -122,7 +125,7 @@ export default function CourtIdleScreen({
           </div>
           <div className="w-[26%] shrink-0 flex">
             <div className="flex-1 flex">
-              <IdleSpotlight matches={matches} format={format} tiebreakMode={tiebreakMode} />
+              <IdleSpotlight matches={matches} format={format} tiebreakMode={tiebreakMode} discipline={discipline} />
             </div>
           </div>
         </div>

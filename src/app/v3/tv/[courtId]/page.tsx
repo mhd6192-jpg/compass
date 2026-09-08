@@ -88,6 +88,7 @@ function TvContent({ courtId }: { courtId: number }) {
           matches={snapshot.matches}
           format={snapshot.tournament.format}
           tiebreakMode={snapshot.tournament.tiebreakMode}
+          discipline={snapshot.tournament.discipline}
         />;
 
     default:
@@ -99,6 +100,7 @@ function TvContent({ courtId }: { courtId: number }) {
           matches={snapshot.matches}
           format={snapshot.tournament.format}
           tiebreakMode={snapshot.tournament.tiebreakMode}
+          discipline={snapshot.tournament.discipline}
           progress={snapshot.progress}
         />
       );

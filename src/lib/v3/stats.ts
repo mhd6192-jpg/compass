@@ -1,5 +1,5 @@
 import { computeStandings } from "../standings";
-import { isRotatingPartners, tallyUnit, type MatchDTO } from "../types";
+import { entrantWordCap, isRotatingPartners, tallyUnit, type MatchDTO } from "../types";
 import { formatSpec } from "../bracket/formats";
 import { formatDuration } from "./venue";
 
@@ -52,7 +52,12 @@ function winnerName(match: MatchDTO): string | null {
   return match.winnerId === match.player1?.id ? match.player1?.name ?? null : match.player2?.name ?? null;
 }
 
-export function buildSpotlights(matches: MatchDTO[], format?: string, tiebreakMode?: string): Spotlight[] {
+export function buildSpotlights(
+  matches: MatchDTO[],
+  format?: string,
+  tiebreakMode?: string,
+  discipline?: string
+): Spotlight[] {
   const done = matches.filter((m) => m.status === "completed" && !m.forcedEnd);
   const cards: Spotlight[] = [];
 
@@ -61,7 +66,10 @@ export function buildSpotlights(matches: MatchDTO[], format?: string, tiebreakMo
   // --- who is having the best day ---
   // In an americano the entrants are people and the table is ranked on points,
   // so the card leads with the points total; a "team of the day" would be
-  // naming a pairing that only existed for one round.
+  // naming a pairing that only existed for one round. Outside the americano the
+  // eyebrow still has to follow the event: the entrants of a singles draw are
+  // people too, and calling the leader of one a team is the same mistake made
+  // one step further out.
   const americano = isRotatingPartners(format);
   const table = computeStandings(matches);
   const leader = table[0];
@@ -70,7 +78,9 @@ export function buildSpotlights(matches: MatchDTO[], format?: string, tiebreakMo
     cards.push({
       key: "leader",
       icon: "🔥",
-      eyebrow: americano ? formatSpec(format).leaderEyebrow ?? "Leading the americano" : "Team of the day",
+      eyebrow: americano
+        ? formatSpec(format).leaderEyebrow ?? "Leading the americano"
+        : `${entrantWordCap(format, discipline)} of the day`,
       headline: leader.name,
       detail: americano
         ? `${leader.pointsFor} ${tallyUnit(tiebreakMode).long} from ${played} ${played === 1 ? "match" : "matches"}`

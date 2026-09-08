@@ -5,7 +5,7 @@ import V3Standings from "./V3Standings";
 import Trophy from "./Trophy";
 import ClubLogo from "@/components/shared/ClubLogo";
 import { computePodium } from "@/lib/v2/podium";
-import type { MatchDTO } from "@/lib/types";
+import { entrantWord, type MatchDTO } from "@/lib/types";
 
 /**
  * What the court screens rest on once the awards have been given out.
@@ -19,12 +19,15 @@ export default function FinalStandingsScreen({
   matches,
   format,
   tiebreakMode,
+  discipline,
 }: {
   courtLabel: string;
   matches: MatchDTO[];
   format?: string;
   /** Whether the tally is points (a race) or games (set play). */
   tiebreakMode?: string;
+  /** Singles or doubles — decides what the closing line calls the field. */
+  discipline?: string;
 }) {
   // The champion comes from the podium, not from a merged table: in a knockout
   // the title is settled by the final, and whoever tops a group table need not
@@ -73,7 +76,7 @@ export default function FinalStandingsScreen({
           <V3Standings
             matches={matches}
             title="Final Standings"
-            subtitle="Congratulations to every team"
+            subtitle={`Congratulations to every ${entrantWord(format, discipline)}`}
             format={format}
             tiebreakMode={tiebreakMode}
           />

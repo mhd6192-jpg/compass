@@ -16,7 +16,7 @@ import PinBar from "@/components/scorer/PinBar";
 import { buildVenueView, formatDuration, scoreLine, type CourtCard } from "@/lib/v3/venue";
 import { canSwapOut } from "@/lib/v3/swap";
 import { postWithRetry } from "@/lib/v3/retry";
-import type { MatchDTO } from "@/lib/types";
+import { entrantWord, type MatchDTO } from "@/lib/types";
 
 function Teams({ match, live }: { match: MatchDTO; live: boolean }) {
   const score = scoreLine(match);
@@ -243,7 +243,7 @@ function ControlRoom() {
           </div>
         )}
         <p className="text-white/25 text-[11px] mt-2">
-          Called automatically as courts free up, resting the teams who just played.
+          Called automatically as courts free up, resting the {entrantWord(snapshot.tournament.format, snapshot.tournament.discipline, true)} who just played.
         </p>
       </section>
 
@@ -274,6 +274,8 @@ function ControlRoom() {
           matches={snapshot.matches}
           busy={busy}
           retrying={swapRetrying}
+          format={snapshot.tournament.format}
+          discipline={snapshot.tournament.discipline}
           onPick={(matchId) => swapIn(matchId, swapFor.courtId)}
           onClose={() => setSwapFor(null)}
         />

@@ -122,11 +122,41 @@ export type MatchStatus =
 
 export type Discipline = "singles" | "doubles";
 
-/** What one entrant is called, for screens that address the players directly. */
-export function entrantWord(discipline: string | undefined, plural = false): string {
-  const singles = discipline === "singles";
-  if (plural) return singles ? "players" : "teams";
-  return singles ? "player" : "team";
+/**
+ * What one entrant is called, for the screens that address them directly.
+ *
+ * Two different things make an entrant a PERSON rather than a pair, and a
+ * screen has to check both. The obvious one is a singles event. The other is
+ * any rotating-partners format: an americano enters individuals and hands them
+ * a new partner every round, so it is people who are ranked and called even
+ * though every match on the court is doubles. Naming either of those a "team"
+ * puts a word on a TV that nobody in the room would use.
+ *
+ * The remaining case — a fixed-pair doubles draw — is the one where "team" is
+ * right, and it is the default because it is what the club runs most.
+ *
+ * `entrantsArePeople` is the rule itself, for the screens that need the fact
+ * rather than the noun — whether a name-suggestion list makes sense, whether an
+ * entry order can be read as strength.
+ */
+export function entrantsArePeople(format: string | undefined, discipline: string | undefined): boolean {
+  return isRotatingPartners(format) || discipline === "singles";
+}
+
+export function entrantWord(
+  format: string | undefined,
+  discipline: string | undefined,
+  plural = false
+): string {
+  const person = entrantsArePeople(format, discipline);
+  if (plural) return person ? "players" : "teams";
+  return person ? "player" : "team";
+}
+
+/** The same word starting a sentence or a label. */
+export function entrantWordCap(format: string | undefined, discipline: string | undefined, plural = false): string {
+  const w = entrantWord(format, discipline, plural);
+  return w[0].toUpperCase() + w.slice(1);
 }
 
 // The two race modes are parametric since v3: "race-to-16" is *first to N* and

@@ -5,7 +5,7 @@ import V2Standings from "./V2Standings";
 import Trophy from "./Trophy";
 import ClubLogo from "@/components/shared/ClubLogo";
 import { computePodium } from "@/lib/v2/podium";
-import type { MatchDTO } from "@/lib/types";
+import { entrantWord, type MatchDTO } from "@/lib/types";
 
 /**
  * What the court screens rest on once the awards have been given out.
@@ -18,10 +18,13 @@ export default function FinalStandingsScreen({
   courtLabel,
   matches,
   format,
+  discipline,
 }: {
   courtLabel: string;
   matches: MatchDTO[];
   format?: string;
+  /** Singles or doubles — decides what the closing line calls the field. */
+  discipline?: string;
 }) {
   // The champion comes from the podium, not from a merged table: in a knockout
   // the title is settled by the final, and whoever tops a group table need not
@@ -67,7 +70,7 @@ export default function FinalStandingsScreen({
         </motion.div>
 
         <div className="flex-1 min-h-0 flex">
-          <V2Standings matches={matches} title="Final Standings" subtitle="Congratulations to every team" format={format} />
+          <V2Standings matches={matches} title="Final Standings" subtitle={`Congratulations to every ${entrantWord(format, discipline)}`} format={format} />
         </div>
       </main>
     </div>

@@ -647,6 +647,8 @@ function CoachConsole({ courtId }: { courtId: number }) {
           matches={snapshot.matches}
           busy={busy}
           retrying={swapRetrying}
+          format={snapshot.tournament.format}
+          discipline={snapshot.tournament.discipline}
           onPick={swapIn}
           onClose={() => setSwapOpen(false)}
         />

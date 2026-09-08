@@ -36,6 +36,7 @@ const LOGIC = [
   ["checkFreshness", "a screen admits when it stops updating"],
   ["checkPlayerCard", "whose score is whose on the player card"],
   ["checkScorePad", "the network can never disable scoring"],
+  ["checkEntrantWord", "the screens call an entrant what the event calls it"],
   ["testNew", "seeding and score entry"],
 ];
 

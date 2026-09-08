@@ -11,16 +11,33 @@ import { useV3PlayerStore } from "@/store/useV3PlayerStore";
 import { buildPlayerView, opponentOf, ordinal, partnerOf, sideOf, teamsIn, type PlayerStatus, type PlayerView } from "@/lib/v3/player";
 import { scoreLine } from "@/lib/v3/venue";
 import { formatMatchScoreLine } from "@/lib/scoring/format";
-import type { MatchDTO, PlayerDTO } from "@/lib/types";
+import { entrantWord, entrantWordCap, type MatchDTO, type PlayerDTO } from "@/lib/types";
 
-function TeamPicker({ teams, onPick }: { teams: PlayerDTO[]; onPick: (id: string) => void }) {
+/**
+ * The list somebody picks themselves out of.
+ *
+ * The question has to use the word the event uses. A singles draw and an
+ * americano both enter people, and asking one of them "which team are you?"
+ * reads as a different app than the one they are standing in.
+ */
+function TeamPicker({
+  teams,
+  entrant,
+  entrants,
+  onPick,
+}: {
+  teams: PlayerDTO[];
+  entrant: string;
+  entrants: string;
+  onPick: (id: string) => void;
+}) {
   return (
     <main className="min-h-screen flex flex-col gap-5 p-5 max-w-lg mx-auto w-full">
       <div className="flex flex-col items-center gap-3 text-center mt-8">
         <ClubLogo size={48} />
         <div>
-          <p className="font-display uppercase tracking-[0.3em] text-gold/70 text-[10px] mb-1">Players</p>
-          <h1 className="font-display uppercase font-bold text-2xl">Which team are you?</h1>
+          <p className="font-display uppercase tracking-[0.3em] text-gold/70 text-[10px] mb-1">{entrants}</p>
+          <h1 className="font-display uppercase font-bold text-2xl">Which {entrant} are you?</h1>
         </div>
         <p className="text-white/45 text-sm">Pick once — this phone will remember you.</p>
       </div>
@@ -35,7 +52,7 @@ function TeamPicker({ teams, onPick }: { teams: PlayerDTO[]; onPick: (id: string
             {t.name}
           </button>
         ))}
-        {teams.length === 0 && <p className="text-white/40 text-sm text-center">No teams in the draw yet.</p>}
+        {teams.length === 0 && <p className="text-white/40 text-sm text-center">No {entrants.toLowerCase()} in the draw yet.</p>}
       </div>
     </main>
   );
@@ -283,7 +300,17 @@ function PlayerScreen() {
   const teams = teamsIn(snapshot.matches);
   const team = teams.find((t) => t.id === teamId) ?? null;
 
-  if (!team) return <TeamPicker teams={teams} onPick={setTeam} />;
+  const { format, discipline } = snapshot.tournament;
+
+  if (!team)
+    return (
+      <TeamPicker
+        teams={teams}
+        entrant={entrantWord(format, discipline)}
+        entrants={entrantWordCap(format, discipline, true)}
+        onPick={setTeam}
+      />
+    );
 
   return <PlayerCard view={buildPlayerView(snapshot.matches, team)} onChange={() => setTeam(null)} />;
 }

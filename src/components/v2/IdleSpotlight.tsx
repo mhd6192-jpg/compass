@@ -21,8 +21,17 @@ const HOLD_MS = 9000;
  * the day — before any result exists there are no statistics to show, and an
  * empty box would be worse than no box.
  */
-export default function IdleSpotlight({ matches }: { matches: MatchDTO[] }) {
-  const stats = buildSpotlights(matches);
+export default function IdleSpotlight({
+  matches,
+  format,
+  discipline,
+}: {
+  matches: MatchDTO[];
+  format?: string;
+  /** Singles or doubles — decides whether the leader is a player or a team. */
+  discipline?: string;
+}) {
+  const stats = buildSpotlights(matches, format, discipline);
   // Fixed slides live at the end so the day's news leads.
   const slides = [...stats.map((s) => ({ kind: "stat" as const, data: s })), { kind: "qr" as const }, { kind: "club" as const }];
 

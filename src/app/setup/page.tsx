@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import ClubLogo from "@/components/shared/ClubLogo";
 import { arrangeDraw } from "@/lib/bracket/seedArrange";
 
-import { isPointsRace, isTwoGroupEntry, type TiebreakMode, type TournamentFormat } from "@/lib/types";
+import { entrantWordCap, entrantsArePeople, isPointsRace, isRotatingPartners, isTwoGroupEntry, type TiebreakMode, type TournamentFormat } from "@/lib/types";
 import { MIN_TWO_GROUP_TEAMS, splitGroups, twoGroupMatchCount } from "@/lib/bracket/twoGroup";
 import { FORMAT_FAMILIES, describeField, formatsInFamily, validateField } from "@/lib/bracket/formats";
 
@@ -143,9 +143,6 @@ export default function SetupPage() {
   const [status, setStatus] = useState<"loading" | "setup" | "active" | "completed">("loading");
   const [discipline, setDiscipline] = useState<"singles" | "doubles">("doubles");
   const [format, setFormat] = useState<TournamentFormat>("compass");
-  // Wording only: an entrant is one row in the draw either way. An americano is
-  // always entered as individuals, however the club normally plays — the whole
-  // point of the format is that the pairs are made up as it goes.
   const mexicano = format === "mexicano";
   const kingCourt = format === "king-court";
   const teamAmericano = format === "team-americano";
@@ -154,21 +151,21 @@ export default function SetupPage() {
   const mixedMexicano = format === "mixed-mexicano";
   const mixedAmericano = format === "mixed-americano";
   const mixedTeam = format === "mixed-team-americano";
-  // All the rotating-partner formats share this whole section of the form.
-  const americano =
-    format === "americano" ||
-    mexicano ||
-    kingCourt ||
-    teamAmericano ||
-    mixicano ||
-    winnerCourt ||
-    mixedMexicano ||
-    mixedAmericano ||
-    mixedTeam;
+  // All the rotating-partner formats share this whole section of the form. Read
+  // from the registry rather than listed here, so a format added there cannot
+  // arrive with its own entry section quietly missing.
+  const americano = isRotatingPartners(format);
   // The ones needing a full multiple of four rather than merely enough players.
   const needsFours = kingCourt || teamAmericano || mixicano || mixedTeam;
-  const entrantLabel = americano || discipline === "singles" ? "Player" : "Team";
-  const entrantsLabel = americano || discipline === "singles" ? "Players" : "Teams";
+  // Wording only: an entrant is one row in the draw either way. An americano is
+  // always entered as individuals, however the club normally plays — the whole
+  // point of the format is that the pairs are made up as it goes.
+  //
+  // The rule comes from the shared helper rather than living here. This form
+  // used to own the only copy of it, which is exactly how every other screen
+  // came to call a singles entrant a team.
+  const entrantLabel = entrantWordCap(format, discipline);
+  const entrantsLabel = entrantWordCap(format, discipline, true);
   const [names, setNames] = useState<string[]>(Array(16).fill(""));
   const [rrNames, setRrNames] = useState<string[]>(Array(7).fill(""));
   const [seeds, setSeeds] = useState<(number | "")[]>(Array(16).fill(""));
@@ -258,7 +255,7 @@ export default function SetupPage() {
    * club with some history to order from.
    */
   const canOrderByStrength =
-    (americano || discipline === "singles") && !isTwoGroupEntry(format) && format !== "compass" && standings.size > 0;
+    entrantsArePeople(format, discipline) && !isTwoGroupEntry(format) && format !== "compass" && standings.size > 0;
 
   /**
    * Puts the entry list in strength order.
@@ -895,7 +892,7 @@ export default function SetupPage() {
                   onChange={(e) => updateName(i, e.target.value)}
                   // Only where a row is one person. A doubles draw enters pairs,
                   // and suggesting "Ana" for a team called "Ana/Ben" is noise.
-                  list={discipline === "singles" ? "known-players" : undefined}
+                  list={entrantsArePeople(format, discipline) ? "known-players" : undefined}
                   autoCapitalize="words"
                   autoCorrect="off"
                   spellCheck={false}
@@ -959,7 +956,7 @@ export default function SetupPage() {
                 <input
                   value={n}
                   onChange={(e) => updateRrName(i, e.target.value)}
-                  list={americano || discipline === "singles" ? "known-players" : undefined}
+                  list={entrantsArePeople(format, discipline) ? "known-players" : undefined}
                   autoCapitalize="words"
                   autoCorrect="off"
                   spellCheck={false}

@@ -1,5 +1,5 @@
 import { computeStandings } from "../standings";
-import type { MatchDTO } from "../types";
+import { entrantWordCap, type MatchDTO } from "../types";
 import { formatDuration } from "./venue";
 
 /**
@@ -51,7 +51,7 @@ function winnerName(match: MatchDTO): string | null {
   return match.winnerId === match.player1?.id ? match.player1?.name ?? null : match.player2?.name ?? null;
 }
 
-export function buildSpotlights(matches: MatchDTO[]): Spotlight[] {
+export function buildSpotlights(matches: MatchDTO[], format?: string, discipline?: string): Spotlight[] {
   const done = matches.filter((m) => m.status === "completed" && !m.forcedEnd);
   const cards: Spotlight[] = [];
 
@@ -65,7 +65,7 @@ export function buildSpotlights(matches: MatchDTO[]): Spotlight[] {
     cards.push({
       key: "leader",
       icon: "🔥",
-      eyebrow: "Team of the day",
+      eyebrow: `${entrantWordCap(format, discipline)} of the day`,
       headline: leader.name,
       detail: `${leader.won} ${leader.won === 1 ? "win" : "wins"} from ${played}`,
     });

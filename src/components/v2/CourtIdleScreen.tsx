@@ -77,6 +77,7 @@ export default function CourtIdleScreen({
   onDeck,
   matches,
   format,
+  discipline,
   progress,
 }: {
   courtLabel: string;
@@ -84,6 +85,8 @@ export default function CourtIdleScreen({
   onDeck: MatchDTO | null;
   matches: MatchDTO[];
   format?: string;
+  /** Singles or doubles — decides what the screen calls an entrant. */
+  discipline?: string;
   progress: { completed: number; total: number };
 }) {
   return (
@@ -119,7 +122,7 @@ export default function CourtIdleScreen({
           </div>
           <div className="w-[26%] shrink-0 flex">
             <div className="flex-1 flex">
-              <IdleSpotlight matches={matches} />
+              <IdleSpotlight matches={matches} format={format} discipline={discipline} />
             </div>
           </div>
         </div>

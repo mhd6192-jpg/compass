@@ -81,7 +81,14 @@ function TvContent({ courtId }: { courtId: number }) {
       return <WaitingScreen courtLabel={courtLabel} />;
 
     case "final":
-      return <FinalStandingsScreen courtLabel={courtLabel} matches={snapshot.matches} format={snapshot.tournament.format} />;
+      return (
+        <FinalStandingsScreen
+          courtLabel={courtLabel}
+          matches={snapshot.matches}
+          format={snapshot.tournament.format}
+          discipline={snapshot.tournament.discipline}
+        />
+      );
 
     default:
       return (
@@ -91,6 +98,7 @@ function TvContent({ courtId }: { courtId: number }) {
           onDeck={view.onDeck}
           matches={snapshot.matches}
           format={snapshot.tournament.format}
+          discipline={snapshot.tournament.discipline}
           progress={snapshot.progress}
         />
       );

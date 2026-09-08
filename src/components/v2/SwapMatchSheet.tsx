@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import BracketBadge from "@/components/shared/BracketBadge";
 import { candidateLocation, eligibleReplacements } from "@/lib/v2/swap";
-import type { MatchDTO } from "@/lib/types";
+import { entrantWord, type MatchDTO } from "@/lib/types";
 
 /**
  * The coach's "someone isn't here" escape hatch.
@@ -21,6 +21,8 @@ export default function SwapMatchSheet({
   matches,
   busy,
   retrying = false,
+  format,
+  discipline,
   onPick,
   onClose,
 }: {
@@ -28,11 +30,15 @@ export default function SwapMatchSheet({
   outgoing: MatchDTO;
   matches: MatchDTO[];
   busy: boolean;
+  format?: string;
+  /** Singles or doubles — decides what the blocked reasons call an entrant. */
+  discipline?: string;
   retrying?: boolean;
   onPick: (matchId: string) => void;
   onClose: () => void;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
+  const entrant = entrantWord(format, discipline);
   const options = eligibleReplacements(matches, outgoing);
 
   const blocked = matches.filter(
@@ -66,7 +72,7 @@ export default function SwapMatchSheet({
           <div className="rounded-2xl border border-court-line bg-court-panel p-6 text-center">
             <p className="font-display uppercase text-white/70">No other match can start here</p>
             <p className="text-white/40 text-xs mt-2">
-              Every other match is either finished, already being played, or waiting on a team that is on another court.
+              Every other match is either finished, already being played, or waiting on a {entrant} that is on another court.
             </p>
           </div>
         )}
@@ -119,7 +125,7 @@ export default function SwapMatchSheet({
                       ? "Waiting on an earlier result"
                       : m.state.totalPoints > 0
                         ? "Already part-scored"
-                        : "A team is on another court"}
+                        : `A ${entrant} is on another court`}
                 </p>
               </div>
             ))}

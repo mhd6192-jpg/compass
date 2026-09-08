@@ -25,13 +25,16 @@ export default function IdleSpotlight({
   matches,
   format,
   tiebreakMode,
+  discipline,
 }: {
   matches: MatchDTO[];
   format?: string;
   /** Whether the tally is points (a race) or games (set play). */
   tiebreakMode?: string;
+  /** Singles or doubles — decides whether the leader is a player or a team. */
+  discipline?: string;
 }) {
-  const stats = buildSpotlights(matches, format, tiebreakMode);
+  const stats = buildSpotlights(matches, format, tiebreakMode, discipline);
   // Fixed slides live at the end so the day's news leads.
   const slides = [...stats.map((s) => ({ kind: "stat" as const, data: s })), { kind: "qr" as const }, { kind: "club" as const }];
 
