@@ -121,7 +121,7 @@ function CeremonyRemote() {
   const nextAward = nextPlace !== undefined ? ceremony.awards.find((a) => a.place === nextPlace) : undefined;
 
   const header = (
-    <header className="flex items-center justify-between gap-3 py-3 mb-4 sticky top-0 bg-court-bg/95 backdrop-blur z-20 border-b border-court-line -mx-4 px-4">
+    <header className="flex items-center justify-between gap-3 pb-3 clear-notch mb-4 sticky top-0 bg-court-bg/95 backdrop-blur z-20 border-b border-court-line -mx-4 px-4">
       <div className="flex items-center gap-3 min-w-0">
         <ClubLogo size={32} stacked={false} />
         <div className="min-w-0">

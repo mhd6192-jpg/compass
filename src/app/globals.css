@@ -102,6 +102,26 @@ body {
 .clear-band {
   padding-bottom: calc(7rem + max(env(safe-area-inset-bottom), 0px));
 }
+/*
+ * The same contract as `.safe-bottom`: it sets `padding-top` outright, so it
+ * must never share an element with a Tailwind `pt-*` or `py-*`. Use
+ * `.clear-notch` for a pinned header, which carries both.
+ */
 .safe-top {
   padding-top: max(env(safe-area-inset-top), 0px);
+}
+
+/*
+ * A header pinned to the top of the screen, clear of the notch.
+ *
+ * An installed app has no browser chrome to hold the status bar off the page,
+ * so a `sticky top-0` header renders underneath it — the club's name and the
+ * court number sitting behind the clock and the battery. `.safe-top` existed
+ * for exactly this and was applied to nothing at all; and applying it beside
+ * the `py-3` these headers already had would have cancelled that padding, the
+ * way `pb-28 safe-bottom` cancelled itself. So the inset and the padding are
+ * one value: 0.75rem is `py-3`, and the bottom half stays a normal class.
+ */
+.clear-notch {
+  padding-top: calc(0.75rem + max(env(safe-area-inset-top), 0px));
 }

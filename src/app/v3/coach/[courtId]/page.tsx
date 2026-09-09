@@ -90,7 +90,13 @@ function TapSide({
       {/* Only on the serving side, so a glance at the phone answers "who serves?"
           without counting points back. */}
       <ServeBadge serve={serve} slot={slot} size="0.6rem" ballSize={18} />
-      <span className="font-display uppercase font-bold text-2xl text-center leading-tight break-words">
+      {/* Clamped, because the zone has a fixed share of a phone and the name is
+          the only thing in it with no bound. Measured at 320x568 with a 61-
+          character americano pairing: the name pushed the SCORE 20px past the
+          zone's own border and over the zone below it. A name that long is
+          getting shortened somewhere either way; better in the name than in the
+          number the coach is trying to read. */}
+      <span className="font-display uppercase font-bold text-2xl text-center leading-tight break-words line-clamp-2">
         {player?.name ?? "TBD"}
       </span>
       <span className="text-white/40 text-xs uppercase tracking-widest [@media(max-height:560px)]:hidden">{caption}</span>
@@ -466,7 +472,7 @@ function CoachConsole({ courtId }: { courtId: number }) {
   }
 
   const header = (
-    <header className="flex items-center justify-between gap-3 py-3 sticky top-0 bg-court-bg/95 backdrop-blur z-20 border-b border-court-line -mx-4 px-4">
+    <header className="flex items-center justify-between gap-3 pb-3 clear-notch sticky top-0 bg-court-bg/95 backdrop-blur z-20 border-b border-court-line -mx-4 px-4">
       <div className="flex items-center gap-3 min-w-0">
         <ClubMark size={30} />
         <div className="min-w-0">

@@ -95,7 +95,7 @@ function RoundRobinContent({ snapshot }: { snapshot: NonNullable<ReturnType<type
 
   return (
     <main className="min-h-screen p-4 max-w-lg mx-auto pb-16">
-      <header className="text-center mb-4 sticky top-0 bg-court-bg/95 backdrop-blur py-3 -mx-4 px-4 z-10">
+      <header className="text-center mb-4 sticky top-0 bg-court-bg/95 backdrop-blur pb-3 clear-notch -mx-4 px-4 z-10">
         <div className="flex justify-center mb-2">
           <ClubLogo size={36} />
         </div>
@@ -158,7 +158,7 @@ function TwoGroupContent({ snapshot }: { snapshot: NonNullable<ReturnType<typeof
 
   return (
     <main className="min-h-screen p-4 max-w-lg mx-auto pb-16">
-      <header className="text-center mb-4 sticky top-0 bg-court-bg/95 backdrop-blur py-3 -mx-4 px-4 z-10">
+      <header className="text-center mb-4 sticky top-0 bg-court-bg/95 backdrop-blur pb-3 clear-notch -mx-4 px-4 z-10">
         <div className="flex justify-center mb-2">
           <ClubLogo size={36} />
         </div>
@@ -255,7 +255,7 @@ function BracketContent() {
 
   return (
     <main className="min-h-screen p-4 max-w-lg mx-auto pb-16">
-      <header className="text-center mb-4 sticky top-0 bg-court-bg/95 backdrop-blur py-3 -mx-4 px-4 z-10">
+      <header className="text-center mb-4 sticky top-0 bg-court-bg/95 backdrop-blur pb-3 clear-notch -mx-4 px-4 z-10">
         <div className="flex justify-center mb-2">
           <ClubLogo size={36} />
         </div>

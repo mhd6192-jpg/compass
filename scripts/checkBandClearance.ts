@@ -89,5 +89,50 @@ const coach = readFileSync("src/app/v3/coach/[courtId]/page.tsx", "utf8");
 check("the scoring pad takes the clearance conditionally", /lost \? "clear-band" : ""/.test(coach));
 check("...off the same signal the band itself uses", /freshnessOf\(/.test(coach) && /lastSyncAt/.test(coach));
 
+// --- the top edge -------------------------------------------------------------
+// An installed app has no browser chrome to hold the status bar off the page, so
+// a `sticky top-0` header renders underneath it. `.safe-top` existed for exactly
+// this and was applied to NOTHING — and pairing it with the `py-3` those headers
+// already carried would have cancelled that padding, the same way
+// `pb-28 safe-bottom` cancelled itself.
+
+const atNotch = css.search(new RegExp("\\.clear-notch\\s*\\{"));
+const notchRule = atNotch >= 0 ? css.slice(atNotch, css.indexOf("}", atNotch) + 1) : "";
+check("there is a class for a header pinned to the top", atNotch >= 0);
+check("...it reserves the header's own padding as well", /padding-top:\s*calc\(/.test(notchRule));
+check("...and carries the inset itself", /safe-area-inset-top/.test(notchRule));
+
+const PINNED = [
+  "src/app/v3/coach/[courtId]/page.tsx",
+  "src/app/v3/ceremony/page.tsx",
+  "src/app/v2/coach/[courtId]/page.tsx",
+  "src/app/v2/ceremony/page.tsx",
+  "src/app/scorer/page.tsx",
+  "src/app/standings/page.tsx",
+  "src/app/bracket/page.tsx",
+];
+
+for (const file of PINNED) {
+  const src = readFileSync(file, "utf8");
+  const headers = [...src.matchAll(/className="([^"]*sticky top-0[^"]*)"/g)].map((m) => m[1]);
+  check(`${file} pins a header`, headers.length > 0, `${headers.length}`);
+  const bare = headers.filter((c) => !/clear-notch/.test(c));
+  check("...and every one clears the notch", bare.length === 0, bare.join(" | "));
+  const clash = headers.filter((c) => /safe-top/.test(c) && /p[ty]-\S/.test(c));
+  check("...without pairing safe-top with a padding class", clash.length === 0, clash.join(" | "));
+}
+
+// --- and the one thing in a tap zone with no bound ---------------------------
+// The zone has a fixed share of a phone; the entrant's name is the only thing in
+// it that can grow. Measured at 320x568 with a 61-character americano pairing,
+// the name pushed the SCORE 20px past the zone's own border and over the zone
+// below it.
+
+for (const file of ["src/app/v3/coach/[courtId]/page.tsx", "src/app/v2/coach/[courtId]/page.tsx"]) {
+  const src = readFileSync(file, "utf8");
+  check(`${file} bounds the name in its tap zone`, /line-clamp-2/.test(src));
+}
+
+
 console.log(failures ? `\n${failures} CHECK(S) FAILED` : "\nALL CHECKS PASSED");
 process.exitCode = failures ? 1 : 0;

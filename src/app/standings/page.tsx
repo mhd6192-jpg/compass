@@ -14,7 +14,7 @@ function StandingsContent() {
 
   return (
     <main className="min-h-screen p-4 pb-10 max-w-lg mx-auto">
-      <header className="flex items-center gap-3 mb-5 sticky top-0 bg-court-bg/95 backdrop-blur py-3 -mx-4 px-4 z-10 border-b border-court-line">
+      <header className="flex items-center gap-3 mb-5 sticky top-0 bg-court-bg/95 backdrop-blur pb-3 clear-notch -mx-4 px-4 z-10 border-b border-court-line">
         <Link href="/scorer" className="text-white/50 text-xl px-1">
           ‹
         </Link>
