@@ -35,7 +35,7 @@ export async function GET(req: Request) {
   const snapshot = await getFullSnapshot(prisma);
   const courtIds = await getCourtIds(prisma);
   const v2 = await readV2State(prisma, courtIds);
-  const podium = computePodium(snapshot.matches as MatchDTO[], snapshot.tournament.format);
+  const podium = computePodium(snapshot.matches as MatchDTO[], snapshot.tournament.format, snapshot.tournament.tiebreakMode);
   const body = { ...snapshot, v2: { ...v2, podium }, rev };
   writeMemo("v2", rev, body);
   return NextResponse.json(body);

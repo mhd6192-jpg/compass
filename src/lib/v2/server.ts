@@ -188,7 +188,7 @@ export async function runCeremonyAction(
     case "configure": {
       const requested = Array.isArray(payload.places) ? payload.places.map(Number) : [];
       const snapshot = await getFullSnapshot(prisma);
-      const podium = computePodium(snapshot.matches as MatchDTO[], snapshot.tournament.format);
+      const podium = computePodium(snapshot.matches as MatchDTO[], snapshot.tournament.format, snapshot.tournament.tiebreakMode);
       const { places } = buildAwards(podium, requested);
       if (places.length === 0) throw new Error("Pick at least one place to announce");
       // Changing the running order mid-presentation would be chaos on screen —
@@ -198,7 +198,7 @@ export async function runCeremonyAction(
 
     case "start": {
       const snapshot = await getFullSnapshot(prisma);
-      const podium = computePodium(snapshot.matches as MatchDTO[], snapshot.tournament.format);
+      const podium = computePodium(snapshot.matches as MatchDTO[], snapshot.tournament.format, snapshot.tournament.tiebreakMode);
       const { awards, places } = buildAwards(podium, cur.places.length ? cur.places : [3, 2, 1]);
       if (awards.length === 0) throw new Error("No finished results to announce yet");
       return done(await writeCeremony(prisma, { stage: "standby", places, cursor: -1, awards, announced: false }, cur.rev));

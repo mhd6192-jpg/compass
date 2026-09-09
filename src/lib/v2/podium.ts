@@ -8,7 +8,7 @@
  */
 import { computeStandings, computeTeamStandings } from "../standings";
 import { mixicanoGroupName } from "../bracket/mixicano";
-import { BRACKET_LABELS, BracketCode, MatchDTO, isRotatingPartners, isTeamScored } from "../types";
+import { BRACKET_LABELS, BracketCode, MatchDTO, isRotatingPartners, isTeamScored, tallyUnit } from "../types";
 import type { AwardDTO } from "./stage";
 
 /** How deep the ceremony can go — nobody hands out ninth place. */
@@ -28,7 +28,7 @@ function sidesOf(final: MatchDTO): { winner: { id: string; name: string }; loser
   };
 }
 
-function compassPodium(matches: MatchDTO[]): AwardDTO[] {
+function compassPodium(matches: MatchDTO[], unit: string): AwardDTO[] {
   const out: AwardDTO[] = [];
   const push = (playerId: string, name: string, detail: string) => {
     if (out.some((a) => a.playerId === playerId)) return;
@@ -55,14 +55,14 @@ function compassPodium(matches: MatchDTO[]): AwardDTO[] {
   return out.slice(0, MAX_PLACES);
 }
 
-function groupPodium(matches: MatchDTO[]): AwardDTO[] {
+function groupPodium(matches: MatchDTO[], unit: string): AwardDTO[] {
   return computeStandings(matches)
     .slice(0, MAX_PLACES)
     .map((row, i) => ({
       place: i + 1,
       playerId: row.id,
       name: row.name,
-      detail: `${row.won} ${row.won === 1 ? "win" : "wins"} · ${row.lost} ${row.lost === 1 ? "loss" : "losses"} · ${row.pointsFor} points`,
+      detail: `${row.won} ${row.won === 1 ? "win" : "wins"} · ${row.lost} ${row.lost === 1 ? "loss" : "losses"} · ${row.pointsFor} ${unit}`,
     }));
 }
 
@@ -71,7 +71,7 @@ function groupPodium(matches: MatchDTO[]): AwardDTO[] {
  * read that way: the headline number is the personal total, with the win/loss
  * record behind it.
  */
-function rotatingPodium(matches: MatchDTO[]): AwardDTO[] {
+function rotatingPodium(matches: MatchDTO[], unit: string): AwardDTO[] {
   // In the grouped formats the group is part of who someone is on the night, so
   // it belongs on the medal line rather than only in the table.
   const groupOfPlayer = new Map<string, number>();
@@ -84,7 +84,7 @@ function rotatingPodium(matches: MatchDTO[]): AwardDTO[] {
     .slice(0, MAX_PLACES)
     .map((row, i) => {
       const group = groupOfPlayer.get(row.id);
-      const record = `${row.pointsFor} points · ${row.won}–${row.lost} from ${row.played} ${row.played === 1 ? "match" : "matches"}`;
+      const record = `${row.pointsFor} ${unit} · ${row.won}–${row.lost} from ${row.played} ${row.played === 1 ? "match" : "matches"}`;
       return {
         place: i + 1,
         playerId: row.id,
@@ -99,7 +99,7 @@ function rotatingPodium(matches: MatchDTO[]): AwardDTO[] {
  * semifinalists share the podium behind them, and anyone deeper is ranked off
  * their own group table.
  */
-function twoGroupPodium(matches: MatchDTO[]): AwardDTO[] {
+function twoGroupPodium(matches: MatchDTO[], unit: string): AwardDTO[] {
   const out: AwardDTO[] = [];
   const push = (playerId: string, name: string, detail: string) => {
     if (out.length >= MAX_PLACES || out.some((a) => a.playerId === playerId)) return;
@@ -120,7 +120,7 @@ function twoGroupPodium(matches: MatchDTO[]): AwardDTO[] {
   const rest = ["GA", "GB"].flatMap((b) => computeStandings(matches.filter((m) => m.bracket === b)));
   rest.sort((a, b) => b.won - a.won || b.pointsFor - a.pointsFor);
   for (const row of rest) {
-    push(row.id, row.name, `${row.won} ${row.won === 1 ? "win" : "wins"} · ${row.pointsFor} points`);
+    push(row.id, row.name, `${row.won} ${row.won === 1 ? "win" : "wins"} · ${row.pointsFor} ${unit}`);
   }
   return out.slice(0, MAX_PLACES);
 }
@@ -130,24 +130,31 @@ function twoGroupPodium(matches: MatchDTO[]): AwardDTO[] {
  * announcing the highest individual scorer would be crowning someone those
  * formats never set out to rank.
  */
-function teamPodium(matches: MatchDTO[]): AwardDTO[] {
+function teamPodium(matches: MatchDTO[], unit: string): AwardDTO[] {
   return computeTeamStandings(matches)
     .slice(0, MAX_PLACES)
     .map((row, i) => ({
       place: i + 1,
       playerId: row.id,
       name: row.name,
-      detail: `${row.pointsFor} points · ${row.won}–${row.lost} from ${row.played} ${row.played === 1 ? "match" : "matches"}`,
+      detail: `${row.pointsFor} ${unit} · ${row.won}–${row.lost} from ${row.played} ${row.played === 1 ? "match" : "matches"}`,
     }));
 }
 
 /** The full ranked podium for this tournament, deepest place last. */
-export function computePodium(matches: MatchDTO[], format: string): AwardDTO[] {
-  if (isTeamScored(format)) return teamPodium(matches);
-  if (isRotatingPartners(format)) return rotatingPodium(matches);
-  if (format === "round-robin") return groupPodium(matches);
-  if (format === "two-group") return twoGroupPodium(matches);
-  return compassPodium(matches);
+/**
+ * `tiebreakMode` decides one word: the tally column counts POINTS in a race and
+ * GAMES in set play, and the podium used to say "points" either way — so a
+ * best-of-three announced its medals as "18 points" when it meant 18 games.
+ * Every screen already takes that word from `tallyUnit`; this one did not.
+ */
+export function computePodium(matches: MatchDTO[], format: string, tiebreakMode?: string): AwardDTO[] {
+  const unit = tallyUnit(tiebreakMode).long;
+  if (isTeamScored(format)) return teamPodium(matches, unit);
+  if (isRotatingPartners(format)) return rotatingPodium(matches, unit);
+  if (format === "round-robin") return groupPodium(matches, unit);
+  if (format === "two-group") return twoGroupPodium(matches, unit);
+  return compassPodium(matches, unit);
 }
 
 /**

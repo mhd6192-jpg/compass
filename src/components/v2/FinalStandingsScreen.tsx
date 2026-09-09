@@ -18,18 +18,21 @@ export default function FinalStandingsScreen({
   courtLabel,
   matches,
   format,
+  tiebreakMode,
   discipline,
 }: {
   courtLabel: string;
   matches: MatchDTO[];
   format?: string;
+  /** Whether the tally is points (a race) or games (set play). */
+  tiebreakMode?: string;
   /** Singles or doubles — decides what the closing line calls the field. */
   discipline?: string;
 }) {
   // The champion comes from the podium, not from a merged table: in a knockout
   // the title is settled by the final, and whoever tops a group table need not
   // be the one who lifted the trophy.
-  const champion = computePodium(matches, format ?? "")[0];
+  const champion = computePodium(matches, format ?? "", tiebreakMode)[0];
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-court-bg relative">

@@ -42,6 +42,7 @@ const LOGIC = [
   ["checkBandClearance", "the not-updating band never covers a control"],
   ["checkV2Parity", "v2 has not fallen behind v3 where they share code"],
   ["checkCourtScreen", "a court shows and scores only the match on it"],
+  ["checkTallyWording", "points or games, wherever a screen says it out loud"],
   ["testNew", "seeding and score entry"],
 ];
 

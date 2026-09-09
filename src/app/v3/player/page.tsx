@@ -11,7 +11,7 @@ import { useV3PlayerStore } from "@/store/useV3PlayerStore";
 import { buildPlayerView, opponentOf, ordinal, partnerOf, sideOf, teamsIn, type PlayerStatus, type PlayerView } from "@/lib/v3/player";
 import { scoreLine } from "@/lib/v3/venue";
 import { formatMatchScoreLine } from "@/lib/scoring/format";
-import { entrantWord, entrantWordCap, type MatchDTO, type PlayerDTO } from "@/lib/types";
+import { entrantWord, entrantWordCap, tallyUnit, type MatchDTO, type PlayerDTO } from "@/lib/types";
 
 /**
  * The list somebody picks themselves out of.
@@ -198,8 +198,20 @@ function ResultRow({ match, teamId }: { match: MatchDTO; teamId: string }) {
   );
 }
 
-function PlayerCard({ view, onChange }: { view: PlayerView; onChange: () => void }) {
+function PlayerCard({
+  view,
+  tiebreakMode,
+  onChange,
+}: {
+  view: PlayerView;
+  /** Whether the tally is points (a race) or games (set play). */
+  tiebreakMode?: string;
+  onChange: () => void;
+}) {
   const { team, row, position, tableSize, tableLabel } = view;
+  // The board and the court screens already take this word from `tallyUnit`;
+  // the card said "Points" whatever the event was scored in.
+  const tally = tallyUnit(tiebreakMode).long;
 
   return (
     <main className="min-h-screen flex flex-col gap-4 p-4 max-w-lg mx-auto w-full">
@@ -234,7 +246,7 @@ function PlayerCard({ view, onChange }: { view: PlayerView; onChange: () => void
             {[
               { label: "Won", value: row.won },
               { label: "Lost", value: row.lost },
-              { label: "Points", value: row.pointsFor },
+              { label: tally, value: row.pointsFor },
             ].map((s) => (
               <div key={s.label} className="rounded-xl bg-white/[0.03] py-2.5">
                 <p className="font-display font-bold text-2xl tabular-nums">{s.value}</p>
@@ -312,7 +324,13 @@ function PlayerScreen() {
       />
     );
 
-  return <PlayerCard view={buildPlayerView(snapshot.matches, team, format)} onChange={() => setTeam(null)} />;
+  return (
+    <PlayerCard
+      view={buildPlayerView(snapshot.matches, team, format)}
+      tiebreakMode={snapshot.tournament.tiebreakMode}
+      onChange={() => setTeam(null)}
+    />
+  );
 }
 
 export default function PlayerPage() {

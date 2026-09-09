@@ -163,6 +163,7 @@ function finalPlacings(
       .map((x) => x.row);
   }
 
+  // Only the ORDER is read here, so the wording argument is beside the point.
   const podium = computePodium(matches, format);
   const place = new Map(podium.map((a) => [a.playerId, a.place]));
   // A podium of team ids, or one nobody in the table matches, settles nothing
@@ -240,7 +241,7 @@ export async function buildArchive(prisma: PrismaClient, label?: string): Promis
     // the individual scorers are kept beside it rather than instead of it.
     standings: teamScored ? teamTable : placings,
     players: teamScored ? individual : null,
-    podium: computePodium(snapshot.matches, format),
+    podium: computePodium(snapshot.matches, format, snapshot.tournament.tiebreakMode),
     results,
     startedAt,
     endedAt,

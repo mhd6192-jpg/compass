@@ -86,6 +86,7 @@ function TvContent({ courtId }: { courtId: number }) {
           courtLabel={courtLabel}
           matches={snapshot.matches}
           format={snapshot.tournament.format}
+          tiebreakMode={snapshot.tournament.tiebreakMode}
           discipline={snapshot.tournament.discipline}
         />
       );

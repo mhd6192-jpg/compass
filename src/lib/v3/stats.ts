@@ -197,6 +197,9 @@ export function buildSpotlights(
   }
 
   // --- the sheer volume of tennis played ---
+  // Deliberately "points" in every format: this counts the RALLIES that were
+  // actually played, not the column the event is ranked on. Set play still
+  // plays points, it just does not rank on them.
   const totalPoints = matches.reduce((sum, m) => sum + m.state.totalPoints, 0);
   if (totalPoints > 0) {
     cards.push({
@@ -214,9 +217,11 @@ export function buildSpotlights(
     cards.push({
       key: "scorer",
       icon: "📈",
-      eyebrow: "Most points won",
+      // The tally is points in a race and games in set play, and the leader card
+      // two slides earlier already says so. This one said "points" either way.
+      eyebrow: `Most ${tallyUnit(tiebreakMode).long} won`,
       headline: topScorer.name,
-      detail: `${topScorer.pointsFor} points`,
+      detail: `${topScorer.pointsFor} ${tallyUnit(tiebreakMode).long}`,
     });
   }
 
