@@ -326,8 +326,10 @@ export default function SetupPage() {
     setRosterBusy(true);
     setRosterNote(null);
     try {
-      const res = await fetch(`/api/rosters?id=${encodeURIComponent(r.id)}&pin=${encodeURIComponent(orgPin.trim())}`, {
+      const res = await fetch(`/api/rosters?id=${encodeURIComponent(r.id)}`, {
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: orgPin.trim() }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

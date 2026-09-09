@@ -19,7 +19,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
     // Past events are the one thing here that cannot be recreated.
-    const auth = await checkPin(req, "organiser", new URL(req.url).searchParams.get("pin"));
+    // In the body, not the query string: see the note on the roster delete.
+    const body = await req.json().catch(() => ({}) as Record<string, unknown>);
+    const auth = await checkPin(req, "organiser", (body as { pin?: unknown }).pin);
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
     await prisma.archivedTournament.delete({ where: { id: params.id } });
     return NextResponse.json({ ok: true });

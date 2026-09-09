@@ -111,7 +111,31 @@ async function main() {
   const refusals = [...routingSrc.matchAll(/new ScoringRefusal\(/g)].length;
   check("every deliberate refusal in scorePoint is declared", refusals >= 4, `${refusals} found`);
 
-  await prisma.$disconnect();
+  // --- one point per position, enforced by the database ----------------------
+  // scorePoint reads the count and writes count+1. Two transactions that read
+  // before either commits — a request that timed out still running while its
+  // retry arrives — both compute the same seq AND both pass the expectedSeq
+  // replay guard, because at the moment they each read it, it WAS the next one.
+  // Only the database can settle that.
+  const schema = (await import("node:fs")).readFileSync("prisma/schema.prisma", "utf8");
+  const pointModel = schema.slice(schema.indexOf("model PointEvent"), schema.indexOf("model", schema.indexOf("model PointEvent") + 10));
+  check("the schema declares one point per position", /@@unique\(\[matchId, seq\]\)/.test(pointModel));
+
+  // Attempted LAST, and everything read first: a constraint violation ends
+  // PGlite's single shared session, so nothing may need the database afterwards.
+  const existing = await prisma.pointEvent.findFirstOrThrow({ where: { matchId: m.id } });
+  const before = await prisma.pointEvent.count({ where: { matchId: m.id, seq: existing.seq } });
+  check("the match holds exactly one point at that position to begin with", before === 1, String(before));
+
+  let clash = "";
+  await prisma.pointEvent
+    .create({ data: { matchId: m.id, seq: existing.seq, slot: 2 } })
+    .catch((e) => (clash = String((e as { code?: string }).code ?? e)));
+  check("a second point cannot take a position already taken", clash !== "", clash || "(accepted)");
+  check("...refused by the database, not by a race", /P2002|unique/i.test(clash), clash);
+
+
+  await prisma.$disconnect().catch(() => {});
   console.log(failures ? `\n${failures} CHECK(S) FAILED` : "\nALL CHECKS PASSED");
   process.exitCode = failures ? 1 : 0;
 }

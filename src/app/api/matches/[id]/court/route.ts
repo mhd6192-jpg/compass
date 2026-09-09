@@ -15,7 +15,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!courtIds.includes(courtId) || !slot) {
       return NextResponse.json({ error: `courtId (${courtIds.join("|")}) and slot ('current'|'next') are required` }, { status: 400 });
     }
-    await manualAssignCourt(prisma, params.id, courtId, slot);
+    // In one transaction: the move checks that nobody on this side is already
+    // out on another court and then writes, and read-then-write outside a
+    // transaction is exactly how two organisers pressing Change at the same
+    // moment both pass the check and both write.
+    await prisma.$transaction((tx) => manualAssignCourt(tx, params.id, courtId, slot));
     await broadcastSnapshot();
     return NextResponse.json({ ok: true });
   } catch (e) {

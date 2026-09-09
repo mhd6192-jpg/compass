@@ -167,6 +167,15 @@ model PointEvent {
   /// has one coach on one phone.
   tappedAt DateTime?
 
+  /// One point per position, enforced by the database rather than by whoever
+  /// got there first. `scorePoint` reads the count and writes count+1, and two
+  /// transactions that read before either commits — a request that timed out
+  /// still running while its retry arrives — both compute the same seq and both
+  /// pass the `expectedSeq` replay guard, because at the moment they each read
+  /// it, it WAS the next one. The second insert now fails instead, the queue
+  /// treats the 5xx as a fault and retries, and the retry computes the seq that
+  /// is genuinely next.
+  @@unique([matchId, seq])
   @@index([matchId, seq])
 }
 

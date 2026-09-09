@@ -60,7 +60,13 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const url = new URL(req.url);
-    const auth = await checkPin(req, "organiser", url.searchParams.get("pin"));
+    // The PIN comes in the BODY, not the query string. This is the organiser
+    // PIN — the one that survives a reset and can erase a draw — and a query
+    // string is written into the server's access log, any proxy in front of it
+    // and the browser's own history, none of which anybody thinks of as a place
+    // secrets are kept.
+    const body = await req.json().catch(() => ({}) as Record<string, unknown>);
+    const auth = await checkPin(req, "organiser", (body as { pin?: unknown }).pin);
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
     const id = url.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Which list?" }, { status: 400 });

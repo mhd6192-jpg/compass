@@ -118,6 +118,26 @@ async function main() {
   check("the reader rethrows a failure it does not recognise", /throw e;/.test(body), body.slice(-120).replace(/' + BS + 's+/g, " "));
   check("...it classifies the one it means", /P2021/.test(authSrc));
 
+  // --- and a PIN never travels in a URL --------------------------------------
+  // Two DELETE endpoints took the organiser PIN — the one that survives a reset
+  // and can erase a draw — as a query parameter. A query string is written into
+  // the server's access log, any proxy in front of it and the browser's own
+  // history, none of which anybody thinks of as a place secrets are kept.
+  const { readdirSync, statSync } = await import("node:fs");
+  const walk = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const full = `${dir}/${name}`;
+      return statSync(full).isDirectory() ? walk(full) : full.endsWith(".ts") ? [full] : [];
+    });
+  const routes = walk("src/app/api");
+  const leaks = routes.filter((f) => {
+    const src = (require("node:fs") as typeof import("node:fs")).readFileSync(f, "utf8");
+    return /searchParams\.get\(\s*["']pin["']\s*\)/.test(src);
+  });
+  check("no API route reads a PIN out of the query string", leaks.length === 0, leaks.join(", "));
+  check("...and there are routes to check", routes.length > 5, `${routes.length} routes`);
+
+
   await prisma.tournamentConfig.deleteMany({});
   await prisma.appSettings.deleteMany({});
   await prisma.$disconnect();
