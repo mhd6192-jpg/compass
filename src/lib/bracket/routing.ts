@@ -229,39 +229,36 @@ export async function scorePoint(
  * point that nobody meant to touch. Passing the seq the caller believes is last
  * turns a replay into a no-op.
  */
-export async function undoLastPoint(
-  client: PrismaClient,
-  matchId: string,
-  expectedLastSeq?: number
-): Promise<{ affectedMatchIds: string[]; removed: boolean }> {
-  return client.$transaction(async (tx) => {
-    const match = await tx.match.findUniqueOrThrow({ where: { id: matchId } });
-    const last = await tx.pointEvent.findFirst({ where: { matchId }, orderBy: { seq: "desc" } });
-    if (!last) throw new Error("No points to undo");
-
-    if (expectedLastSeq !== undefined && last.seq !== expectedLastSeq) {
-      // The last point is not the one the caller was looking at, so their undo
-      // has already been applied. Doing it again would eat a different point.
-      return { affectedMatchIds: [matchId], removed: false };
-    }
-
-    let affected: string[] = [matchId];
-
-    if (match.status === "completed") {
+/**
+ * Takes back everything completing a match set in motion, so the row can be
+ * reopened or completed differently.
+ *
+ * Pulled out of `undoLastPoint` because a forced end recorded for the WRONG side
+ * had no way back at all. Re-running `forceEndMatch` fell through to
+ * `completeMatch`, which refuses a completed match; `applyManualScore` refuses
+ * one too; and undo opens with "No points to undo" — which is exactly the
+ * walkover case, where there are no points. So a no-show awarded to the wrong
+ * entrant was permanent, and it had already sent that entrant into the next
+ * round.
+ *
+ * Returns what else it touched, and the court slot the match may reclaim.
+ */
+async function retractCompletion(tx: Tx, match: Prisma.MatchGetPayload<object>): Promise<{ affected: string[]; restoreCourtSlot: "current" | null }> {
+  const affected: string[] = [];
       // A group result that triggered the title play-off has to take it back down
       // with it — otherwise the table gets ranked against a match that shouldn't exist.
       if (!isDeciderRow(match)) {
-        affected = affected.concat(await removeUnplayedDecider(tx));
+        affected.push(...(await removeUnplayedDecider(tx)));
       }
       // Same for the two-group format: undoing a group result un-qualifies the
       // teams it sent to the semifinals.
       if (isGroupRow(match)) {
-        affected = affected.concat(await retractSemifinals(tx));
+        affected.push(...(await retractSemifinals(tx)));
       }
       // ...and reopening a rotating-partner match puts its round back in
       // progress, so any round this result released has to be taken back.
       if (isRotatingRow(match)) {
-        affected = affected.concat(await closeLaterRotatingRounds(tx, match.round));
+        affected.push(...(await closeLaterRotatingRounds(tx, match.round)));
       }
       // Must retract propagation before we can safely reopen the match.
       if (match.feedWinnerMatchId && match.feedWinnerSlot) {
@@ -290,6 +287,31 @@ export async function undoLastPoint(
         }
         restoreCourtSlot = "current";
       }
+  return { affected, restoreCourtSlot };
+}
+
+export async function undoLastPoint(
+  client: PrismaClient,
+  matchId: string,
+  expectedLastSeq?: number
+): Promise<{ affectedMatchIds: string[]; removed: boolean }> {
+  return client.$transaction(async (tx) => {
+    const match = await tx.match.findUniqueOrThrow({ where: { id: matchId } });
+    const last = await tx.pointEvent.findFirst({ where: { matchId }, orderBy: { seq: "desc" } });
+    if (!last) throw new Error("No points to undo");
+
+    if (expectedLastSeq !== undefined && last.seq !== expectedLastSeq) {
+      // The last point is not the one the caller was looking at, so their undo
+      // has already been applied. Doing it again would eat a different point.
+      return { affectedMatchIds: [matchId], removed: false };
+    }
+
+    let affected: string[] = [matchId];
+
+    if (match.status === "completed") {
+      const retracted = await retractCompletion(tx, match);
+      affected = affected.concat(retracted.affected);
+      const restoreCourtSlot = retracted.restoreCourtSlot;
 
       await tx.pointEvent.delete({ where: { id: last.id } });
 
@@ -341,10 +363,36 @@ export async function forceEndMatch(
       return { championshipWon: false, affectedMatchIds: [matchId], alreadyEnded: true };
     }
 
+    // A forced end recorded for the WRONG side. This used to fall through to
+    // `completeMatch`, which refuses a completed match, and there was no way
+    // back: `applyManualScore` refuses one too, and undo opens with "No points
+    // to undo" — which is exactly the walkover case, where there are none. So a
+    // no-show awarded to the wrong entrant was permanent, and it had already
+    // sent that entrant into the next round. Correcting it is taking the first
+    // decision back and making the other one.
+    let corrected: string[] = [];
+    if (existing.status === "completed" && existing.forcedEnd) {
+      const retracted = await retractCompletion(tx, existing);
+      corrected = retracted.affected;
+      const points = await loadPointSlots(tx, matchId);
+      await tx.match.update({
+        where: { id: matchId },
+        data: {
+          status: points.length > 0 ? "in_progress" : "scheduled",
+          winnerId: null,
+          loserId: null,
+          completedAt: null,
+          forcedEnd: false,
+          forcedEndReason: null,
+          courtSlot: retracted.restoreCourtSlot,
+        },
+      });
+    }
+
     const result = await completeMatch(tx, matchId, winnerSlot, { forced: true, reason });
     return {
       championshipWon: result.championshipWon,
-      affectedMatchIds: Array.from(new Set([matchId, ...result.affected])),
+      affectedMatchIds: Array.from(new Set([matchId, ...corrected, ...result.affected])),
       alreadyEnded: false,
     };
   });

@@ -367,6 +367,18 @@ function CoachConsole({ courtId }: { courtId: number }) {
       setError(out.error);
       return;
     }
+    // The server can accept the request and still remove nothing: the undo
+    // carries the sequence the console thought was last, and the server refuses
+    // when that is not the sequence it holds — which is what makes a replayed
+    // undo safe. That refusal was being read as success, so a coach who undid a
+    // point they had only just scored was told it had worked while the score sat
+    // where it was. Say so, and resync.
+    if (out.data?.removed === false) {
+      setError("Nothing was undone — the score had already moved. Check it and try again.");
+      liveStateRef.current = null;
+      useV2Store.getState().refresh();
+      return;
+    }
     // The server has one point fewer than it had, so the queue's high-water mark
     // has to come down with it or every tap after an undo claims a place the
     // match no longer has.

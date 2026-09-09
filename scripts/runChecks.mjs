@@ -41,6 +41,7 @@ const LOGIC = [
   ["checkStandingsTables", "the phone and the wall rank you in the same table"],
   ["checkBandClearance", "the not-updating band never covers a control"],
   ["checkV2Parity", "v2 has not fallen behind v3 where they share code"],
+  ["checkCourtScreen", "a court shows and scores only the match on it"],
   ["testNew", "seeding and score entry"],
 ];
 
@@ -53,6 +54,7 @@ const DB = [
   ["checkMembers", "who plays here, across events"],
   ["checkField", "late arrivals, early leavers, stand-ins"],
   ["checkRenameGuard", "a rename can never land on the wrong person"],
+  ["checkForcedEnd", "a walkover called for the wrong side can be corrected"],
   ["checkPointRefusals", "a refusal the server means, against a fault it suffered"],
   ["checkStateRev", "the polling revision misses nothing"],
   ["checkAmericanoFlow", "americano end to end"],

@@ -130,7 +130,14 @@ export function resolveCourtScreen(args: {
     return { ...base, screen: "ceremony" };
   }
 
-  const active = stage.activeMatchId ? matches.find((m) => m.id === stage.activeMatchId) ?? null : null;
+  // A match that has left this court is not this court's match any more, however
+  // recently its TV went live. `manualAssignCourt` moves the displaced match
+  // away — to another court, or back to the queue — without touching the
+  // CourtStage row, so the screen went on showing it and the console went on
+  // SCORING it: the coach console picks the live match from this same view, so
+  // its tap zones were writing points into a match being played somewhere else.
+  const onThisCourt = stage.activeMatchId ? matches.find((m) => m.id === stage.activeMatchId) ?? null : null;
+  const active = onThisCourt && onThisCourt.courtId === courtId ? onThisCourt : null;
 
   if (stage.stage === "live" && active) {
     if (active.status === "completed" && active.winnerId && active.player1 && active.player2) {
