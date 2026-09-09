@@ -1,4 +1,4 @@
-import { computeStandings, type StandingsRow } from "../standings";
+import { tableContaining, type StandingsRow } from "../standings";
 import { participantIds, type MatchDTO, type PlayerDTO } from "../types";
 
 /**
@@ -86,16 +86,18 @@ export function partnerOf(match: MatchDTO, playerId: string): PlayerDTO | null {
   return null;
 }
 
-/** Which table this team is ranked in — a two-group draw has two. */
-function tableFor(matches: MatchDTO[], teamId: string): { rows: StandingsRow[]; label: string | null } {
-  const group = matches.find((m) => involves(m, teamId) && (m.bracket === "GA" || m.bracket === "GB"));
-  if (group) {
-    return {
-      rows: computeStandings(matches.filter((m) => m.bracket === group.bracket)),
-      label: group.bracket === "GA" ? "Group A" : "Group B",
-    };
-  }
-  return { rows: computeStandings(matches), label: null };
+/**
+ * Which table this entrant is ranked in.
+ *
+ * Asked of the same helper the wall screens use, so the number on somebody's
+ * phone and the number on the television cannot disagree. This used to look for
+ * a GA/GB bracket, which only the two-group format has — a mixed americano or
+ * mixed mexicano carries its groups on the player instead, so the card ranked
+ * everyone against the whole field while every screen in the room showed two
+ * separate group tables.
+ */
+function tableFor(matches: MatchDTO[], teamId: string, format?: string): { rows: StandingsRow[]; label: string | null } {
+  return tableContaining(matches, teamId, format);
 }
 
 function statusFor(matches: MatchDTO[], teamId: string, upcoming: MatchDTO[]): PlayerStatus {
@@ -121,7 +123,7 @@ function statusFor(matches: MatchDTO[], teamId: string, upcoming: MatchDTO[]): P
   };
 }
 
-export function buildPlayerView(matches: MatchDTO[], team: PlayerDTO): PlayerView {
+export function buildPlayerView(matches: MatchDTO[], team: PlayerDTO, format?: string): PlayerView {
   const mine = matches.filter((m) => involves(m, team.id));
   const played = mine
     .filter((m) => m.status === "completed")
@@ -138,7 +140,7 @@ export function buildPlayerView(matches: MatchDTO[], team: PlayerDTO): PlayerVie
   };
   const upcoming = mine.filter((m) => m.status !== "completed").sort((a, b) => imminence(a) - imminence(b));
 
-  const { rows, label } = tableFor(matches, team.id);
+  const { rows, label } = tableFor(matches, team.id, format);
   const index = rows.findIndex((r) => r.id === team.id);
 
   return {

@@ -312,7 +312,7 @@ function PlayerScreen() {
       />
     );
 
-  return <PlayerCard view={buildPlayerView(snapshot.matches, team)} onChange={() => setTeam(null)} />;
+  return <PlayerCard view={buildPlayerView(snapshot.matches, team, format)} onChange={() => setTeam(null)} />;
 }
 
 export default function PlayerPage() {

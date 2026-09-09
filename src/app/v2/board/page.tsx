@@ -176,7 +176,7 @@ function Board() {
         )}
       </main>
 
-      <section className="relative shrink-0 h-[26vh] px-[2.5vw] pb-[2vh] flex gap-[1.5vw]">
+      <section className="relative shrink-0 h-[34vh] px-[2.5vw] pb-[2vh] flex gap-[1.5vw]">
         <div className="flex-1 min-w-0 flex">
           <V2Standings matches={snapshot.matches} title="Standings" format={snapshot.tournament.format} />
         </div>

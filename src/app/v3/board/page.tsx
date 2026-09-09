@@ -215,7 +215,10 @@ function Board() {
         )}
       </main>
 
-      <section className="relative shrink-0 h-[26vh] px-[2.5vw] pb-[2vh] flex gap-[1.5vw]">
+      {/* The standings strip has to be tall enough for a row somebody can read
+          from across the room. At 26vh a full field came out at 9-11px, which
+          is a picture of a table rather than a table. */}
+      <section className="relative shrink-0 h-[34vh] px-[2.5vw] pb-[2vh] flex gap-[1.5vw]">
         <div className="flex-1 min-w-0 flex">
           <V3Standings
             matches={snapshot.matches}

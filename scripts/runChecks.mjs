@@ -37,6 +37,8 @@ const LOGIC = [
   ["checkPlayerCard", "whose score is whose on the player card"],
   ["checkScorePad", "the network can never disable scoring"],
   ["checkEntrantWord", "the screens call an entrant what the event calls it"],
+  ["checkRetiredScore", "a retirement keeps the points that were played"],
+  ["checkStandingsTables", "the phone and the wall rank you in the same table"],
   ["testNew", "seeding and score entry"],
 ];
 
