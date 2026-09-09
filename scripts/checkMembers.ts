@@ -217,6 +217,31 @@ async function main() {
   const twice = await resolveMembers(prisma, ["Ben", "ben"]);
   check("one name entered twice is one person", twice[0] === twice[1] && !!twice[0]);
 
+  // --- a merge must not detach the draw that is on court right now -----------
+  // `Player.member` is `onDelete: SetNull`, so deleting the losing ClubMember
+  // used to null the memberId of tonight's entrant. The archive skips a player
+  // with no member, so the evening simply never appeared in that person's
+  // record — and a mid-evening save that had already written a line for them
+  // had it deleted and not put back. Spotting a duplicate on /players and
+  // merging it is exactly the moment somebody does this, mid-evening.
+  await prisma.player.deleteMany({});
+  await prisma.memberResult.deleteMany({});
+  await prisma.clubMember.deleteMany({});
+  const keep = await prisma.clubMember.create({ data: { name: "Ana", nameKey: nameKeyOf("Ana") } });
+  const gone = await prisma.clubMember.create({ data: { name: "Ana K.", nameKey: nameKeyOf("Ana K.") } });
+  const onCourt = await prisma.player.create({
+    data: { name: "Ana K.", seed: 1, memberId: gone.id },
+  });
+
+  await mergeMembers(prisma, keep.id, gone.id);
+
+  const after = await prisma.player.findUnique({ where: { id: onCourt.id }, select: { memberId: true } });
+  check("a merge repoints tonight's entrant at the surviving member", after?.memberId === keep.id, String(after?.memberId));
+  check("...so nobody in the draw is left member-less", after?.memberId !== null);
+  check("...and the duplicate is gone", (await prisma.clubMember.findUnique({ where: { id: gone.id } })) === null);
+
+  await prisma.player.deleteMany({});
+
   await prisma.$disconnect();
   console.log(failures ? `\n${failures} CHECK(S) FAILED` : "\nALL CHECKS PASSED");
   process.exitCode = failures ? 1 : 0;

@@ -121,6 +121,60 @@ async function memberRows(prisma: PrismaClient, individual: StandingsRow[]): Pro
   return rows;
 }
 
+
+/**
+ * The order the event actually finished in.
+ *
+ * `computeStandings` deliberately leaves the semifinals and the final out of the
+ * record — they settle placings, they are not part of the group table. That is
+ * right for the table on the wall and wrong for a record of who won: a compass
+ * or two-group event archived the GROUP table, so whoever topped their group sat
+ * at position 1 even when they lost the final, and the podium stored beside it
+ * said someone else. `MemberResult.rank` comes from this order, and the club
+ * table reads rank 1 as "won the event", so the wrong person collected the win.
+ *
+ * A team format has the same problem one step further out: the event is decided
+ * by the team table, but the members were ranked on individual points, so the
+ * top scorer collected a win even when their team lost.
+ *
+ * So the order is taken from whatever actually decided the event, and falls back
+ * to the table itself where nothing else does — a round robin without a play-off
+ * is settled by its table and needs no help.
+ */
+function finalPlacings(
+  matches: MatchDTO[],
+  format: string,
+  individual: StandingsRow[],
+  teamTable: StandingsRow[]
+): StandingsRow[] {
+  if (isTeamScored(format)) {
+    // Everyone on the winning side won it. Within a side the individual table
+    // still orders them, which is the only ordering that means anything there.
+    const teamRank = new Map(teamTable.map((t, i) => [t.id, i]));
+    const teamOf = new Map<string, string>();
+    for (const m of matches) {
+      for (const p of [...(m.player1Members ?? []), ...(m.player2Members ?? [])]) {
+        if (p.team) teamOf.set(p.id, `team-${p.team}`);
+      }
+    }
+    return individual
+      .map((row, i) => ({ row, i, rank: teamRank.get(teamOf.get(row.id) ?? "") ?? Number.MAX_SAFE_INTEGER }))
+      .sort((a, b) => a.rank - b.rank || a.i - b.i)
+      .map((x) => x.row);
+  }
+
+  const podium = computePodium(matches, format);
+  const place = new Map(podium.map((a) => [a.playerId, a.place]));
+  // A podium of team ids, or one nobody in the table matches, settles nothing
+  // about these rows and is left alone.
+  if (!individual.some((row) => place.has(row.id))) return individual;
+
+  return individual
+    .map((row, i) => ({ row, i, place: place.get(row.id) ?? Number.MAX_SAFE_INTEGER }))
+    .sort((a, b) => a.place - b.place || a.i - b.i)
+    .map((x) => x.row);
+}
+
 /**
  * Builds the record from whatever is currently in the database.
  *
@@ -168,7 +222,11 @@ export async function buildArchive(prisma: PrismaClient, label?: string): Promis
     select: { startedAt: true },
   });
   const startedAt = started?.startedAt ?? null;
-  const members = await memberRows(prisma, individual);
+  // The club's record of the night is ranked by what actually decided it, not by
+  // the group table the wall screens were showing when the last match finished.
+  const teamTable = computeTeamStandings(snapshot.matches);
+  const placings = finalPlacings(snapshot.matches, format, individual, teamTable);
+  const members = await memberRows(prisma, placings);
 
   return {
     label: label?.trim() || defaultLabel(formatName, endedAt),
@@ -180,7 +238,7 @@ export async function buildArchive(prisma: PrismaClient, label?: string): Promis
     matches: played.length,
     // A team format is decided by the team table, so that is the headline one —
     // the individual scorers are kept beside it rather than instead of it.
-    standings: teamScored ? computeTeamStandings(snapshot.matches) : individual,
+    standings: teamScored ? teamTable : placings,
     players: teamScored ? individual : null,
     podium: computePodium(snapshot.matches, format),
     results,

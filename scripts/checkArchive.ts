@@ -181,6 +181,92 @@ async function main() {
   await resetLikeTheApp();
   check("...and the reset that ends the night adds nothing more", (await prisma.archivedTournament.count()) === historyBefore + 1, `${await prisma.archivedTournament.count()}`);
 
+  // --- the record has to say who actually won --------------------------------
+  // computeStandings leaves the semifinals and the final out on purpose: they
+  // settle placings, they are not part of the group record. That is right for
+  // the table on the wall and wrong for a record of the night. A knockout event
+  // used to archive the GROUP table, so whoever topped their group sat at
+  // position 1 even when they lost the final, while the podium stored beside it
+  // named someone else. MemberResult.rank comes from that order, and the club
+  // table reads rank 1 as "won the event".
+  await prisma.archivedTournament.deleteMany({});
+  await prisma.pointEvent.deleteMany({});
+  await prisma.match.deleteMany({});
+  await prisma.player.deleteMany({});
+  await prisma.tournamentConfig.deleteMany({});
+
+  await seedTournament(prisma, ["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4"], {
+    bestOfSets: 1,
+    tiebreakMode: "race-to-16",
+    raceTarget: TARGET,
+    amRounds: 0,
+    pin: "1234",
+    format: "two-group",
+    discipline: "singles",
+    courtIds: [2, 3],
+  });
+
+  // Every match played, round by round, until the final is done. In the group
+  // stage the higher-listed side wins; in the knockout the LOWER one does, so
+  // the group winner loses the final — which is the whole point of the case.
+  for (let pass = 0; pass < 10; pass++) {
+    const s = (await getFullSnapshot(prisma)) as unknown as { matches: MatchDTO[] };
+    const todo = s.matches.filter((m) => m.status !== "completed" && m.player1 && m.player2);
+    if (todo.length === 0) break;
+    for (const m of todo) {
+      const knockout = m.bracket === "SF" || m.bracket === "F";
+      await playMatch(m.id, !knockout, 4);
+    }
+  }
+
+  const built = await buildArchive(prisma);
+  const podium = built?.podium ?? [];
+  const champion = podium.find((a) => a.place === 1);
+  check("the two-group event produced a champion", !!champion, champion?.name ?? "(none)");
+  check(
+    "the archived table puts the champion first",
+    built?.standings?.[0]?.name === champion?.name,
+    `table says ${built?.standings?.[0]?.name}, podium says ${champion?.name}`
+  );
+  check(
+    "the club record credits the champion with the win",
+    built?.members?.find((r) => r.rank === 1)?.playedAs === champion?.name,
+    String(built?.members?.find((r) => r.rank === 1)?.playedAs)
+  );
+  check("nobody else is given a first place", (built?.members ?? []).filter((r) => r.rank === 1).length === 1);
+
+  // --- a team event is won by a team, and everybody on it won it -------------
+  await prisma.archivedTournament.deleteMany({});
+  await seedAndPlay("team-americano", ["A", "B", "C", "D", "E", "F", "G", "H"], 3);
+  const teamBuilt = await buildArchive(prisma);
+  const winningTeam = teamBuilt?.standings?.[0]?.name;
+  check("a team event is headlined by the team table", !!winningTeam && /team/i.test(String(winningTeam)), String(winningTeam));
+  const firsts = (teamBuilt?.members ?? []).filter((r) => r.rank === 1);
+  check("exactly one person is ranked first", firsts.length === 1, `${firsts.length} on rank 1`);
+  const snap = (await getFullSnapshot(prisma)) as unknown as { matches: MatchDTO[] };
+  const teamOf = new Map<string, number>();
+  for (const m of snap.matches) {
+    for (const p of [...(m.player1Members ?? []), ...(m.player2Members ?? [])]) if (p.team) teamOf.set(p.name, p.team);
+  }
+  const winnerTeamNo = Number(String(winningTeam ?? "").replace(new RegExp("\\D+", "g"), "")) || 1;
+  check(
+    "...and they are on the side that won, not merely the top scorer",
+    firsts.every((r) => teamOf.get(r.playedAs) === winnerTeamNo),
+    firsts.map((r) => `${r.playedAs}:${teamOf.get(r.playedAs)}`).join(" ")
+  );
+  // The property that actually holds: the record is ordered by the table that
+  // decided the event, so nobody on the losing side outranks anybody on the
+  // winning one — however many points they personally scored.
+  const ranked = (teamBuilt?.members ?? []).slice().sort((a, b) => a.rank - b.rank);
+  const sides = ranked.map((r) => teamOf.get(r.playedAs));
+  const lastWinner = sides.lastIndexOf(winnerTeamNo);
+  const firstLoser = sides.findIndex((t) => t !== undefined && t !== winnerTeamNo);
+  check(
+    "the whole winning side is recorded above the whole losing side",
+    firstLoser === -1 || lastWinner < firstLoser,
+    ranked.map((r) => `${r.playedAs}(${teamOf.get(r.playedAs)})`).join(" ")
+  );
+
   await prisma.archivedTournament.deleteMany({});
   await prisma.$disconnect();
   console.log(failures ? `\n${failures} CHECK(S) FAILED` : "\nALL CHECKS PASSED");

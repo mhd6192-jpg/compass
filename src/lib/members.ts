@@ -23,7 +23,7 @@
  */
 import type { PrismaClient } from "@prisma/client";
 
-type Db = Pick<PrismaClient, "clubMember" | "memberResult">;
+type Db = Pick<PrismaClient, "clubMember" | "memberResult" | "player">;
 
 /**
  * The form two entries are considered the same person on.
@@ -214,6 +214,14 @@ export async function mergeMembers(db: Db, keepId: string, dropId: string): Prom
       await db.memberResult.delete({ where: { id: r.id } });
     }
   }
+
+  // The draw currently on court points at these members too, and `Player.member`
+  // is `onDelete: SetNull` — so deleting the loser without this quietly detaches
+  // tonight's entrant from anybody. The archive skips a player with no member,
+  // so the night would simply not appear in their record, and a mid-evening save
+  // that already wrote a line for them has it deleted and not put back. Merging
+  // a duplicate spotted mid-evening is exactly when somebody does this.
+  await db.player.updateMany({ where: { memberId: dropId }, data: { memberId: keepId } });
 
   await db.clubMember.delete({ where: { id: dropId } });
   return moved;
