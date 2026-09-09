@@ -250,7 +250,7 @@ function ControlRoom() {
       {/* Clearance for the fixed "not updating" band, which would otherwise sit
           permanently on top of these two buttons the moment the poll drops —
           exactly when somebody reaches for the board. */}
-      <div className="flex gap-2 pb-28 safe-bottom">
+      <div className="flex gap-2 clear-band">
         <Link
           href="/v3/board"
           className="flex-1 text-center rounded-2xl border border-court-line font-display uppercase text-sm py-3 text-white/70"

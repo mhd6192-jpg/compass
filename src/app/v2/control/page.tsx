@@ -233,7 +233,7 @@ function ControlRoom() {
         </p>
       </section>
 
-      <div className="flex gap-2 pb-8">
+      <div className="flex gap-2 clear-band">
         <Link
           href="/v2/board"
           className="flex-1 text-center rounded-2xl border border-court-line font-display uppercase text-sm py-3 text-white/70"

@@ -77,8 +77,30 @@ body {
  * indicator, and an installed PWA has no browser chrome to do it for you —
  * which is exactly when a control ends up under the bar you swipe.
  */
+/*
+ * Keeps pinned controls off the home indicator.
+ *
+ * It sets `padding-bottom` OUTRIGHT, so it must never share an element with a
+ * Tailwind `pb-*`: this rule wins and the pb- is silently worth nothing. Five
+ * screens combined the two, including three that were added specifically to
+ * clear the "not updating" band, and every one of them computed to 0px on a
+ * phone. Use a margin beside it, or `.clear-band` below, which already carries
+ * the inset.
+ */
 .safe-bottom {
   padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+/*
+ * Room at the bottom of a screen for the fixed "this screen is not updating"
+ * band, which is about 82px on a phone and is `pointer-events-none` — so
+ * anything left underneath it is both invisible and still tappable, which is
+ * how a coach reaching for the warning pressed Undo instead. The inset is part
+ * of the same value rather than a second class, so it cannot be cancelled by
+ * one.
+ */
+.clear-band {
+  padding-bottom: calc(7rem + max(env(safe-area-inset-bottom), 0px));
 }
 .safe-top {
   padding-top: max(env(safe-area-inset-top), 0px);

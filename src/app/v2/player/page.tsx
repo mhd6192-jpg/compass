@@ -235,7 +235,7 @@ function PlayerCard({ view, onChange }: { view: PlayerView; onChange: () => void
         </section>
       )}
 
-      <div className="text-center pb-8 pt-2">
+      <div className="text-center pt-2 clear-band">
         <Link href="/v2/board" className="text-white/30 text-xs underline underline-offset-4">
           See every court
         </Link>

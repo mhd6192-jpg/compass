@@ -12,6 +12,8 @@ import { postWithRetry } from "@/lib/v3/retry";
 import { useOutbox } from "@/components/v3/useOutbox";
 import { enqueue as enqueuePoint, clearMatch as clearOutboxMatch, pendingFor, popLast, queuedFor } from "@/lib/v3/outbox";
 import V3Gate from "@/components/v3/V3Gate";
+import { useNow } from "@/components/v3/useNow";
+import { freshnessOf } from "@/lib/staleness";
 import PinBar from "@/components/scorer/PinBar";
 import BracketBadge from "@/components/shared/BracketBadge";
 import { ClubMark } from "@/components/shared/ClubLogo";
@@ -158,6 +160,8 @@ function ScorePad({ match, onTap }: { match: MatchDTO; onTap: (slot: 1 | 2) => v
 
 function CoachConsole({ courtId }: { courtId: number }) {
   const snapshot = useV3Store((s) => s.snapshot)!;
+  const lastSyncAt = useV3Store((s) => s.lastSyncAt);
+  const now = useNow();
   const pin = usePinStore((s) => s.pin);
   const coachName = useV3CoachStore((s) => s.name);
   const setCourt = useV3CoachStore((s) => s.setCourt);
@@ -465,7 +469,7 @@ function CoachConsole({ courtId }: { courtId: number }) {
   );
 
   const footerLinks = (
-    <div className="flex items-center justify-center gap-3 mt-6 pb-10 safe-bottom flex-wrap">
+    <div className="flex items-center justify-center gap-3 mt-6 mb-10 safe-bottom flex-wrap">
       <Link href="/v3/coach?change=1" className="text-white/45 text-xs underline underline-offset-4 py-2.5 px-1">
         Change court
       </Link>
@@ -503,11 +507,26 @@ function CoachConsole({ courtId }: { courtId: number }) {
   // page that may run as long as it likes.
   const scoring = view.screen === "live";
 
+  // The "this screen is not updating" band is fixed to the bottom of every v3
+  // screen. While scoring, this page is a definite `h-[100svh] overflow-hidden`
+  // whose last child is the Undo / Edit score / Retire row — so the band landed
+  // squarely on top of it, and with nothing to scroll the row could not be
+  // brought back. Measured on a 390x844 phone: the band covered 762-844 and the
+  // row sat 770-816, entirely underneath it. Worse than hidden: the band is
+  // `pointer-events-none`, so a coach reaching for the warning pressed whichever
+  // of Undo, Edit score or Retire was under their thumb, and the band was drawn
+  // over the result.
+  //
+  // The clearance is only taken while the band is actually up. The scoring pad
+  // spent a whole commit earning its height back, and a permanent 112px reserved
+  // against a warning that is almost never on screen would hand it straight back.
+  const lost = freshnessOf(lastSyncAt, now).level === "lost";
+
   return (
     <main
       className={`p-4 max-w-lg mx-auto flex flex-col ${
         scoring ? "h-[100svh] overflow-hidden" : "min-h-[100svh]"
-      }`}
+      } ${lost ? "clear-band" : ""}`}
     >
       {header}
 

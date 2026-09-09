@@ -449,7 +449,7 @@ function CoachConsole({ courtId }: { courtId: number }) {
   // --- ceremony takes over every screen in the venue -----------------------
   if (snapshot.v2.ceremony.stage !== "idle") {
     return (
-      <main className="min-h-screen p-4 max-w-lg mx-auto flex flex-col">
+      <main className="min-h-screen p-4 max-w-lg mx-auto flex flex-col clear-band">
         {header}
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">
           <p className="text-5xl">🏆</p>
@@ -465,7 +465,7 @@ function CoachConsole({ courtId }: { courtId: number }) {
   }
 
   return (
-    <main className="min-h-screen p-4 max-w-lg mx-auto flex flex-col">
+    <main className="min-h-screen p-4 max-w-lg mx-auto flex flex-col clear-band">
       {header}
 
       {error && <p className="text-live text-sm text-center mt-3">{error}</p>}

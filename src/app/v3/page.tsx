@@ -11,7 +11,7 @@ function Hub() {
   const ceremonyRunning = snapshot.v2.ceremony.stage !== "idle";
 
   return (
-    <main className="min-h-screen flex flex-col items-center p-6 pb-28 gap-8 safe-bottom">
+    <main className="min-h-screen flex flex-col items-center p-6 gap-8 clear-band">
       <div className="text-center flex flex-col items-center gap-3 mt-6">
         <ClubLogo size={52} />
         <div>

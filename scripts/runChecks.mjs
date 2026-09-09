@@ -39,6 +39,7 @@ const LOGIC = [
   ["checkEntrantWord", "the screens call an entrant what the event calls it"],
   ["checkRetiredScore", "a retirement keeps the points that were played"],
   ["checkStandingsTables", "the phone and the wall rank you in the same table"],
+  ["checkBandClearance", "the not-updating band never covers a control"],
   ["testNew", "seeding and score entry"],
 ];
 
