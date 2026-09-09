@@ -57,7 +57,7 @@ async function main() {
   g.window = g;
   g.addEventListener = () => {};
 
-  const { enqueue, pendingFor, drain, clearMatch } = await import("../src/lib/v3/outbox");
+  const { clearAll, enqueue, pendingFor, drain, clearMatch, forgetConfirmed } = await import("../src/lib/v3/outbox");
 
   let reply: Reply = { status: 200, body: { ok: true } };
   const calls: string[] = [];
@@ -110,6 +110,84 @@ async function main() {
   await drain({ ...handlers, onUnauthorized: () => { unauthorised = true; } });
   check("a wrong PIN keeps the points too", pendingFor("m3") === 2, `${pendingFor("m3")} left`);
   check("...and asks the coach to fix the PIN", unauthorised);
+
+  // The 401 above is still outstanding against that PIN, which is the whole
+  // point of it — so the queue is reset before the next section rather than
+  // every later drain being blocked by it.
+  clearAll();
+
+  // --- a fault the server SUFFERED is not a refusal it made ------------------
+  // The point route wraps its whole body in one catch. A database blip, a
+  // transaction timeout or a platform 502 used to come back as the same 400 as
+  // "out of step", and the queue deleted the coach's backlog over it. Faults
+  // are 5xx now and the points keep.
+  clearMatch("m4");
+  for (let i = 0; i < 4; i++) enqueue("m4", 1, i);
+  for (const status of [500, 502, 503, 504]) {
+    reply = { status, body: { error: "Server error" } };
+    await drain(handlers);
+    check(`a ${status} keeps every queued point`, pendingFor("m4") === 4, `${pendingFor("m4")} left`);
+  }
+  reply = { status: 200, body: { ok: true } };
+  await drain(handlers);
+  check("...and they send once the server recovers", pendingFor("m4") === 0, `${pendingFor("m4")} left`);
+
+  // A refusal the server MEANT still clears, and now says so with a 409.
+  clearMatch("m5");
+  enqueue("m5", 1, 0);
+  reply = { status: 409, body: { error: "Match already completed", refused: true } };
+  await drain(handlers);
+  check("a refusal on the merits still clears that match", pendingFor("m5") === 0, `${pendingFor("m5")} left`);
+
+  // --- a refused PIN costs one attempt, not one every 2.5 seconds ------------
+  // Failures are counted per address and a whole club sits behind one, so a
+  // phone re-posting a rejected PIN twice a second locks every coach out.
+  clearMatch("m6");
+  for (let i = 0; i < 2; i++) enqueue("m6", 1, i);
+  reply = { status: 401, body: { error: "Invalid PIN" } };
+  calls.length = 0;
+  const bad = { ...handlers, pin: "0000" };
+  for (let i = 0; i < 10; i++) await drain(bad);
+  check("ten retries with a refused PIN post it once", calls.length === 1, `${calls.length} requests`);
+  check("...and the points are still there", pendingFor("m6") === 2, `${pendingFor("m6")} left`);
+
+  reply = { status: 200, body: { ok: true } };
+  calls.length = 0;
+  await drain({ ...handlers, pin: "1234" });
+  check("a different PIN is tried immediately", calls.length === 2, `${calls.length} requests`);
+  check("...and the points go", pendingFor("m6") === 0, `${pendingFor("m6")} left`);
+
+  // --- the sequence a tap claims --------------------------------------------
+  // An entry leaves the queue the moment the server accepts it, but the polled
+  // snapshot only catches up a round trip later. A tap made in that window used
+  // to be numbered off the stale snapshot, be read as a replay of a point the
+  // server already had, and be deleted as "recorded". The point never existed.
+  clearMatch("m7");
+  reply = { status: 200, body: { ok: true } };
+  const first = enqueue("m7", 1, 0);
+  check("the first tap claims sequence 1", first.expectedSeq === 1, `${first.expectedSeq}`);
+  await drain(handlers);
+  // The snapshot still says zero points: the poll has not come back yet.
+  const second = enqueue("m7", 1, 0);
+  check("a tap sent before the snapshot catches up claims 2, not 1", second.expectedSeq === 2, `${second.expectedSeq}`);
+  await drain(handlers);
+  const third = enqueue("m7", 1, 0);
+  check("...and the one after that claims 3", third.expectedSeq === 3, `${third.expectedSeq}`);
+  await drain(handlers);
+
+  // Queued taps still stack on top of each other while offline.
+  const a = enqueue("m7", 1, 3);
+  const b = enqueue("m7", 2, 3);
+  check("two taps queued together claim consecutive sequences", a.expectedSeq === 4 && b.expectedSeq === 5, `${a.expectedSeq}, ${b.expectedSeq}`);
+  await drain(handlers);
+
+  // An undo lowers the server's count, and the queue has to come down with it —
+  // otherwise every later tap claims a sequence the match no longer has and is
+  // refused as out of step. The undo says so explicitly, because from in here a
+  // stale snapshot and a removed point look exactly the same.
+  forgetConfirmed("m7");
+  const afterUndo = enqueue("m7", 1, 2);
+  check("after an undo the next tap follows the server, not the watermark", afterUndo.expectedSeq === 3, `${afterUndo.expectedSeq}`);
 
   console.log(failures ? `\n${failures} CHECK(S) FAILED` : "\nALL CHECKS PASSED");
   process.exitCode = failures ? 1 : 0;

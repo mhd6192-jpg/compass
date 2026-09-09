@@ -50,6 +50,37 @@ let status: OutboxStatus = "idle";
 let lastError: string | null = null;
 let loaded = false;
 let draining = false;
+
+/**
+ * The highest sequence the server has actually confirmed, per match.
+ *
+ * A tap's sequence used to be counted from the last snapshot that had landed
+ * plus whatever was still queued. An entry leaves the queue the instant the
+ * server accepts it, but the snapshot only catches up a full round trip later —
+ * so for the length of that round trip the sum understated the true position by
+ * however many points had just been accepted. A tap made in that window got too
+ * low a sequence, the server read it as a replay of a point it already had,
+ * answered 200 with `duplicate: true`, and the queue filed it under "recorded"
+ * and deleted it. The point never existed and nothing said so.
+ *
+ * So the queue remembers what it has had confirmed rather than re-deriving it
+ * from something that lags. Deliberately not persisted: after a reload the
+ * queue is restored with the sequences it already carried, and the server's own
+ * count is the right base for anything new.
+ */
+const confirmedSeq = new Map<string, number>();
+
+/**
+ * A PIN the server has already refused.
+ *
+ * On a 401 the queue is kept — the points are good, the PIN is not — but the
+ * retry timer went on posting the same rejected PIN every 2.5 seconds, about 24
+ * failed attempts a minute. Failures are counted per address and a whole club
+ * sits behind one, so a single phone with the wrong PIN locked every coach in
+ * the venue out of scoring within half a minute. It waits for a different PIN
+ * now, which costs exactly one attempt.
+ */
+let refusedPin: string | null = null;
 const listeners = new Set<Listener>();
 
 /**
@@ -121,11 +152,12 @@ export function pendingFor(matchId: string): number {
 export function enqueue(matchId: string, slot: 1 | 2, serverPoints: number): QueuedPoint {
   load();
   const ahead = queue.filter((p) => p.matchId === matchId).length;
+  const base = Math.max(serverPoints, confirmedSeq.get(matchId) ?? 0);
   const entry: QueuedPoint = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     matchId,
     slot,
-    expectedSeq: serverPoints + ahead + 1,
+    expectedSeq: base + ahead + 1,
     queuedAt: Date.now(),
   };
   queue = [...queue, entry];
@@ -162,8 +194,22 @@ export function popLast(matchId: string): boolean {
 }
 
 /** Drop everything queued for a match — used when the server says we are out of sync. */
+/**
+ * Forget what the server had confirmed for this match.
+ *
+ * A snapshot that has not caught up and a point the server has just removed
+ * look identical from in here — both are "the server reports fewer points than
+ * we have had confirmed". Guessing between them either loses a tap or refuses
+ * every tap after an undo, so the undo says so instead: it is the one moment
+ * the client knows the count went down.
+ */
+export function forgetConfirmed(matchId: string) {
+  confirmedSeq.delete(matchId);
+}
+
 export function clearMatch(matchId: string) {
   load();
+  confirmedSeq.delete(matchId);
   queue = queue.filter((p) => p.matchId !== matchId);
   persist();
   emit();
@@ -171,6 +217,8 @@ export function clearMatch(matchId: string) {
 
 export function clearAll() {
   load();
+  confirmedSeq.clear();
+  refusedPin = null;
   queue = [];
   lastError = null;
   status = "idle";
@@ -208,6 +256,10 @@ export async function drain(handlers: DrainHandlers): Promise<void> {
     setStatus("idle");
     return;
   }
+  // The retry timer calls this every couple of seconds regardless. Posting a PIN
+  // the server has already refused just banks another failure against a bucket
+  // the whole club shares, so wait for a different one. The points keep.
+  if (refusedPin !== null && handlers.pin === refusedPin) return;
 
   draining = true;
   try {
@@ -241,6 +293,10 @@ export async function drain(handlers: DrainHandlers): Promise<void> {
       }
 
       if (res.status === 401) {
+        // Remember which PIN it was. The retry timer keeps calling this, and
+        // posting the same refused PIN twice a second banks failures against a
+        // bucket the whole club shares.
+        refusedPin = handlers.pin;
         setStatus("error", "PIN rejected — points are saved and will send once it is fixed.");
         handlers.onUnauthorized();
         return;
@@ -265,16 +321,27 @@ export async function drain(handlers: DrainHandlers): Promise<void> {
       }
 
       if (!res.ok) {
-        let message = "The server rejected a point.";
+        let message = res.status >= 500 ? "The server is having trouble." : "The server rejected a point.";
         try {
           message = (await res.json())?.error ?? message;
         } catch {
           /* keep the default */
         }
-        // Out of sync, match already finished, and anything else the server
-        // refuses are all unrecoverable by retrying — replaying would either
-        // fail forever or write a wrong score. Drop this match's queue and let
-        // the caller resync from the server, which is the true record.
+
+        // A fault the server SUFFERED is not a refusal it made. A database blip,
+        // a transaction timeout, a platform 502 — all of them used to land in
+        // the branch below and delete a coach's whole backlog for that match,
+        // which is the one thing this queue exists to prevent. Keep everything
+        // and try again on the next tick, exactly as for a dropped connection.
+        if (res.status >= 500) {
+          setStatus("offline", message);
+          return;
+        }
+
+        // What is left is a decision: out of step, or the match is already over.
+        // Replaying either would fail forever or write a wrong score, so drop
+        // this match's queue and let the caller resync from the server, which is
+        // the true record.
         const matchId = entry.matchId;
         clearMatch(matchId);
         setStatus("error", message);
@@ -283,6 +350,10 @@ export async function drain(handlers: DrainHandlers): Promise<void> {
       }
 
       // Accepted, or recognised as a replay — either way it is now recorded.
+      // Remembering the sequence is what stops the next tap being numbered off a
+      // snapshot that has not caught up yet and thrown away as a replay.
+      confirmedSeq.set(entry.matchId, Math.max(confirmedSeq.get(entry.matchId) ?? 0, entry.expectedSeq));
+      refusedPin = null;
       queue = queue.filter((p) => p.id !== entry.id);
       persist();
       emit();

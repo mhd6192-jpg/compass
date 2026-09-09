@@ -10,7 +10,7 @@ import SwapMatchSheet from "@/components/v3/SwapMatchSheet";
 import { canSwapOut } from "@/lib/v3/swap";
 import { postWithRetry } from "@/lib/v3/retry";
 import { useOutbox } from "@/components/v3/useOutbox";
-import { enqueue as enqueuePoint, clearMatch as clearOutboxMatch, pendingFor, popLast, queuedFor } from "@/lib/v3/outbox";
+import { enqueue as enqueuePoint, clearMatch as clearOutboxMatch, forgetConfirmed, pendingFor, popLast, queuedFor } from "@/lib/v3/outbox";
 import V3Gate from "@/components/v3/V3Gate";
 import { useNow } from "@/components/v3/useNow";
 import { freshnessOf } from "@/lib/staleness";
@@ -399,6 +399,11 @@ function CoachConsole({ courtId }: { courtId: number }) {
       setError(out.error);
       return;
     }
+    // The server has one point fewer than it had. The queue numbers the next tap
+    // from the highest sequence it has had confirmed, so that has to come down
+    // too — otherwise every tap after an undo claims a place the match no longer
+    // has and is refused as out of step.
+    forgetConfirmed(match.id);
     liveStateRef.current = null;
     useV3Store.getState().refresh();
   }

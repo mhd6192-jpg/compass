@@ -130,6 +130,24 @@ export interface ScorePointResult {
  *
  * Omit it and the old behaviour applies — the point is simply appended.
  */
+/**
+ * A refusal the server means, as distinct from a fault it suffered.
+ *
+ * The point route used to answer 400 for both, and the offline queue read every
+ * non-401, non-429 reply as "the server has considered this and said no" and
+ * deleted that match's whole backlog. A database blip, a transaction timeout or
+ * a platform 502 therefore threw away points a coach had already tapped — the
+ * exact failure the queue exists to prevent, reached through the door next to
+ * the one `checkOutbox429.ts` was written to close.
+ *
+ * Only these refusals are decisions: the match is gone, it is already over, or
+ * the device is out of step and replaying would write a wrong score. Everything
+ * else is worth retrying.
+ */
+export class ScoringRefusal extends Error {
+  readonly refusal = true as const;
+}
+
 export async function scorePoint(
   client: PrismaClient,
   matchId: string,
@@ -138,9 +156,13 @@ export async function scorePoint(
   tappedAt?: Date
 ): Promise<ScorePointResult> {
   return client.$transaction(async (tx) => {
-    const match = await tx.match.findUniqueOrThrow({ where: { id: matchId } });
-    if (match.status === "completed") throw new Error("Match already completed");
-    if (!match.player1Id || !match.player2Id) throw new Error("Match is missing a player");
+    // Looked up rather than asserted, so a match that no longer exists is a
+    // refusal and not a fault. A draw that has been reset while a phone still
+    // holds points for it would otherwise be retried for ever.
+    const match = await tx.match.findUnique({ where: { id: matchId } });
+    if (!match) throw new ScoringRefusal("That match is no longer in the draw");
+    if (match.status === "completed") throw new ScoringRefusal("Match already completed");
+    if (!match.player1Id || !match.player2Id) throw new ScoringRefusal("Match is missing a player");
 
     const config = await getScoringConfig(tx);
     const existingSlots = await loadPointSlots(tx, matchId);
@@ -163,7 +185,7 @@ export async function scorePoint(
         // The phone thinks more points exist than the server has: an earlier one
         // never landed. Applying this would record the wrong score, so refuse
         // and let the client resync.
-        throw new Error(`Out of step: this device recorded ${expectedSeq - 1} points, the match has ${seq - 1}.`);
+        throw new ScoringRefusal(`Out of step: this device recorded ${expectedSeq - 1} points, the match has ${seq - 1}.`);
       }
     }
 

@@ -52,6 +52,7 @@ const DB = [
   ["checkMembers", "who plays here, across events"],
   ["checkField", "late arrivals, early leavers, stand-ins"],
   ["checkRenameGuard", "a rename can never land on the wrong person"],
+  ["checkPointRefusals", "a refusal the server means, against a fault it suffered"],
   ["checkStateRev", "the polling revision misses nothing"],
   ["checkAmericanoFlow", "americano end to end"],
   ["checkRotatingSets", "rotating formats played as sets"],

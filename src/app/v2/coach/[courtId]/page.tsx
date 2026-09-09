@@ -10,7 +10,7 @@ import SwapMatchSheet from "@/components/v2/SwapMatchSheet";
 import { canSwapOut } from "@/lib/v2/swap";
 import { postWithRetry } from "@/lib/v2/retry";
 import { useOutbox } from "@/components/v2/useOutbox";
-import { enqueue as enqueuePoint, clearMatch as clearOutboxMatch, pendingFor, popLast, queuedFor } from "@/lib/v2/outbox";
+import { enqueue as enqueuePoint, clearMatch as clearOutboxMatch, forgetConfirmed, pendingFor, popLast, queuedFor } from "@/lib/v2/outbox";
 import V2Gate from "@/components/v2/V2Gate";
 import PinBar from "@/components/scorer/PinBar";
 import BracketBadge from "@/components/shared/BracketBadge";
@@ -361,6 +361,10 @@ function CoachConsole({ courtId }: { courtId: number }) {
       setError(out.error);
       return;
     }
+    // The server has one point fewer than it had, so the queue's high-water mark
+    // has to come down with it or every tap after an undo claims a place the
+    // match no longer has.
+    forgetConfirmed(match.id);
     liveStateRef.current = null;
     useV2Store.getState().refresh();
   }

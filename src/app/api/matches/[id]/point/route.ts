@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { scorePoint } from "@/lib/bracket/routing";
+import { ScoringRefusal, scorePoint } from "@/lib/bracket/routing";
 import { getMatchDTO } from "@/lib/bracket/dto";
 import { formatMatchScoreLine } from "@/lib/scoring/format";
 import { checkPin } from "@/lib/rateLimit";
@@ -67,6 +67,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ ok: true, tier: result.tier, completed: result.completed });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to score point";
-    return NextResponse.json({ error: message }, { status: 400 });
+    // A refusal the server means gets a 4xx and the coach's queue for that match
+    // is dropped, because replaying it would fail forever or write a wrong
+    // score. A fault the server suffered — a database blip, a timeout — gets a
+    // 5xx, so the queue keeps the points and tries again. They used to share a
+    // 400, and the queue deleted a coach's saved points over a hiccup.
+    if (e instanceof ScoringRefusal) {
+      return NextResponse.json({ error: message, refused: true }, { status: 409 });
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
