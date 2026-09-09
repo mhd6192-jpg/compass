@@ -40,15 +40,39 @@ export async function verifyOrganiser(pin: unknown): Promise<boolean> {
   return typeof pin === "string" && pin === stored;
 }
 
-/** The stored organiser PIN, or null when the installation is unclaimed. */
+/**
+ * Whether this error is "that table does not exist yet".
+ *
+ * Prisma reports a missing table as P2021 and a missing column as P2022. It is
+ * the one database failure that legitimately means "this install has not been
+ * migrated", and it is the only one allowed to read as unclaimed.
+ */
+function isMissingSchema(e: unknown): boolean {
+  const code = (e as { code?: unknown })?.code;
+  return code === "P2021" || code === "P2022";
+}
+
+/**
+ * The stored organiser PIN, or null when the installation is unclaimed.
+ *
+ * The catch here is deliberately narrow, and it did not used to be. An
+ * unclaimed install accepts ANY organiser PIN — which is right for a fresh one,
+ * and is how an install that updates into this version is not locked out — so a
+ * catch-all made every transient database failure read as unclaimed too. A pool
+ * timeout or a dropped connection during an evening would have let `/api/reset`,
+ * the one endpoint that erases the draw, accept whatever PIN it was given.
+ *
+ * A missing table is the only failure that means what the fallback says. Any
+ * other error is thrown, and the route answers with a refusal — which is the
+ * safe direction for the most destructive thing in the app.
+ */
 export async function organiserPin(): Promise<string | null> {
   try {
     const row = await prisma.appSettings.findUnique({ where: { id: "default" } });
     return row?.organiserPin ?? null;
-  } catch {
-    // Before `prisma db push` has run there is no table, which reads as
-    // unclaimed — the same as a fresh install.
-    return null;
+  } catch (e) {
+    if (isMissingSchema(e)) return null;
+    throw e;
   }
 }
 

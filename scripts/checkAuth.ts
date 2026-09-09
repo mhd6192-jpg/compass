@@ -90,6 +90,34 @@ async function main() {
   check("the organiser can still score if they know the coach PIN", await verifyPin("coach-pin"));
   check("the organiser PIN is not accepted for scoring", !(await verifyPin("1357")));
 
+  // --- unclaimed must mean unclaimed, and nothing else -------------------------
+  // An unclaimed install accepts ANY organiser PIN. That is right for a fresh
+  // one and it is how an install updating into this version avoids locking its
+  // organiser out — but it used to be reached by a catch-all, so EVERY database
+  // failure read as unclaimed. A pool timeout during an evening would have let
+  // /api/reset, the one endpoint that erases the draw, accept whatever PIN it
+  // was handed. A missing table is the only failure that means what the
+  // fallback says.
+  await prisma.appSettings.deleteMany({});
+  await prisma.appSettings.create({ data: { id: "default", organiserPin: "2468" } });
+  check("a claimed install refuses a wrong organiser PIN", !(await verifyOrganiser("0000")));
+
+  // The legitimate fallback — no table at all — is not exercised here: renaming
+  // a table under a live Prisma client is enough to end PGlite's single shared
+  // session, and the fallback itself is one line. What matters is that it is the
+  // ONLY failure treated that way, which is checked at the source below.
+
+  // Anything else must NOT be quietly read as unclaimed. Checked at the source,
+  // because a pool timeout cannot be conjured against a database that is up.
+  const authSrc = (await import("node:fs")).readFileSync("src/lib/auth.ts", "utf8");
+  const reader = authSrc.slice(authSrc.indexOf("export async function organiserPin"));
+  const body = reader.slice(0, reader.indexOf("' + BS + 'nexport", 1) === -1 ? reader.length : reader.indexOf("' + BS + 'nexport", 1));
+  // The reader must RETHROW what it does not recognise. A catch-all that always
+  // answers null is the defect: it reads every database failure as "unclaimed",
+  // and an unclaimed install accepts any organiser PIN.
+  check("the reader rethrows a failure it does not recognise", /throw e;/.test(body), body.slice(-120).replace(/' + BS + 's+/g, " "));
+  check("...it classifies the one it means", /P2021/.test(authSrc));
+
   await prisma.tournamentConfig.deleteMany({});
   await prisma.appSettings.deleteMany({});
   await prisma.$disconnect();
