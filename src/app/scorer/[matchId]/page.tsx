@@ -262,6 +262,12 @@ function ScoringContent() {
     setNamesOpen(false);
   }
 
+  // Only where a side IS one entrant. In a rotating-partners format the side is
+  // a pairing, so the two fields would be prefilled with "Ana & Ben" and stored
+  // against Ana; the other two people on court have no field at all. The server
+  // refuses it as well — this is what stops it being offered in the first place.
+  const sidesAreEntrants = !!match && !match.player1Members && !match.player2Members;
+
   function openNames() {
     if (!match) return;
     setName1(match.player1?.name ?? "");
@@ -483,9 +489,11 @@ function ScoringContent() {
               >
                 {fixingCompleted ? "Reopening…" : "Wrong score? Fix result"}
               </button>
-              <button onClick={openNames} className="text-xs text-white/40 underline underline-offset-4">
-                Edit player names
-              </button>
+              {sidesAreEntrants && (
+                <button onClick={openNames} className="text-xs text-white/40 underline underline-offset-4">
+                  Edit player names
+                </button>
+              )}
               <button onClick={undo} className="text-xs text-white/30 underline underline-offset-4">
                 Undo last point instead
               </button>
@@ -568,9 +576,11 @@ function ScoringContent() {
           <button onClick={undo} className="text-white/50 text-sm underline underline-offset-4">
             Undo last point
           </button>
-          <button onClick={openNames} className="text-white/30 text-sm underline underline-offset-4">
-            Edit names
-          </button>
+          {sidesAreEntrants && (
+            <button onClick={openNames} className="text-white/30 text-sm underline underline-offset-4">
+              Edit names
+            </button>
+          )}
           <button
             onClick={() => {
               setForceEndSlot(null);
