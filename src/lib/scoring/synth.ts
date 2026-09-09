@@ -4,6 +4,16 @@ import { computeMatchState, ScoringConfig, setsToWin } from "./engine";
 export interface SetInput {
   a: number; // games (or tiebreak points for a match-tiebreak decider) for player 1
   b: number; // ...for player 2
+  /**
+   * The LOSER's points in a 7-6 set's tiebreak, where one was played and the
+   * coach knows it — the number the score line shows in brackets.
+   *
+   * Without it a hand-entered 7-6 had to invent a breaker, and it invented 7-0,
+   * which the score line then printed as "7-6(0)" on the winner screen, in the
+   * archive and in the message sent to the group chat: a specific claim about a
+   * set nobody had made.
+   */
+  tb?: number;
 }
 
 export interface ScoreInput {
@@ -48,8 +58,15 @@ export function isMatchTiebreakDecider(config: ScoringConfig, priorSetsWon: [num
   return priorSetsWon[0] === needed - 1 && priorSetsWon[1] === needed - 1;
 }
 
-/** Legality check for one completed set. Returns the winner slot, or throws. */
-export function validateCompletedSet(a: number, b: number, isDecider: boolean): 1 | 2 {
+/**
+ * Legality check for one completed set. Returns the winner slot, or throws.
+ *
+ * `advantage` has no tiebreak, so a set runs past 6-6 until somebody is two
+ * clear: 8-6, 9-7, 10-8. The rules here allowed 6-0..6-4, 7-5 and 7-6 only, so
+ * an advantage set that went beyond 7-5 could not be entered AT ALL — the one
+ * mode where long sets are the point of choosing it.
+ */
+export function validateCompletedSet(a: number, b: number, isDecider: boolean, advantage = false): 1 | 2 {
   if (a < 0 || b < 0 || !Number.isInteger(a) || !Number.isInteger(b)) throw new Error("Scores must be whole numbers");
   if (a === b) throw new Error("A completed set can't be a tie");
   const hi = Math.max(a, b);
@@ -60,6 +77,12 @@ export function validateCompletedSet(a: number, b: number, isDecider: boolean): 
     // 10-point match tiebreak, win by 2
     if (hi < 10 || hi - lo < 2) throw new Error(`Deciding tiebreak must reach 10 and win by 2 (got ${a}-${b})`);
     return winner;
+  }
+  if (advantage) {
+    // No tiebreak: 6-0..6-4, then two clear games — 7-5, 8-6, 10-8 and so on.
+    if (hi === 6 && lo <= 4) return winner;
+    if (hi >= 7 && hi - lo === 2) return winner;
+    throw new Error(`Illegal set score ${a}-${b} — past 6-6 an advantage set is won by two clear games`);
   }
   // normal set: 6-0..6-4, 7-5, 7-6
   if (hi === 6 && lo <= 4) return winner;
@@ -129,9 +152,9 @@ export function synthPoints(input: ScoreInput, config: ScoringConfig): { slots: 
     if (setsWon[0] >= needed || setsWon[1] >= needed) {
       throw new Error("There are more sets than needed — the match was already decided");
     }
-    const { a, b } = input.completedSets[i];
+    const { a, b, tb } = input.completedSets[i];
     const decider = isMatchTiebreakDecider(config, setsWon);
-    const winner = validateCompletedSet(a, b, decider);
+    const winner = validateCompletedSet(a, b, decider, config.tiebreakMode === "advantage");
 
     if (decider) {
       pushTiebreak(slots, winner, Math.max(a, b), Math.min(a, b));
@@ -139,9 +162,14 @@ export function synthPoints(input: ScoreInput, config: ScoringConfig): { slots: 
       const hi = Math.max(a, b);
       const lo = Math.min(a, b);
       if (hi === 7 && lo === 6) {
-        // 6-6 then a 7-point tiebreak; default the breaker to 7-0 for the set winner
+        // 6-6, then the tiebreak. The loser's points come from `tb` when the
+        // coach entered them; a winner needs seven, or two clear once the
+        // breaker has gone past six. Without `tb` this has to invent something,
+        // and whatever it invents the score line will print as fact — which is
+        // why the editor asks for it as soon as a set reads 7-6.
+        const loserTb = Number.isInteger(tb) && (tb as number) >= 0 ? (tb as number) : 0;
         pushPartialGames(slots, 6, 6);
-        pushTiebreak(slots, winner, 7, 0);
+        pushTiebreak(slots, winner, Math.max(7, loserTb + 2), loserTb);
       } else {
         pushPartialGames(slots, a, b);
       }

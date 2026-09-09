@@ -16,7 +16,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const finalize = body.finalize === true;
     const completedSets: SetInput[] = Array.isArray(body.completedSets)
-      ? body.completedSets.map((s: unknown) => ({ a: Number((s as SetInput).a), b: Number((s as SetInput).b) }))
+      ? body.completedSets.map((s: unknown) => {
+          const row = s as SetInput;
+          const tb = Number(row.tb);
+          // The loser's points in a 7-6 breaker, when the coach gave them.
+          return { a: Number(row.a), b: Number(row.b), ...(Number.isInteger(tb) && tb >= 0 ? { tb } : {}) };
+        })
       : [];
     const currentSetGames =
       Array.isArray(body.currentSetGames) && body.currentSetGames.length === 2

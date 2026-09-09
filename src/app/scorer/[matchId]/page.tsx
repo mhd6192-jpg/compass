@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import ConnectionGate from "@/components/shared/ConnectionGate";
@@ -30,7 +30,7 @@ function ScoringContent() {
   const [justCompleted, setJustCompleted] = useState(false);
 
   const [scoreOpen, setScoreOpen] = useState(false);
-  const [completedRows, setCompletedRows] = useState<{ a: number; b: number }[]>([]);
+  const [completedRows, setCompletedRows] = useState<{ a: number; b: number; tb?: number }[]>([]);
   const [currentRow, setCurrentRow] = useState<{ a: number; b: number }>({ a: 0, b: 0 });
   const [useCurrentRow, setUseCurrentRow] = useState(false);
   const [fixingCompleted, setFixingCompleted] = useState(false);
@@ -98,7 +98,14 @@ function ScoringContent() {
   useEffect(() => {
     if (!wantsQuickScore || !match || !match.player1 || !match.player2) return;
     router.replace(`/scorer/${match.id}`);
-    const rows = match.state.completedSets.map((s) => (s.tiebreak && s.games[0] + s.games[1] === 1 ? { a: s.tiebreak[0], b: s.tiebreak[1] } : { a: s.games[0], b: s.games[1] }));
+    const rows = match.state.completedSets.map((s) => {
+      // A match-tiebreak decider IS its breaker; an ordinary 7-6 carries one
+      // alongside, and it has to come back into the editor or reopening a
+      // result and saving it again would quietly reset the breaker to nothing.
+      if (s.tiebreak && s.games[0] + s.games[1] === 1) return { a: s.tiebreak[0], b: s.tiebreak[1] };
+      const loserTb = s.tiebreak ? Math.min(s.tiebreak[0], s.tiebreak[1]) : undefined;
+      return { a: s.games[0], b: s.games[1], ...(loserTb === undefined ? {} : { tb: loserTb }) };
+    });
     setCompletedRows(rows.length ? rows : [{ a: 0, b: 0 }]);
     const cur = match.state.currentSet?.games;
     setCurrentRow(cur ? { a: cur[0], b: cur[1] } : { a: 0, b: 0 });
@@ -337,15 +344,33 @@ function ScoringContent() {
           <span className="text-center text-white/70 font-display uppercase text-xs truncate w-16">{match.player2!.name}</span>
 
           {completedRows.map((row, idx) => (
-            <ScoreRowInput
-              key={idx}
-              label={pointsRace ? "Points" : `Set ${idx + 1}`}
-              row={row}
-              onStep={(field, delta) =>
-                setCompletedRows((prev) => prev.map((x, i) => (i === idx ? { ...x, [field]: clampScore(x[field] + delta, maxScore) } : x)))
-              }
-              onRemove={!pointsRace && completedRows.length > 1 ? () => setCompletedRows((prev) => prev.filter((_, i) => i !== idx)) : undefined}
-            />
+            <Fragment key={idx}>
+              <ScoreRowInput
+                label={pointsRace ? "Points" : `Set ${idx + 1}`}
+                row={row}
+                onStep={(field, delta) =>
+                  setCompletedRows((prev) => prev.map((x, i) => (i === idx ? { ...x, [field]: clampScore(x[field] + delta, maxScore) } : x)))
+                }
+                onRemove={!pointsRace && completedRows.length > 1 ? () => setCompletedRows((prev) => prev.filter((_, i) => i !== idx)) : undefined}
+              />
+              {/* A 7-6 was played out in a tiebreak, and the score line prints
+                  what the loser got in brackets. Without asking, this had to
+                  invent a breaker — it invented 7-0, and "7-6(0)" then went on
+                  the winner screen and into the archive as a fact nobody had
+                  stated. Only asked for where it exists. */}
+              {!pointsRace && Math.max(row.a, row.b) === 7 && Math.min(row.a, row.b) === 6 && (
+                <ScoreRowInput
+                  label={`Set ${idx + 1} tiebreak`}
+                  row={{ a: row.tb ?? 0, b: row.tb ?? 0 }}
+                  single
+                  onStep={(_field, delta) =>
+                    setCompletedRows((prev) =>
+                      prev.map((x, i) => (i === idx ? { ...x, tb: clampScore((x.tb ?? 0) + delta, 30) } : x))
+                    )
+                  }
+                />
+              )}
+            </Fragment>
           ))}
         </div>
 
@@ -714,11 +739,14 @@ function ScoreRowInput({
   row,
   onStep,
   onRemove,
+  single,
 }: {
   label: string;
   row: { a: number; b: number };
   onStep: (field: "a" | "b", delta: number) => void;
   onRemove?: () => void;
+  /** One number rather than two — the loser's points in a tiebreak. */
+  single?: boolean;
 }) {
   return (
     <>
@@ -731,7 +759,7 @@ function ScoreRowInput({
         )}
       </span>
       <Stepper value={row.a} onStep={(d) => onStep("a", d)} />
-      <Stepper value={row.b} onStep={(d) => onStep("b", d)} />
+      {single ? <span className="text-white/25 text-xs self-center">loser&apos;s points</span> : <Stepper value={row.b} onStep={(d) => onStep("b", d)} />}
     </>
   );
 }

@@ -43,6 +43,7 @@ const LOGIC = [
   ["checkV2Parity", "v2 has not fallen behind v3 where they share code"],
   ["checkCourtScreen", "a court shows and scores only the match on it"],
   ["checkTallyWording", "points or games, wherever a screen says it out loud"],
+  ["checkTypedScores", "scores a coach types in rather than taps out"],
   ["testNew", "seeding and score entry"],
 ];
 
