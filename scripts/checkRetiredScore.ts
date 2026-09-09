@@ -123,6 +123,34 @@ const sets = computeStandings([
 check("a retirement in set play adds the games of the unfinished set", by(sets, "Ana")?.pointsFor === 9, `got ${by(sets, "Ana")?.pointsFor}`);
 check("...and not the points inside the game in progress", by(sets, "Cara")?.pointsFor === 6, `got ${by(sets, "Cara")?.pointsFor}`);
 
+// --- what a set is worth, which is not the same as what it says --------------
+// A points race and a match-tiebreak deciding set are both stored as one game
+// plus a tiebreak, so the shape cannot tell them apart. Reading the tiebreak in
+// both counted a 10-8 breaker as ten GAMES in a column where an ordinary set is
+// worth six — and that column is the round-robin tiebreak and what decides which
+// two level teams meet in a play-off.
+
+const raceMatch = computeStandings([
+  match({ tiebreakMode: "race-to-16", completedSets: [{ games: [1, 0], tiebreak: [16, 9] }], winner: 1 }),
+]);
+check("a points race is worth its points", by(raceMatch, "Ana")?.pointsFor === 16, `got ${by(raceMatch, "Ana")?.pointsFor}`);
+
+const decider = computeStandings([
+  match({
+    tiebreakMode: "match-tiebreak",
+    completedSets: [{ games: [6, 4] }, { games: [4, 6] }, { games: [1, 0], tiebreak: [10, 8] }],
+    winner: 1,
+  }),
+]);
+check("a match-tiebreak decider is worth the set it replaces", by(decider, "Ana")?.pointsFor === 11, `got ${by(decider, "Ana")?.pointsFor}`);
+check("...and the loser gets the games they actually won", by(decider, "Cara")?.pointsFor === 10, `got ${by(decider, "Cara")?.pointsFor}`);
+
+// A within-set 7-6 breaker was never the problem: its games are 7-6, not 1-0.
+const sevenSix = computeStandings([
+  match({ tiebreakMode: "standard", completedSets: [{ games: [7, 6], tiebreak: [7, 5] }], winner: 1 }),
+]);
+check("a 7-6 set is still worth seven games", by(sevenSix, "Ana")?.pointsFor === 7, `got ${by(sevenSix, "Ana")?.pointsFor}`);
+
 // --- the team table reads the same match the same way ------------------------
 
 const teams = computeTeamStandings([match({ forcedEnd: true, currentGame: [14, 9], winner: 1, teams: true })]);

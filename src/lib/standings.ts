@@ -34,12 +34,30 @@ export function findDecider(matches: MatchDTO[]): MatchDTO | undefined {
   return matches.find(isDeciderMatch);
 }
 
-/** Points scored in one completed set by the player in slot `mySlot` (0 or 1). Uses
- * the tiebreak score when the set is a points-race decider (race-to-9, or a
- * within-set 7-6 breaker), otherwise the games score. */
-function pointsInSet(set: { games: [number, number]; tiebreak?: [number, number] }, mySlot: 0 | 1): number {
-  const isWholeMatchRace = !!set.tiebreak && set.games[0] + set.games[1] === 1;
-  if (isWholeMatchRace) return set.tiebreak![mySlot];
+/**
+ * What one completed set contributes to the tally, for the player in `mySlot`.
+ *
+ * The tally column counts POINTS in a race and GAMES in set play, and which one
+ * a set is worth cannot be read off the set alone. Two very different things are
+ * both stored as one game plus a tiebreak:
+ *
+ *  - a points race, where the whole match is a single race and the tiebreak IS
+ *    the score — 16-9 is worth 16;
+ *  - a match-tiebreak deciding set, which stands in for a third SET and is worth
+ *    the one game it replaces, whatever the breaker finished at.
+ *
+ * Deciding from the shape counted a 10-8 breaker as ten games in a column where
+ * an ordinary set is worth six — and that column is the round-robin tiebreak,
+ * the thing `ensureDecider` and `ensureSemifinals` rank level teams by. So it
+ * is decided from the scoring mode instead, which is the thing that actually
+ * knows. A within-set 7-6 breaker is unaffected: its games are 7-6, not 1-0.
+ */
+function pointsInSet(
+  set: { games: [number, number]; tiebreak?: [number, number] },
+  mySlot: 0 | 1,
+  mode: string | undefined
+): number {
+  if (isPointsRace(mode) && set.tiebreak) return set.tiebreak[mySlot];
   return set.games[mySlot];
 }
 
@@ -63,9 +81,10 @@ function pointsInSet(set: { games: [number, number]; tiebreak?: [number, number]
 function matchTally(m: MatchDTO): [number, number] {
   let p1 = 0;
   let p2 = 0;
+  const mode = m.state.config.tiebreakMode;
   for (const set of m.state.completedSets) {
-    p1 += pointsInSet(set, 0);
-    p2 += pointsInSet(set, 1);
+    p1 += pointsInSet(set, 0, mode);
+    p2 += pointsInSet(set, 1, mode);
   }
   if (m.forcedEnd) {
     // A race keeps its score in the running game; set play counts games, and the
