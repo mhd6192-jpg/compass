@@ -10,7 +10,7 @@ export interface V2Snapshot {
   tournament: { status: string; format: string; discipline: string; bestOfSets: number; tiebreakMode: string; raceTarget?: number; serveEvery?: number; raceWinBy?: number };
   courts: { id: number; label: string }[];
   matches: MatchDTO[];
-  progress: { completed: number; total: number };
+  progress: { completed: number; total: number; scheduled?: number };
   v2: V2StateDTO & { podium: AwardDTO[] };
 }
 

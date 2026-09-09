@@ -172,8 +172,19 @@ async function stampCalled(prisma: DB): Promise<void> {
     where: { courtSlot: "current", status: { not: "completed" }, calledAt: null },
     data: { calledAt: new Date() },
   });
+  // `NOT: { courtSlot: "current" }` becomes `NOT (courtSlot = 'current')`, which
+  // is SQL NULL — not TRUE — for a row whose slot is NULL, so it matched nothing
+  // there. Every path that bumps a match fully off a court nulls the slot, so
+  // exactly the matches this is meant to forget were the ones it skipped: they
+  // kept a stamp from an earlier call, and since the statement above only stamps
+  // a match whose `calledAt` is null, it was never refreshed either. A court
+  // called a moment ago then read as long overdue and the board shouted for it.
   await prisma.match.updateMany({
-    where: { calledAt: { not: null }, status: { not: "completed" }, NOT: { courtSlot: "current" } },
+    where: {
+      calledAt: { not: null },
+      status: { not: "completed" },
+      OR: [{ courtSlot: null }, { courtSlot: { not: "current" } }],
+    },
     data: { calledAt: null },
   });
 }
@@ -209,6 +220,15 @@ export async function manualAssignCourt(
   }
   if (!source.player1Id || !source.player2Id) {
     throw new Error("This match is still waiting on an earlier result — it cannot be put on a court yet.");
+  }
+  // A rotating format draws every round at seeding time with both sides already
+  // known, and lets them out one at a time — so "both players known" does not
+  // mean "playable". Without this, a later round could be put on a court, and
+  // because the status ternary below only promotes `ready`, it would sit there
+  // as `pending` while taking points: invisible to the round gating, which then
+  // never opens the round it belongs to.
+  if (source.status === "pending") {
+    throw new Error("That round has not been let out yet — finish the round on court first.");
   }
 
   // A manual move must not put a team onto two courts at once. Ignore the

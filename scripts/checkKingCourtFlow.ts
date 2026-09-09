@@ -83,8 +83,16 @@ async function main() {
   check("one match per rung, round 1 only", am.length === 3 && am.every((m) => m.round === 1), `${am.length}`);
   check("the ladder is named on the round", am.some((m) => m.roundName.includes("King court")), am.map((m) => m.roundName).join(" | "));
   check(
-    "lower rungs are named as plain courts",
-    am.some((m) => m.roundName.includes("Court 2")) && am.some((m) => m.roundName.includes("Court 3")),
+    "lower rungs are named as rungs",
+    am.some((m) => m.roundName.includes("Rung 2")) && am.some((m) => m.roundName.includes("Rung 3")),
+    am.map((m) => m.roundName).join(" | ")
+  );
+  // Never a court number. The rung comes from who won last round and the court
+  // from `rebalanceCourts`; this string is the only court identity a player sees
+  // on the board, and the club's own courts are numbered 2 and 3.
+  check(
+    "...and no rung borrows a court number",
+    !am.some((m) => /· Court \d/.test(m.roundName)),
     am.map((m) => m.roundName).join(" | ")
   );
 

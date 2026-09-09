@@ -2,7 +2,7 @@ import type { Match, Player, PrismaClient } from "@prisma/client";
 import { computeMatchState, ScoringConfig, toDTO } from "../scoring/engine";
 import { getScoringConfig } from "./config";
 import { getTvControl } from "../tvControl";
-import { BracketCode, MatchDTO, MatchStatus, PlayerDTO, ROUND_NAMES, isKingCourt, isPointsRace, pairLabel } from "../types";
+import { BracketCode, MatchDTO, MatchStatus, PlayerDTO, ROUND_NAMES, isDerivedRounds, isKingCourt, isPointsRace, pairLabel } from "../types";
 import { courtLevelName } from "./kingCourt";
 import { biggestDeficitRecovered } from "../scoring/comeback";
 import { longestPointGap } from "../scoring/rally";
@@ -150,6 +150,24 @@ export async function getFullSnapshot(prisma: PrismaClient) {
 
   const total = matchDTOs.length;
   const completed = matchDTOs.filter((m) => m.status === "completed").length;
+  // How much tennis the evening actually holds.
+  //
+  // Counting rows is right for a format drawn up front, and wrong for one that
+  // builds each round when the last finishes: a mexicano's table holds only the
+  // rounds already played plus the one on court, so the board's bar climbed from
+  // about half full to full and told nobody how much of the night was left.
+  // `amRounds` is resolved at seeding time and stored, and round one says how
+  // many matches a round holds — no per-format arithmetic needed.
+  //
+  // Kept separate from `total`, which several screens compare against
+  // `completed` to decide the evening is over. That comparison is right as it
+  // stands: the last scheduled round opens no successor, so the rows do run out.
+  const perRound = matchDTOs.filter((m) => m.round === 1).length;
+  const scheduledRounds = configRow?.amRounds ?? 0;
+  const scheduled =
+    isDerivedRounds(configRow?.format) && scheduledRounds > 0 && perRound > 0
+      ? Math.max(total, scheduledRounds * perRound)
+      : total;
 
   return {
     tournament: {
@@ -165,7 +183,7 @@ export async function getFullSnapshot(prisma: PrismaClient) {
     },
     courts,
     matches: matchDTOs,
-    progress: { completed, total },
+    progress: { completed, total, scheduled },
     tvControl: getTvControl(),
   };
 }

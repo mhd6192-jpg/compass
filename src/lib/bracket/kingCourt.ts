@@ -55,9 +55,19 @@ export function courtCount(playerCount: number): number {
   return Math.floor(playerCount / 4);
 }
 
-/** "King court", then plain numbers down the ladder. */
+/**
+ * "King court", then rungs down the ladder.
+ *
+ * Deliberately NOT "Court 2". The ladder position and the physical court are
+ * different things — the rung comes from who won last round, the court comes
+ * from `rebalanceCourts` handing them out by rest and load — and this string is
+ * the only court identity a player sees on the big board queue, the control
+ * room and the court TV's badge. The club's own courts are numbered 2 and 3, so
+ * "Round 3 · Court 2" could send somebody to the wrong end of the hall while
+ * looking exactly like an instruction.
+ */
 export function courtLevelName(level: number): string {
-  return level === 0 ? "King court" : `Court ${level + 1}`;
+  return level === 0 ? "King court" : `Rung ${level + 1}`;
 }
 
 /**

@@ -42,7 +42,7 @@ export interface VenueView {
   courts: CourtCard[];
   /** Ready to play, not yet called to a court. */
   queue: MatchDTO[];
-  progress: { completed: number; total: number };
+  progress: { completed: number; total: number; scheduled?: number };
   ceremonyRunning: boolean;
   alertCount: number;
 }
@@ -93,7 +93,7 @@ export function buildVenueView(
   snapshot: {
     courts: Array<{ id: number; label: string }>;
     matches: MatchDTO[];
-    progress: { completed: number; total: number };
+    progress: { completed: number; total: number; scheduled?: number };
     v2: { courts: CourtStageDTO[]; ceremony: CeremonyDTO };
   },
   now: number

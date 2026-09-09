@@ -26,7 +26,10 @@ check("4 players is refused (a ladder needs something to climb)", !isValidKingCo
 check("10 players is refused (does not divide into fours)", !isValidKingCourtField(10));
 check("courtCount(16) is 4 rungs", courtCount(16) === 4);
 check("level 0 is the king court", courtLevelName(0) === "King court", courtLevelName(0));
-check("level 1 is court 2", courtLevelName(1) === "Court 2", courtLevelName(1));
+check("level 1 is the second rung", courtLevelName(1) === "Rung 2", courtLevelName(1));
+// Never a court number: the rung and the physical court are handed out by
+// different things, and the club's courts are numbered 2 and 3.
+check("no rung borrows a court number", ![0, 1, 2, 3, 4].some((l) => /^Court /.test(courtLevelName(l))));
 
 // --- the opening ladder ------------------------------------------------------
 const ids = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10", "p11", "p12"];

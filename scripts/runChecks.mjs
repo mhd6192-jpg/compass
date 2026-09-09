@@ -56,6 +56,7 @@ const DB = [
   ["checkField", "late arrivals, early leavers, stand-ins"],
   ["checkRenameGuard", "a rename can never land on the wrong person"],
   ["checkForcedEnd", "a walkover called for the wrong side can be corrected"],
+  ["checkCourtCalls", "when a court was called, and what may be put on one"],
   ["checkPointRefusals", "a refusal the server means, against a fault it suffered"],
   ["checkStateRev", "the polling revision misses nothing"],
   ["checkAmericanoFlow", "americano end to end"],

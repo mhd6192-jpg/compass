@@ -132,7 +132,11 @@ function Board() {
     return <CeremonyScreen ceremony={snapshot.v2.ceremony} />;
   }
 
-  const pct = venue.progress.total ? Math.round((venue.progress.completed / venue.progress.total) * 100) : 0;
+  // Against the evening's scheduled size, not the rows drawn so far — a format
+  // that builds each round as the last one finishes would otherwise read about
+  // half done all night and jump to full at the end.
+  const evening = venue.progress.scheduled ?? venue.progress.total;
+  const pct = evening ? Math.round((venue.progress.completed / evening) * 100) : 0;
   const columns = Math.max(1, venue.courts.length);
 
   return (
@@ -156,7 +160,7 @@ function Board() {
           <div className="text-right">
             <p className="font-display tabular-nums text-gold" style={{ fontSize: "clamp(0.9rem, 2vw, 2.2rem)", lineHeight: 1 }}>
               {venue.progress.completed}
-              <span className="text-white/30">/{venue.progress.total}</span>
+              <span className="text-white/30">/{evening}</span>
             </p>
             <p className="font-display uppercase tracking-[0.25em] text-white/35" style={{ fontSize: "clamp(0.45rem, 0.8vw, 0.85rem)" }}>
               matches played

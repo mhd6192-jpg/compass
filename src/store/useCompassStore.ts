@@ -15,7 +15,7 @@ export interface Snapshot {
   tournament: { status: string; format: string; bestOfSets: number; tiebreakMode: string; raceTarget?: number; serveEvery?: number; raceWinBy?: number };
   courts: { id: number; label: string }[];
   matches: MatchDTO[];
-  progress: { completed: number; total: number };
+  progress: { completed: number; total: number; scheduled?: number };
   tvControl?: TvControl;
 }
 
