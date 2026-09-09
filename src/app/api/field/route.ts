@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { resolveMembers } from "@/lib/members";
 import { checkPin } from "@/lib/rateLimit";
 import { broadcastSnapshot } from "@/lib/broadcast";
 import { addPlayer, refuseFieldChange, replacePlayer, withdrawPlayer } from "@/lib/bracket/field";
@@ -74,10 +75,18 @@ export async function POST(req: Request) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const action = body.action;
+    // Resolved out here, never inside the transaction: on a database without the
+    // member tables the lookup fails, and a failed statement inside a Postgres
+    // transaction poisons every statement after it — so the whole field change
+    // would be refused on exactly the installations the guard exists to keep
+    // working. `seedTournament` does the same, for the same reason.
+    const name = String(body.name ?? "").trim();
+    const [memberId] = name ? await resolveMembers(prisma, [name]) : [null];
+
     const result = await prisma.$transaction(async (tx) => {
-      if (action === "replace") return replacePlayer(tx, String(body.playerId ?? ""), String(body.name ?? ""));
+      if (action === "replace") return replacePlayer(tx, String(body.playerId ?? ""), String(body.name ?? ""), memberId);
       if (action === "withdraw") return withdrawPlayer(tx, String(body.playerId ?? ""));
-      if (action === "add") return addPlayer(tx, String(body.name ?? ""));
+      if (action === "add") return addPlayer(tx, String(body.name ?? ""), memberId);
       throw new Error("Say whether somebody is joining, leaving, or taking another player's place.");
     });
 

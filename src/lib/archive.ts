@@ -15,6 +15,7 @@ import type { PrismaClient } from "@prisma/client";
 import { getFullSnapshot } from "./bracket/dto";
 import { computeStandings, computeTeamStandings, type StandingsRow } from "./standings";
 import { computePodium } from "./v2/podium";
+import type { AwardDTO } from "./v2/stage";
 import { formatMatchScoreLine } from "./scoring/format";
 import { formatSpec } from "./bracket/formats";
 import { isTeamScored, matchFormatLabel, pairLabel, tallyUnit, type MatchDTO } from "./types";
@@ -223,6 +224,27 @@ export async function buildArchive(prisma: PrismaClient, label?: string): Promis
     select: { startedAt: true },
   });
   const startedAt = started?.startedAt ?? null;
+
+  // The podium the club actually announced, where there was one.
+  //
+  // `Ceremony.awards` is frozen the moment the presentation starts, on purpose,
+  // so a late score correction cannot reshuffle the names while somebody is
+  // reading them out. The archive recomputed the podium from the matches as they
+  // stood at reset time and `resetV2State` then deleted the ceremony row — so a
+  // point landing after the ceremony began quietly changed the recorded result,
+  // and the frozen record of what was said out loud was gone for good.
+  //
+  // Guarded like the other v2 tables: an installation without them archives the
+  // computed podium, which is what it did before any of this existed.
+  let announced: AwardDTO[] | null = null;
+  try {
+    const ceremony = await prisma.ceremony.findUnique({ where: { id: "default" } });
+    if (ceremony && ceremony.stage !== "idle" && Array.isArray(ceremony.awards) && ceremony.awards.length > 0) {
+      announced = ceremony.awards as unknown as AwardDTO[];
+    }
+  } catch {
+    /* no ceremony table on this installation */
+  }
   // The club's record of the night is ranked by what actually decided it, not by
   // the group table the wall screens were showing when the last match finished.
   const teamTable = computeTeamStandings(snapshot.matches);
@@ -241,7 +263,7 @@ export async function buildArchive(prisma: PrismaClient, label?: string): Promis
     // the individual scorers are kept beside it rather than instead of it.
     standings: teamScored ? teamTable : placings,
     players: teamScored ? individual : null,
-    podium: computePodium(snapshot.matches, format, snapshot.tournament.tiebreakMode),
+    podium: announced ?? computePodium(snapshot.matches, format, snapshot.tournament.tiebreakMode),
     results,
     startedAt,
     endedAt,

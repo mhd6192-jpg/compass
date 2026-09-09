@@ -8,7 +8,7 @@ import { arrangeDraw } from "@/lib/bracket/seedArrange";
 
 import { entrantWordCap, entrantsArePeople, isPointsRace, isRotatingPartners, isTwoGroupEntry, type TiebreakMode, type TournamentFormat } from "@/lib/types";
 import { MIN_TWO_GROUP_TEAMS, splitGroups, twoGroupMatchCount } from "@/lib/bracket/twoGroup";
-import { FORMAT_FAMILIES, describeField, formatsInFamily, validateField } from "@/lib/bracket/formats";
+import { FORMAT_FAMILIES, describeField, formatsInFamily, maxRoundsFor, validateField } from "@/lib/bracket/formats";
 
 interface SavedRoster {
   id: string;
@@ -33,7 +33,6 @@ import {
   defaultTeamRounds,
   generateTeamAmericano,
   isValidTeamField,
-  maxTeamRounds,
   teamName,
   teamScheduleQuality,
   teamSize,
@@ -45,7 +44,6 @@ import {
   generateMixicano,
   groupSize,
   isValidMixicanoField,
-  maxMixicanoRounds,
   mixicanoGroupName,
   mixicanoScheduleQuality,
   matchesPerRound as mixicanoMatchesPerRound,
@@ -71,7 +69,6 @@ import {
   generateMixedTeamAmericano,
   halfSize as mixedTeamHalfSize,
   isValidMixedTeamField,
-  maxMixedTeamRounds,
   mixedTeamScheduleQuality,
   teamSize as mixedTeamSize,
   matchesPerRound as mixedTeamMatchesPerRound,
@@ -1001,8 +998,12 @@ export default function SetupPage() {
             </p>
           ) : (
             <p className="text-white/40 text-xs mt-3">
-              Every team plays every other team once ({rrNames.length} teams → {(rrNames.length * (rrNames.length - 1)) / 2} matches).
-              Standings are ranked by matches won.
+              {/* The FILLED rows, which is what the seeder gets and what the
+                  two-group branch three lines up already uses. Counting the
+                  input rows instead promised matches nobody would play, and
+                  squared the error into the match count. */}
+              Every team plays every other team once ({amPlayerCount} teams →{" "}
+              {(amPlayerCount * (amPlayerCount - 1)) / 2} matches). Standings are ranked by matches won.
             </p>
           )}
         </section>
@@ -1015,13 +1016,13 @@ export default function SetupPage() {
             {mixedTeam
               ? `How many times you change partner within your team.${
                   isValidMixedTeamField(amPlayerCount)
-                    ? ` With halves of ${mixedTeamHalfSize(amPlayerCount)} there are ${maxMixedTeamRounds(amPlayerCount)} rounds before anyone repeats a partner.`
+                    ? ` With halves of ${mixedTeamHalfSize(amPlayerCount)} there are ${maxRoundsFor(format, amPlayerCount)} rounds before anyone repeats a partner.`
                     : ""
                 }`
               : mixedAmericano
               ? `How many times everyone changes partners.${
                   amPlayerCount >= MIN_AMERICANO_PLAYERS
-                    ? ` With ${amPlayerCount} players you can play up to ${amPlayerCount - 1} rounds before anyone has to repeat a partner.`
+                    ? ` With ${amPlayerCount} players you can play up to ${maxRoundsFor(format, amPlayerCount)} rounds before anyone has to repeat a partner.`
                     : ""
                 }`
               : mixedMexicano
@@ -1031,13 +1032,13 @@ export default function SetupPage() {
               : mixicano
               ? `How many times you change partner across the groups.${
                   isValidMixicanoField(amPlayerCount)
-                    ? ` With groups of ${groupSize(amPlayerCount)} there are ${maxMixicanoRounds(amPlayerCount)} rounds before anyone repeats a partner.`
+                    ? ` With groups of ${groupSize(amPlayerCount)} there are ${maxRoundsFor(format, amPlayerCount)} rounds before anyone repeats a partner.`
                     : ""
                 }`
               : teamAmericano
               ? `How many times you change partner within your team.${
                   isValidTeamField(amPlayerCount)
-                    ? ` A team of ${teamSize(amPlayerCount)} has ${maxTeamRounds(amPlayerCount)} rounds before anyone repeats a team-mate.`
+                    ? ` A team of ${teamSize(amPlayerCount)} has ${maxRoundsFor(format, amPlayerCount)} rounds before anyone repeats a team-mate.`
                     : ""
                 }`
               : kingCourt
@@ -1046,7 +1047,7 @@ export default function SetupPage() {
               ? "How many times the table is redrawn. Each round is made from the standings at that moment, so partners and opponents follow your results."
               : `How many times everyone changes partners.${
                   MIN_AMERICANO_PLAYERS <= amPlayerCount
-                    ? ` With ${amPlayerCount} players you can play up to ${amPlayerCount - 1} rounds before anyone has to repeat a partner.`
+                    ? ` With ${amPlayerCount} players you can play up to ${maxRoundsFor(format, amPlayerCount)} rounds before anyone has to repeat a partner.`
                     : ""
                 }`}
           </p>

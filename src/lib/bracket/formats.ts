@@ -300,3 +300,18 @@ export function describeField(format: string | undefined, playerCount: number): 
 export function defaultRoundsFor(format: string | undefined, playerCount: number): number {
   return formatSpec(format).defaultRounds?.(playerCount) ?? 0;
 }
+
+/**
+ * Rounds available before somebody has to repeat a partner, or 0 where the
+ * format has no such limit.
+ *
+ * The registry has declared this for five formats since it was written and
+ * nothing read it: the one screen that states the limit — the setup Rounds
+ * copy — worked it out again, three branches calling the per-format modules
+ * directly and two inlining `players - 1`. That is precisely the drift the
+ * registry exists to prevent, on the field that decides the sentence telling an
+ * organiser how long their evening can run.
+ */
+export function maxRoundsFor(format: string | undefined, playerCount: number): number {
+  return formatSpec(format).maxRounds?.(playerCount) ?? 0;
+}

@@ -351,18 +351,43 @@ function CoachConsole({ courtId }: { courtId: number }) {
   }
 
   /** Rebuild the displayed score from the server's version plus whatever is still queued. */
-  function repaintFromQueue(matchId: string) {
+  function repaintFromQueue(matchId: string): boolean {
     const serverState = useV3Store.getState().serverStateFor(matchId);
     if (!serverState) {
       liveStateRef.current = null;
       useV3Store.getState().refresh();
-      return;
+      return false;
     }
     let rebuilt = stateFromDTO(serverState);
     for (const q of queuedFor(matchId)) rebuilt = applyPoint(rebuilt, q.slot, config).state;
     liveStateRef.current = { matchId, state: rebuilt };
     useV3Store.getState().optimisticPoint(matchId, toDTO(rebuilt, config));
+    return true;
   }
+
+  /**
+   * Put the queue back on the pad after a reload.
+   *
+   * The store holds the local view while taps are still queued, so the score
+   * cannot jump backwards mid-match — but it does that by re-using the previous
+   * in-memory snapshot, and a reload has destroyed it. The first poll then
+   * adopts the SERVER's match, which is behind by every unsent tap, and each
+   * later poll freezes on that same pre-queue version: the coach comes back to a
+   * phone showing a score lower than the one they had, for as long as the
+   * outage lasts. The queue itself survives in localStorage; only the picture
+   * was lost, so it is rebuilt from the queue the moment there is a server state
+   * to rebuild it onto.
+   */
+  const repaintedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const id = match?.id;
+    if (!id || repaintedFor.current === id) return;
+    if (pendingFor(id) === 0) return;
+    if (repaintFromQueue(id)) repaintedFor.current = id;
+    // Only on the match this console is showing, and only while its queue is
+    // still holding taps the server has not confirmed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match?.id, snapshot]);
 
   /**
    * Take back the last point.

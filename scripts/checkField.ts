@@ -127,7 +127,7 @@ async function main() {
   // --- somebody arrives late ----------------------------------------------------
   await seed("americano", EIGHT, 4);
   await playRound(1);
-  const joined = await prisma.$transaction((tx) => addPlayer(tx, "Iris"));
+  const joined = await prisma.$transaction((tx) => addPlayer(tx, "Iris", null));
   check("a latecomer can join an americano", joined.playing === 9, JSON.stringify(joined));
 
   const withIris = await rows();
@@ -146,7 +146,7 @@ async function main() {
   await seed("americano", EIGHT, 4);
   await playRound(1);
   const dan = (await prisma.player.findFirst({ where: { name: "Dan" } }))!;
-  const swap = await prisma.$transaction((tx) => replacePlayer(tx, dan.id, "Karim"));
+  const swap = await prisma.$transaction((tx) => replacePlayer(tx, dan.id, "Karim", null));
   check("somebody can take another player's place", swap.replaced === "Dan" && swap.name === "Karim", JSON.stringify(swap));
   check("...taking over their remaining matches", swap.matches > 0, `${swap.matches} matches`);
 
@@ -171,7 +171,7 @@ async function main() {
   await seed("king-court", EIGHT, 4);
   await playRound(1);
   const gia = (await prisma.player.findFirst({ where: { name: "Gia" } }))!;
-  const kcSwap = await prisma.$transaction((tx) => replacePlayer(tx, gia.id, "Layla"));
+  const kcSwap = await prisma.$transaction((tx) => replacePlayer(tx, gia.id, "Layla", null));
   await playRound(2);
   const kcRows = await rows();
   const kcRound3 = kcRows.filter((m) => m.round === 3);
@@ -184,7 +184,7 @@ async function main() {
   await seed("winner-court", EIGHT, 5);
   await playRound(1);
   const hugo = (await prisma.player.findFirst({ where: { name: "Hugo" } }))!;
-  const wcSwap = await prisma.$transaction((tx) => replacePlayer(tx, hugo.id, "Nadia"));
+  const wcSwap = await prisma.$transaction((tx) => replacePlayer(tx, hugo.id, "Nadia", null));
   await playRound(2);
   await playRound(3);
   const wcRows = await rows();
@@ -244,17 +244,17 @@ async function main() {
   // --- the things that must simply be refused ------------------------------------
   await seed("americano", EIGHT, 3);
   const ana = (await prisma.player.findFirst({ where: { name: "Ana" } }))!;
-  await prisma.$transaction((tx) => replacePlayer(tx, ana.id, "Sara"));
+  await prisma.$transaction((tx) => replacePlayer(tx, ana.id, "Sara", null));
   refused = "";
-  await prisma.$transaction((tx) => replacePlayer(tx, ana.id, "Tariq")).catch((e) => (refused = String(e.message)));
+  await prisma.$transaction((tx) => replacePlayer(tx, ana.id, "Tariq", null)).catch((e) => (refused = String(e.message)));
   check("somebody who has left cannot be replaced twice", /already left/.test(refused), refused || "(allowed)");
 
   refused = "";
-  await prisma.$transaction((tx) => replacePlayer(tx, ana.id, "   ")).catch((e) => (refused = String(e.message)));
+  await prisma.$transaction((tx) => replacePlayer(tx, ana.id, "   ", null)).catch((e) => (refused = String(e.message)));
   check("a stand-in needs a name", /name/.test(refused), refused || "(allowed)");
 
   refused = "";
-  await prisma.$transaction((tx) => replacePlayer(tx, "nobody", "Tariq")).catch((e) => (refused = String(e.message)));
+  await prisma.$transaction((tx) => replacePlayer(tx, "nobody", "Tariq", null)).catch((e) => (refused = String(e.message)));
   check("a stranger cannot be replaced", /No such player/.test(refused), refused || "(allowed)");
 
   // The field has a floor. Emptying it one at a time must stop at the point the
@@ -270,7 +270,7 @@ async function main() {
   // --- and none of it works before an event is running -----------------------------
   await prisma.tournamentConfig.updateMany({ data: { status: "setup" } });
   refused = "";
-  await prisma.$transaction((tx) => addPlayer(tx, "Zed")).catch((e) => (refused = String(e.message)));
+  await prisma.$transaction((tx) => addPlayer(tx, "Zed", null)).catch((e) => (refused = String(e.message)));
   check("nobody joins a tournament that has not started", /No tournament is running/.test(refused), refused || "(allowed)");
 
   await prisma.$disconnect();

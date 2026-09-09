@@ -149,7 +149,18 @@ const REWRITABLE: Prisma.MatchWhereInput = {
  * formats that read the roster in order see the field exactly as it was with a
  * different name in one slot.
  */
-export async function replacePlayer(tx: Tx, outgoingId: string, name: string) {
+/**
+ * `memberId` is resolved by the CALLER, above the transaction.
+ *
+ * `seedTournament` goes out of its way to do the same, and says why: on a
+ * database where the members table has not been created the lookup fails, and a
+ * failed statement inside a Postgres transaction poisons every statement after
+ * it. `resolveMembers` swallows its own error and answers null, but the
+ * connection is already aborted, so the `player.create` below fails and the
+ * whole field change is refused — on exactly the installations the guard was
+ * written to keep working.
+ */
+export async function replacePlayer(tx: Tx, outgoingId: string, name: string, memberId: string | null) {
   const cfg = await tx.tournamentConfig.findUnique({ where: { id: "default" } });
   if (cfg?.status !== "active") throw new Error("No tournament is running.");
   const refusal = refuseFieldChange(cfg.format, "replace");
@@ -167,7 +178,6 @@ export async function replacePlayer(tx: Tx, outgoingId: string, name: string) {
   const from = await firstUntouchedRound(tx);
   await guardRoundInProgress(tx, outgoingId, from);
 
-  const [memberId] = await resolveMembers(tx as never, [clean]);
   const incoming = await tx.player.create({
     data: {
       name: clean,
@@ -226,7 +236,8 @@ export async function withdrawPlayer(tx: Tx, playerId: string) {
 }
 
 /** Somebody arrives late and joins from the next round. */
-export async function addPlayer(tx: Tx, name: string) {
+/** `memberId` is resolved by the caller, above the transaction — see `replacePlayer`. */
+export async function addPlayer(tx: Tx, name: string, memberId: string | null) {
   const cfg = await tx.tournamentConfig.findUnique({ where: { id: "default" } });
   if (cfg?.status !== "active") throw new Error("No tournament is running.");
   const refusal = refuseFieldChange(cfg.format, "add");
@@ -239,7 +250,6 @@ export async function addPlayer(tx: Tx, name: string) {
   const invalid = formatSpec(cfg.format).validateField?.(roster.length + 1);
   if (invalid) throw new Error(`Cannot bring ${clean} in. ${invalid}`);
 
-  const [memberId] = await resolveMembers(tx as never, [clean]);
   const last = await tx.player.aggregate({ _max: { seed: true } });
   const player = await tx.player.create({
     data: { name: clean, seed: (last._max.seed ?? -1) + 1, memberId },
