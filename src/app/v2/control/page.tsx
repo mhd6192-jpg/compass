@@ -83,12 +83,17 @@ function CourtPanel({ card, onSwap }: { card: CourtCard; onSwap: () => void }) {
         </p>
       )}
 
-      <div className="flex items-center justify-between gap-2 text-[11px] text-white/35">
+      {/* Stacked on a phone, side by side from sm up. This used to be one row
+          with `truncate shrink-0` on the second span, which is a contradiction:
+          truncate makes it nowrap so its base width is the whole string, and
+          shrink-0 forbids reducing it to fit. Short demo names hid it; a pair of
+          real ones pushed the whole control room sideways. Fixed on v3 first. */}
+      <div className="flex flex-col gap-0.5 text-[11px] text-white/35 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
         <span className="truncate">
           {card.coachName ? `Coach: ${card.coachName}` : "No coach signed in"}
         </span>
         {card.upcoming && (
-          <span className="truncate shrink-0">
+          <span className="truncate sm:text-right">
             Then: {card.upcoming.player1?.name ?? "TBD"} v {card.upcoming.player2?.name ?? "TBD"}
           </span>
         )}

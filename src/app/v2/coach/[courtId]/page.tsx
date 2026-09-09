@@ -12,6 +12,8 @@ import { postWithRetry } from "@/lib/v2/retry";
 import { useOutbox } from "@/components/v2/useOutbox";
 import { enqueue as enqueuePoint, clearMatch as clearOutboxMatch, forgetConfirmed, pendingFor, popLast, queuedFor } from "@/lib/v2/outbox";
 import V2Gate from "@/components/v2/V2Gate";
+import { useNow } from "@/components/v2/useNow";
+import { freshnessOf } from "@/lib/staleness";
 import PinBar from "@/components/scorer/PinBar";
 import BracketBadge from "@/components/shared/BracketBadge";
 import { ClubMark } from "@/components/shared/ClubLogo";
@@ -62,7 +64,7 @@ function TapSide({
       <span className="font-display uppercase font-bold text-2xl text-center leading-tight break-words">
         {player?.name ?? "TBD"}
       </span>
-      <span className="text-white/40 text-xs uppercase tracking-widest">
+      <span className="text-white/40 text-xs uppercase tracking-widest [@media(max-height:560px)]:hidden">
         Sets {st.setsWon[i]} · Games {games}
       </span>
       {/* Animates only when the displayed point actually changes — no `key` on a
@@ -77,7 +79,9 @@ function TapSide({
       >
         {points}
       </motion.span>
-      <span className="text-white/30 text-[11px] uppercase tracking-widest mt-1">Tap to score</span>
+      <span className="text-white/30 text-[11px] uppercase tracking-widest mt-1 [@media(max-height:620px)]:hidden">
+        Tap to score
+      </span>
     </button>
   );
 }
@@ -128,6 +132,8 @@ function ScorePad({ match, onTap, disabled }: { match: MatchDTO; onTap: (slot: 1
 
 function CoachConsole({ courtId }: { courtId: number }) {
   const snapshot = useV2Store((s) => s.snapshot)!;
+  const lastSyncAt = useV2Store((s) => s.lastSyncAt);
+  const now = useNow();
   const pin = usePinStore((s) => s.pin);
   const coachName = useCoachStore((s) => s.name);
   const setCourt = useCoachStore((s) => s.setCourt);
@@ -468,8 +474,21 @@ function CoachConsole({ courtId }: { courtId: number }) {
     );
   }
 
+  // The same chain v3 was fixed for: `min-h-screen` is a FLOOR, so nothing
+  // capped the page and the flex-1/min-h-0 run through the tap zones could only
+  // grow — putting the Undo / Edit score / Retire row below the fold on a phone.
+  // It takes a definite height while scoring, sheds the tap captions on a short
+  // screen, and drops the navigation links from the one screen that is meant to
+  // be a fixed tapping surface.
+  const scoring = view.screen === "live";
+  const lost = freshnessOf(lastSyncAt, now).level === "lost";
+
   return (
-    <main className="min-h-screen p-4 max-w-lg mx-auto flex flex-col clear-band">
+    <main
+      className={`p-4 max-w-lg mx-auto flex flex-col ${
+        scoring ? "h-[100svh] overflow-hidden" : "min-h-screen"
+      } ${lost ? "clear-band" : ""}`}
+    >
       {header}
 
       {error && <p className="text-live text-sm text-center mt-3">{error}</p>}
@@ -612,7 +631,7 @@ function CoachConsole({ courtId }: { courtId: number }) {
         </div>
       )}
 
-      {footerLinks}
+      {!scoring && footerLinks}
 
       {/* --- confirm the match-winning point -------------------------------- */}
       {confirmWin && match && (

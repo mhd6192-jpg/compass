@@ -1,5 +1,5 @@
 import { tableContaining, type StandingsRow } from "../standings";
-import type { MatchDTO, PlayerDTO } from "../types";
+import { participantIds, type MatchDTO, type PlayerDTO } from "../types";
 
 /**
  * One team's view of the tournament.
@@ -30,28 +30,71 @@ export interface PlayerView {
   tableLabel: string | null;
 }
 
+/**
+ * Everyone who can be looked up on the player card.
+ *
+ * In an americano this is the individuals, not the sides — partners rotate, so
+ * "Ana & Ben" is a thing that exists for one round rather than someone who can
+ * follow their own results all evening.
+ */
 export function teamsIn(matches: MatchDTO[]): PlayerDTO[] {
   const byId = new Map<string, PlayerDTO>();
   for (const m of matches) {
-    if (m.player1) byId.set(m.player1.id, m.player1);
-    if (m.player2) byId.set(m.player2.id, m.player2);
+    const people = [...(m.player1Members ?? (m.player1 ? [m.player1] : [])), ...(m.player2Members ?? (m.player2 ? [m.player2] : []))];
+    for (const p of people) byId.set(p.id, p);
   }
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function involves(match: MatchDTO, teamId: string): boolean {
-  return match.player1?.id === teamId || match.player2?.id === teamId;
+  return participantIds(match).includes(teamId);
 }
 
+/**
+ * Which side of the net this person is on, 1 or 2 — null if they are not in
+ * this match at all.
+ *
+ * `match.player1.id` is NOT the side. In an americano it is the id of that
+ * side's FIRST member only (see the contract on `MatchDTO.player1`), so
+ * comparing a person against it silently answers "no" for the second member of
+ * every pair. Anything that attributes a score or a result to a person has to
+ * go through the member list, which is what this does.
+ */
+export function sideOf(match: MatchDTO, playerId: string): 1 | 2 | null {
+  const side1 = match.player1Members ?? (match.player1 ? [match.player1] : []);
+  if (side1.some((p) => p.id === playerId)) return 1;
+  const side2 = match.player2Members ?? (match.player2 ? [match.player2] : []);
+  if (side2.some((p) => p.id === playerId)) return 2;
+  return null;
+}
+
+/** The side this person is up against — in an americano, the other pair. */
 export function opponentOf(match: MatchDTO, teamId: string): PlayerDTO | null {
-  if (match.player1?.id === teamId) return match.player2;
-  if (match.player2?.id === teamId) return match.player1;
+  const onSide1 = (match.player1Members ?? (match.player1 ? [match.player1] : [])).some((p) => p.id === teamId);
+  if (onSide1) return match.player2;
+  const onSide2 = (match.player2Members ?? (match.player2 ? [match.player2] : [])).some((p) => p.id === teamId);
+  if (onSide2) return match.player1;
+  return null;
+}
+
+/** Who this person is playing WITH this round — americano only, null elsewhere. */
+export function partnerOf(match: MatchDTO, playerId: string): PlayerDTO | null {
+  for (const side of [match.player1Members, match.player2Members]) {
+    if (!side) continue;
+    if (side.some((p) => p.id === playerId)) return side.find((p) => p.id !== playerId) ?? null;
+  }
   return null;
 }
 
 /**
- * Which table this entrant is ranked in — asked of the same helper the wall
- * screens use, so a phone and a television cannot report different positions.
+ * Which table this entrant is ranked in.
+ *
+ * Asked of the same helper the wall screens use, so the number on somebody's
+ * phone and the number on the television cannot disagree. This used to look for
+ * a GA/GB bracket, which only the two-group format has — a mixed americano or
+ * mixed mexicano carries its groups on the player instead, so the card ranked
+ * everyone against the whole field while every screen in the room showed two
+ * separate group tables.
  */
 function tableFor(matches: MatchDTO[], teamId: string, format?: string): { rows: StandingsRow[]; label: string | null } {
   return tableContaining(matches, teamId, format);

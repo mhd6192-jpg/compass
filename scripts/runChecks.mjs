@@ -40,6 +40,7 @@ const LOGIC = [
   ["checkRetiredScore", "a retirement keeps the points that were played"],
   ["checkStandingsTables", "the phone and the wall rank you in the same table"],
   ["checkBandClearance", "the not-updating band never covers a control"],
+  ["checkV2Parity", "v2 has not fallen behind v3 where they share code"],
   ["testNew", "seeding and score entry"],
 ];
 
