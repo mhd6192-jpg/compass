@@ -90,12 +90,38 @@ async function main() {
   check("nobody is double-booked across courts", new Set(courtPeople).size === courtPeople.length);
 
   // --- play the whole thing ------------------------------------------------
+  //
+  // Checked after every single match rather than once per round: a court is
+  // left standing empty by the state one match completing leaves behind, and a
+  // round-level check looks only at the moments when the board has just been
+  // refilled — the two moments where nothing is ever wrong.
+  const COURTS = 2;
   for (let round = 1; round <= ROUNDS; round++) {
     s = await snap();
     const live = s.matches.filter((m) => m.bracket === "AM" && m.round === round);
     check(`round ${round}: opened when its turn came`, live.every((m) => m.status !== "pending"));
     // Vary the losing score so the points table has something to rank on.
-    for (const [i, m] of live.entries()) await playMatch(m.id, (round * 3 + i * 5) % 15);
+    for (const [i, m] of live.entries()) {
+      await playMatch(m.id, (round * 3 + i * 5) % 15);
+      const now = await snap();
+      const am = now.matches.filter((x) => x.bracket === "AM");
+      const playable = am.filter((x) => x.status !== "completed" && x.status !== "pending");
+      if (playable.length === 0) continue;
+
+      // One round at a time is the whole point of the format: a player told to
+      // watch for round 4 must not find round 5 already on a court.
+      const openRounds = new Set(playable.map((x) => x.round));
+      check(`r${round}m${i}: exactly one round is open`, openRounds.size === 1, `${[...openRounds].join(",")}`);
+
+      // No court idle while a playable match waits. Fewer than the court count
+      // is only allowed when the open round has genuinely run out of matches.
+      const onCourt = playable.filter((x) => x.courtSlot === "current");
+      const want = Math.min(COURTS, playable.length);
+      check(`r${round}m${i}: every court that can be busy is`, onCourt.length === want, `${onCourt.length} of ${want}`);
+
+      const ids = onCourt.flatMap((x) => participantIds(x));
+      check(`r${round}m${i}: nobody on two courts`, new Set(ids).size === ids.length);
+    }
   }
 
   s = await snap();

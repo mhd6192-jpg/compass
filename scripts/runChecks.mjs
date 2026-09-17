@@ -19,6 +19,7 @@ const DB_PORT = Number(process.env.DEV_DB_PORT || 5433);
 const LOGIC = [
   ["checkFormats", "the format registry"],
   ["checkAmericano", "americano rotation"],
+  ["checkCourtsInUse", "courts a field can actually fill"],
   ["checkKingCourt", "king-of-the-court ladder"],
   ["checkWinnerCourt", "winner-court queue"],
   ["checkTeamAmericano", "team americano schedule"],
@@ -26,6 +27,9 @@ const LOGIC = [
   ["checkMixedMexicano", "mixed mexicano pairing"],
   ["checkMixedTeamAmericano", "mixed team americano schedule"],
   ["checkFlexRace", "configurable race + match point"],
+  ["checkSetLength", "sets of the length the club chose"],
+  ["checkSetupGuards", "the setup screen describes the event it will run"],
+  ["checkNumberFields", "the number boxes an organiser types into"],
   ["checkRace16", "the historical race rules"],
   ["checkDecider", "round-robin play-off"],
   ["checkTwoGroup", "two groups → semis → final"],

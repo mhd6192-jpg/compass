@@ -9,7 +9,8 @@ import PinBar from "@/components/scorer/PinBar";
 import { findMatch, useCompassStore } from "@/store/useCompassStore";
 import { usePinStore } from "@/store/usePinStore";
 import { applyPoint, stateFromDTO, toDTO } from "@/lib/scoring/engine";
-import { TiebreakMode, isPointsRace, raceTargetOf, raceTotalPoints, raceWinByOf } from "@/lib/types";
+import { rowCeiling } from "@/lib/scoring/synth";
+import { TiebreakMode, gamesPerSetOf, isPointsRace, raceTargetOf, raceTotalPoints, raceWinByOf } from "@/lib/types";
 
 function ScoringContent() {
   const params = useParams<{ matchId: string }>();
@@ -47,8 +48,16 @@ function ScoringContent() {
       raceTarget: snapshot.tournament.raceTarget || undefined,
       serveEvery: snapshot.tournament.serveEvery || undefined,
       raceWinBy: snapshot.tournament.raceWinBy || undefined,
+      gamesPerSet: snapshot.tournament.gamesPerSet || undefined,
     }),
-    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode, snapshot.tournament.raceTarget, snapshot.tournament.serveEvery, snapshot.tournament.raceWinBy]
+    [
+      snapshot.tournament.bestOfSets,
+      snapshot.tournament.tiebreakMode,
+      snapshot.tournament.raceTarget,
+      snapshot.tournament.serveEvery,
+      snapshot.tournament.raceWinBy,
+      snapshot.tournament.gamesPerSet,
+    ]
   );
 
   // The points-race formats are a single race, not sets and games: the score
@@ -59,8 +68,23 @@ function ScoringContent() {
   const target = raceTargetOf(config);
   const targetTotal = raceTotalPoints(config);
   const winBy = raceWinByOf(config);
+  // Set play: the highest number a set can legally reach is one past the set
+  // length, except under advantage where it runs on — so the stepper allows a
+  // good margin above it rather than a flat 15, which was both too generous for
+  // a short set and too mean for a long advantage one.
+  const perSet = gamesPerSetOf(config);
   // Win-by-two can run past the target, so the editor must be able to reach it.
-  const maxScore = pointsRace ? (firstTo ? (winBy === 2 ? target + 12 : target) : targetTotal) : 15;
+  const maxScore = pointsRace
+    ? firstTo
+      ? winBy === 2
+        ? target + 12
+        : target
+      : targetTotal
+    : rowCeiling(config, [], perSet);
+
+  // Per ROW, not per match: the decider under "fast deciding set" is a 10-point
+  // breaker sharing a column with 6-4 and 7-5. See `rowCeiling`.
+  const maxForRow = (idx: number) => (pointsRace ? maxScore : rowCeiling(config, completedRows.slice(0, idx), perSet));
   const raceTotal = (completedRows[0]?.a ?? 0) + (completedRows[0]?.b ?? 0);
   const raceScoreValid =
     !pointsRace ||
@@ -349,7 +373,7 @@ function ScoringContent() {
                 label={pointsRace ? "Points" : `Set ${idx + 1}`}
                 row={row}
                 onStep={(field, delta) =>
-                  setCompletedRows((prev) => prev.map((x, i) => (i === idx ? { ...x, [field]: clampScore(x[field] + delta, maxScore) } : x)))
+                  setCompletedRows((prev) => prev.map((x, i) => (i === idx ? { ...x, [field]: clampScore(x[field] + delta, maxForRow(idx)) } : x)))
                 }
                 onRemove={!pointsRace && completedRows.length > 1 ? () => setCompletedRows((prev) => prev.filter((_, i) => i !== idx)) : undefined}
               />
@@ -358,7 +382,7 @@ function ScoringContent() {
                   invent a breaker — it invented 7-0, and "7-6(0)" then went on
                   the winner screen and into the archive as a fact nobody had
                   stated. Only asked for where it exists. */}
-              {!pointsRace && Math.max(row.a, row.b) === 7 && Math.min(row.a, row.b) === 6 && (
+              {!pointsRace && Math.max(row.a, row.b) === perSet + 1 && Math.min(row.a, row.b) === perSet && (
                 <ScoreRowInput
                   label={`Set ${idx + 1} tiebreak`}
                   row={{ a: row.tb ?? 0, b: row.tb ?? 0 }}

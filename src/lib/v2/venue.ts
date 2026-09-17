@@ -1,4 +1,4 @@
-import type { MatchDTO } from "../types";
+import { isPointsRace, type MatchDTO } from "../types";
 import {
   CeremonyDTO,
   CourtScreen,
@@ -151,7 +151,13 @@ export function scoreLine(match: MatchDTO): { a: string; b: string; caption: str
     if (only) {
       // A race is recorded as a one-game set whose real score sits in the
       // tiebreak pair — reading `games` there reports 16-9 as "1-0".
-      const [a, b] = only.tiebreak ?? only.games;
+      //
+      // Only a RACE, though. An ordinary set won on a breaker carries a
+      // tiebreak pair too, so reading it unconditionally reported a 7-6 set as
+      // its breaker points: a best-of-one evening put "7-4" on the wall for a
+      // set that finished 7-6. The scoring mode is the thing that knows which
+      // it is, exactly as `pointsInSet` in lib/standings.ts already decides it.
+      const [a, b] = isPointsRace(st.config.tiebreakMode) && only.tiebreak ? only.tiebreak : only.games;
       return { a: String(a), b: String(b), caption: "final" };
     }
     return { a: String(st.setsWon[0]), b: String(st.setsWon[1]), caption: "sets" };

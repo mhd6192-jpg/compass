@@ -50,6 +50,7 @@ function TvContent({ courtId }: { courtId: number }) {
     matches: snapshot.matches,
     allPlayed,
     ceremony: snapshot.v2.ceremony,
+    courtIds: snapshot.courts.map((c) => c.id),
   });
 
   switch (view.screen) {
@@ -101,6 +102,7 @@ function TvContent({ courtId }: { courtId: number }) {
           format={snapshot.tournament.format}
           discipline={snapshot.tournament.discipline}
           progress={snapshot.progress}
+          unused={view.unusedAllNight}
         />
       );
   }

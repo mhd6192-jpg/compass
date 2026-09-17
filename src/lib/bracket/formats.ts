@@ -21,7 +21,12 @@
  * the registry can pull in each format's own helpers without a cycle.
  */
 
-import { defaultRounds as americanoDefaultRounds, MAX_AMERICANO_PLAYERS, MIN_AMERICANO_PLAYERS } from "./americano";
+import {
+  defaultRounds as americanoDefaultRounds,
+  MAX_AMERICANO_PLAYERS,
+  MAX_AMERICANO_ROUNDS,
+  MIN_AMERICANO_PLAYERS,
+} from "./americano";
 import { MIN_MEXICANO_PLAYERS } from "./mexicano";
 import { isValidKingCourtField, MIN_KING_COURT_PLAYERS } from "./kingCourt";
 import { defaultTeamRounds, isValidTeamField, maxTeamRounds, MIN_TEAM_AMERICANO_PLAYERS } from "./teamAmericano";
@@ -38,7 +43,7 @@ import {
   maxMixedTeamRounds,
   MIN_MIXED_TEAM_PLAYERS,
 } from "./mixedTeamAmericano";
-import { MIN_TWO_GROUP_TEAMS } from "./twoGroup";
+import { MIN_TWO_GROUP_TEAMS, twoGroupMatchCount } from "./twoGroup";
 
 /** How the formats are grouped on the setup screen, in display order. */
 export const FORMAT_FAMILIES = [
@@ -82,14 +87,36 @@ export interface FormatSpec {
   defaultRounds?: (playerCount: number) => number;
   /** Rounds available before someone must repeat a partner, where that is bounded. */
   maxRounds?: (playerCount: number) => number;
+  /**
+   * How many matches this format can have on at once, and therefore the most
+   * courts it can fill. Omitted where there is no limit: a bracket draw has
+   * many matches ready together and will use every court it is given.
+   *
+   * Declared per format rather than divided by four at the call site, because
+   * the answer is not the same everywhere it looks like it should be: a winner
+   * court plays one match however big the field is.
+   */
+  courtsUsed?: (playerCount: number) => number;
   /** The line under the standings heading, saying how this format is ranked. */
   standingsSubtitle?: string;
   /** The eyebrow on the idle screen's "who is leading" card. */
   leaderEyebrow?: string;
 }
 
-const evenField = (min: number, what: string) => (n: number) =>
-  n >= min && n % 2 === 0 ? null : `${what} needs an even number of players, at least ${min}, so the two groups come out equal (got ${n}).`;
+/**
+ * An even field between two bounds.
+ *
+ * The maximum is not decoration: this rule is read by the form, the API and the
+ * seeder, and the seeder then hands the field to a generator with a ceiling of
+ * its own. Without one here, a mixed americano of 34 was called legal three
+ * times over and then threw inside the transaction — leaving the organiser with
+ * a 500-shaped error naming a format they had not chosen, after typing the whole
+ * roster, and no draw.
+ */
+const evenField = (min: number, max: number, what: string) => (n: number) =>
+  n >= min && n <= max && n % 2 === 0
+    ? null
+    : `${what} needs an even number of players, between ${min} and ${max}, so the two groups come out equal (got ${n}).`;
 
 export const FORMATS = {
   compass: {
@@ -103,12 +130,15 @@ export const FORMATS = {
     blurb: "One group, everyone plays everyone once. The table decides it, with a deciding final if the top two end level.",
     family: "bracket",
     validateField: (n) => (n >= 3 ? null : `A round robin needs at least 3 entrants (got ${n}).`),
+    describeField: (n) => `${n} entrants → ${(n * (n - 1)) / 2} matches, everyone playing everyone once.`,
   },
   "two-group": {
     title: "Two groups → semis → final",
     blurb: `Split into Group A and Group B, each a round robin. The top two of each group cross over into the semifinals (A1 v B2, B1 v A2), and the winners meet in the final. Needs at least ${MIN_TWO_GROUP_TEAMS} teams.`,
     family: "bracket",
     validateField: (n) => (n >= MIN_TWO_GROUP_TEAMS ? null : `Two groups need at least ${MIN_TWO_GROUP_TEAMS} teams (got ${n}).`),
+    describeField: (n) =>
+      `Split into two groups, alternating down this list (${n} teams → ${twoGroupMatchCount(n)} matches). Each group is a round robin; the top two of each reach the semifinals.`,
     standingsSubtitle: "Top two of each group reach the semifinals",
   },
 
@@ -122,8 +152,9 @@ export const FORMATS = {
         ? null
         : `An americano needs between ${MIN_AMERICANO_PLAYERS} and ${MAX_AMERICANO_PLAYERS} players (got ${n}).`,
     describeField: (n) => `${n} players → ${Math.floor(n / 4)} match${Math.floor(n / 4) === 1 ? "" : "es"} per round${n % 4 !== 0 ? `, with ${n % 4} sitting out each round (taking turns)` : ""}.`,
+    courtsUsed: (n) => Math.floor(n / 4),
     defaultRounds: americanoDefaultRounds,
-    maxRounds: (n) => Math.max(1, n - 1),
+    maxRounds: (n) => Math.max(1, Math.min(n - 1, MAX_AMERICANO_ROUNDS)),
     standingsSubtitle: "Ranked on points won — partners change every round",
     leaderEyebrow: "Leading the americano",
   },
@@ -135,6 +166,7 @@ export const FORMATS = {
     derivedRounds: true,
     validateField: (n) => (n >= MIN_MEXICANO_PLAYERS ? null : `A mexicano needs at least ${MIN_MEXICANO_PLAYERS} players (got ${n}).`),
     describeField: (n) => `${n} players → ${Math.floor(n / 4)} match${Math.floor(n / 4) === 1 ? "" : "es"} per round${n % 4 !== 0 ? `, with ${n % 4} sitting out each round (taking turns)` : ""}.`,
+    courtsUsed: (n) => Math.floor(n / 4),
     defaultRounds: americanoDefaultRounds,
     standingsSubtitle: "Ranked on points won — next round is drawn from this table",
     leaderEyebrow: "Leading the mexicano",
@@ -150,6 +182,7 @@ export const FORMATS = {
         ? null
         : `King of the court needs a multiple of four players, at least ${MIN_KING_COURT_PLAYERS} — every rung of the ladder has to be full (got ${n}).`,
     describeField: (n) => `${n} players → a ladder of ${n / 4} courts, everyone playing every round.`,
+    courtsUsed: (n) => Math.floor(n / 4),
     defaultRounds: americanoDefaultRounds,
     standingsSubtitle: "Ranked on points won — winners climb a court each round",
     leaderEyebrow: "Most points so far",
@@ -165,6 +198,7 @@ export const FORMATS = {
         ? null
         : `A winner court needs at least ${MIN_WINNER_COURT_PLAYERS} players — four on court and a pair waiting to challenge (got ${n}).`,
     describeField: (n) => `${n} players → four on court, ${n - 4} waiting. One match at a time.`,
+    courtsUsed: () => 1,
     defaultRounds: defaultWinnerCourtRounds,
     standingsSubtitle: "Ranked on points won — winners keep the court",
     leaderEyebrow: "Most points so far",
@@ -182,6 +216,7 @@ export const FORMATS = {
         ? null
         : `A mixicano needs a multiple of four players, at least ${MIN_MIXICANO_PLAYERS} — two equal groups that make whole matches (got ${n}).`,
     describeField: (n) => `${n} players → two groups of ${n / 2}, ${n / 4} match${n / 4 === 1 ? "" : "es"} per round. Every pair is one from each group.`,
+    courtsUsed: (n) => Math.floor(n / 4),
     defaultRounds: defaultMixicanoRounds,
     maxRounds: maxMixicanoRounds,
     standingsSubtitle: "Ranked on points won — every pair is one from each group",
@@ -195,10 +230,12 @@ export const FORMATS = {
     rotatingPartners: true,
     twoGroupEntry: true,
     groupRanked: true,
-    validateField: evenField(MIN_AMERICANO_PLAYERS, "A mixed americano"),
-    describeField: (n) => `${n} players → two groups of ${n / 2}, ranked separately. Partners are drawn from the whole field.`,
+    validateField: evenField(MIN_AMERICANO_PLAYERS, MAX_AMERICANO_PLAYERS, "A mixed americano"),
+    describeField: (n) =>
+      `${n} players → two groups of ${n / 2}, ranked separately. Partners are drawn from the whole field: ${Math.floor(n / 4)} match${Math.floor(n / 4) === 1 ? "" : "es"} per round${n % 4 !== 0 ? `, with ${n % 4} sitting out each round (taking turns)` : ""}.`,
+    courtsUsed: (n) => Math.floor(n / 4),
     defaultRounds: americanoDefaultRounds,
-    maxRounds: (n) => Math.max(1, n - 1),
+    maxRounds: (n) => Math.max(1, Math.min(n - 1, MAX_AMERICANO_ROUNDS)),
     standingsSubtitle: "Partners come from anywhere — each group has its own winner",
     leaderEyebrow: "Top of the whole field",
   },
@@ -216,6 +253,7 @@ export const FORMATS = {
         ? null
         : `A mixed mexicano needs a multiple of four players, at least ${MIN_MIXED_MEXICANO_PLAYERS} — two equal groups that make whole matches (got ${n}).`,
     describeField: (n) => `${n} players → two groups of ${n / 2}, ${n / 4} match${n / 4 === 1 ? "" : "es"} per round. Every pair is one from each group, and the courts follow the standings.`,
+    courtsUsed: (n) => Math.floor(n / 4),
     defaultRounds: defaultMixedMexicanoRounds,
     standingsSubtitle: "Each group ranked on its own — the next round follows these tables",
     leaderEyebrow: "Leading the mixed mexicano",
@@ -233,6 +271,7 @@ export const FORMATS = {
         ? null
         : `A team americano needs a multiple of four players, at least ${MIN_TEAM_AMERICANO_PLAYERS} — two equal teams that each split into pairs (got ${n}).`,
     describeField: (n) => `${n} players → two teams of ${n / 2}, ${n / 4} match${n / 4 === 1 ? "" : "es"} per round. The first ${n / 2} names are Team A, the rest Team B.`,
+    courtsUsed: (n) => Math.floor(n / 4),
     defaultRounds: defaultTeamRounds,
     maxRounds: maxTeamRounds,
     standingsSubtitle: "Every point you win goes to your team",
@@ -250,6 +289,7 @@ export const FORMATS = {
         ? null
         : `A mixed team americano needs a multiple of four players, at least ${MIN_MIXED_TEAM_PLAYERS} — two teams that each split into two halves (got ${n}).`,
     describeField: (n) => `${n} players → two teams of ${n / 2}, each split into halves of ${n / 4}. ${n / 4} match${n / 4 === 1 ? "" : "es"} per round.`,
+    courtsUsed: (n) => Math.floor(n / 4),
     defaultRounds: defaultMixedTeamRounds,
     maxRounds: maxMixedTeamRounds,
     standingsSubtitle: "Every point you win goes to your team · pairs are mixed within it",
@@ -314,4 +354,15 @@ export function defaultRoundsFor(format: string | undefined, playerCount: number
  */
 export function maxRoundsFor(format: string | undefined, playerCount: number): number {
   return formatSpec(format).maxRounds?.(playerCount) ?? 0;
+}
+
+/**
+ * The most courts this format can fill at once, or 0 where it has no limit.
+ *
+ * Asked by the setup form, which knows the field before anything is drawn. The
+ * court screens reach the same number from the other side — off the fixtures —
+ * via `simultaneousMatches` in ./courtLoad.
+ */
+export function courtsUsedBy(format: string | undefined, playerCount: number): number {
+  return formatSpec(format).courtsUsed?.(playerCount) ?? 0;
 }

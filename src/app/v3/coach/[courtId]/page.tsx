@@ -192,7 +192,7 @@ function CoachConsole({ courtId }: { courtId: number }) {
   const courtLabel = court?.label ?? `Court ${courtId}`;
   const stage = snapshot.v2.courts.find((c) => c.courtId === courtId) ?? emptyCourtStage(courtId);
   const allPlayed = snapshot.progress.total > 0 && snapshot.progress.completed === snapshot.progress.total;
-  const view = resolveCourtScreen({ courtId, stage, matches: snapshot.matches, allPlayed, ceremony: snapshot.v2.ceremony });
+  const view = resolveCourtScreen({ courtId, stage, matches: snapshot.matches, allPlayed, ceremony: snapshot.v2.ceremony, courtIds: snapshot.courts.map((c) => c.id) });
 
   const onCourt = currentOnCourt(snapshot.matches, courtId);
   const upNext = nextOnCourt(snapshot.matches, courtId);
@@ -207,8 +207,18 @@ function CoachConsole({ courtId }: { courtId: number }) {
       raceTarget: snapshot.tournament.raceTarget || undefined,
       serveEvery: snapshot.tournament.serveEvery || undefined,
       raceWinBy: snapshot.tournament.raceWinBy || undefined,
+      // A rotating format played as sets can have a set length of its own, and the
+      // console predicts "does this tap end the match" from this very config.
+      gamesPerSet: snapshot.tournament.gamesPerSet || undefined,
     }),
-    [snapshot.tournament.bestOfSets, snapshot.tournament.tiebreakMode, snapshot.tournament.raceTarget, snapshot.tournament.serveEvery, snapshot.tournament.raceWinBy]
+    [
+      snapshot.tournament.bestOfSets,
+      snapshot.tournament.tiebreakMode,
+      snapshot.tournament.raceTarget,
+      snapshot.tournament.serveEvery,
+      snapshot.tournament.raceWinBy,
+      snapshot.tournament.gamesPerSet,
+    ]
   );
 
   const liveStateRef = useRef<{ matchId: string; state: ReturnType<typeof stateFromDTO> } | null>(null);
@@ -708,6 +718,14 @@ function CoachConsole({ courtId }: { courtId: number }) {
               <Link href="/v3/ceremony" className="rounded-xl bg-gold text-court-bg font-display uppercase font-bold px-6 py-3">
                 Go to the awards remote
               </Link>
+            </>
+          ) : view.unusedAllNight ? (
+            <>
+              <h2 className="font-display uppercase text-xl">{courtLabel} is not being used tonight</h2>
+              <p className="text-white/45 text-sm">
+                This format plays one round at a time, and tonight&rsquo;s field fills fewer courts than were picked at setup — so no
+                match will ever be assigned here. The other courts have it covered.
+              </p>
             </>
           ) : (
             <>

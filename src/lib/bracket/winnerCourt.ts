@@ -56,6 +56,23 @@ export function waitingCount(playerCount: number): number {
 }
 
 /**
+ * Matches needed before the last person in the queue has had a turn.
+ *
+ * Only one match is on at a time and each one brings two challengers off the
+ * front of the queue, so the queue drains two per round. Choose fewer rounds
+ * than this and somebody entered the event, paid, drove over, and never got on
+ * court — which the rounds control had no way of saying.
+ */
+export function roundsForEveryone(playerCount: number): number {
+  return 1 + Math.ceil(waitingCount(playerCount) / 2);
+}
+
+/** How many of the field never reach a court in `rounds` matches. */
+export function neverPlaying(playerCount: number, rounds: number): number {
+  return Math.max(0, playerCount - Math.min(playerCount, 4 + 2 * Math.max(0, rounds - 1)));
+}
+
+/**
  * The opening match by position: the first two hold the court against the next
  * two. Kept as positions so the seeder can use the same rule the replay does,
  * rather than restating it.

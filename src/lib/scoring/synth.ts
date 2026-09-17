@@ -1,4 +1,4 @@
-import { isPointsRace, raceTargetOf, raceTotalPoints, raceWinByOf } from "../types";
+import { gamesPerSetOf, isPointsRace, raceTargetOf, raceTotalPoints, raceWinByOf } from "../types";
 import { computeMatchState, ScoringConfig, setsToWin } from "./engine";
 
 export interface SetInput {
@@ -59,14 +59,45 @@ export function isMatchTiebreakDecider(config: ScoringConfig, priorSetsWon: [num
 }
 
 /**
+ * The highest number ONE row of the hand-entry editor may reach.
+ *
+ * Not a property of the match — a property of the row. Under "fast deciding
+ * set" the last row is not a set at all but a 10-point match tiebreak, entered
+ * in the same column as 6-4 and 7-5, so a single match-wide ceiling cannot
+ * serve both. Capping every row at the set length made a 10-8 decider
+ * impossible to enter, and snapped an already-recorded one down to 7-8 on the
+ * first tap of either arrow. (The ceiling before that was a flat 15, which
+ * covered the decider only by accident and was far too generous for a set.)
+ *
+ * `priorRows` is the completed sets ABOVE this one, which is what decides
+ * whether this row is the decider.
+ */
+export function rowCeiling(config: ScoringConfig, priorRows: Array<{ a: number; b: number }>, perSet: number): number {
+  const priorSetsWon: [number, number] = [0, 0];
+  for (const { a, b } of priorRows) {
+    if (a === b) continue;
+    priorSetsWon[a > b ? 0 : 1] += 1;
+  }
+  // A 10-point breaker won by two, with no cap — allow a wide margin above it.
+  if (isMatchTiebreakDecider(config, priorSetsWon)) return 25;
+  // An advantage set runs on past N-all until somebody is two clear; every
+  // other set stops one game past it, at the breaker.
+  return config.tiebreakMode === "advantage" ? perSet + 12 : perSet + 1;
+}
+
+/**
  * Legality check for one completed set. Returns the winner slot, or throws.
  *
- * `advantage` has no tiebreak, so a set runs past 6-6 until somebody is two
+ * `advantage` has no tiebreak, so a set runs past N-all until somebody is two
  * clear: 8-6, 9-7, 10-8. The rules here allowed 6-0..6-4, 7-5 and 7-6 only, so
  * an advantage set that went beyond 7-5 could not be entered AT ALL — the one
  * mode where long sets are the point of choosing it.
+ *
+ * `perSet` is the games needed to take a set, six unless the organiser chose
+ * otherwise. Every bound below is derived from it rather than written out, so a
+ * club playing short sets can type 4-2 and a club playing pro sets can type 9-7.
  */
-export function validateCompletedSet(a: number, b: number, isDecider: boolean, advantage = false): 1 | 2 {
+export function validateCompletedSet(a: number, b: number, isDecider: boolean, advantage = false, perSet = 6): 1 | 2 {
   if (a < 0 || b < 0 || !Number.isInteger(a) || !Number.isInteger(b)) throw new Error("Scores must be whole numbers");
   if (a === b) throw new Error("A completed set can't be a tie");
   const hi = Math.max(a, b);
@@ -74,20 +105,30 @@ export function validateCompletedSet(a: number, b: number, isDecider: boolean, a
   const winner: 1 | 2 = a > b ? 1 : 2;
 
   if (isDecider) {
-    // 10-point match tiebreak, win by 2
-    if (hi < 10 || hi - lo < 2) throw new Error(`Deciding tiebreak must reach 10 and win by 2 (got ${a}-${b})`);
+    // 10-point match tiebreak, win by 2 — and it STOPS the moment both are
+    // true. So the winner has exactly 10 against 0-8, or, past 10, a margin of
+    // exactly two: 11-9, 12-10. "hi >= 10 && margin >= 2" alone also accepted
+    // 11-8 and 15-0, scores the engine can never reach, and `synthPoints` then
+    // quietly stored the nearest thing it could build instead of the score the
+    // coach typed.
+    const legal = hi >= 10 && hi - lo >= 2 && (hi === 10 || hi - lo === 2);
+    if (!legal) {
+      throw new Error(
+        `Deciding tiebreak must reach 10 and win by 2, and past 10 the margin is exactly two (got ${a}-${b})`
+      );
+    }
     return winner;
   }
   if (advantage) {
-    // No tiebreak: 6-0..6-4, then two clear games — 7-5, 8-6, 10-8 and so on.
-    if (hi === 6 && lo <= 4) return winner;
-    if (hi >= 7 && hi - lo === 2) return winner;
-    throw new Error(`Illegal set score ${a}-${b} — past 6-6 an advantage set is won by two clear games`);
+    // No tiebreak: N-0..N-(N-2), then two clear games — (N+1)-(N-1), (N+2)-N, and so on.
+    if (hi === perSet && lo <= perSet - 2) return winner;
+    if (hi >= perSet + 1 && hi - lo === 2) return winner;
+    throw new Error(`Illegal set score ${a}-${b} — past ${perSet}-${perSet} an advantage set is won by two clear games`);
   }
-  // normal set: 6-0..6-4, 7-5, 7-6
-  if (hi === 6 && lo <= 4) return winner;
-  if (hi === 7 && (lo === 5 || lo === 6)) return winner;
-  throw new Error(`Illegal set score ${a}-${b}`);
+  // normal set: N-0..N-(N-2), then (N+1)-(N-1) or the tiebreak's (N+1)-N
+  if (hi === perSet && lo <= perSet - 2) return winner;
+  if (hi === perSet + 1 && (lo === perSet - 1 || lo === perSet)) return winner;
+  throw new Error(`Illegal set score ${a}-${b} — a set is first to ${perSet}, two clear`);
 }
 
 /**
@@ -147,6 +188,7 @@ export function synthPoints(input: ScoreInput, config: ScoringConfig): { slots: 
 
   const setsWon: [number, number] = [0, 0];
   const needed = setsToWin(config.bestOfSets);
+  const perSet = gamesPerSetOf(config);
 
   for (let i = 0; i < input.completedSets.length; i++) {
     if (setsWon[0] >= needed || setsWon[1] >= needed) {
@@ -154,21 +196,21 @@ export function synthPoints(input: ScoreInput, config: ScoringConfig): { slots: 
     }
     const { a, b, tb } = input.completedSets[i];
     const decider = isMatchTiebreakDecider(config, setsWon);
-    const winner = validateCompletedSet(a, b, decider, config.tiebreakMode === "advantage");
+    const winner = validateCompletedSet(a, b, decider, config.tiebreakMode === "advantage", perSet);
 
     if (decider) {
       pushTiebreak(slots, winner, Math.max(a, b), Math.min(a, b));
     } else {
       const hi = Math.max(a, b);
       const lo = Math.min(a, b);
-      if (hi === 7 && lo === 6) {
-        // 6-6, then the tiebreak. The loser's points come from `tb` when the
+      if (hi === perSet + 1 && lo === perSet) {
+        // N-all, then the tiebreak. The loser's points come from `tb` when the
         // coach entered them; a winner needs seven, or two clear once the
         // breaker has gone past six. Without `tb` this has to invent something,
         // and whatever it invents the score line will print as fact — which is
-        // why the editor asks for it as soon as a set reads 7-6.
+        // why the editor asks for it as soon as a set reads N+1 to N.
         const loserTb = Number.isInteger(tb) && (tb as number) >= 0 ? (tb as number) : 0;
-        pushPartialGames(slots, 6, 6);
+        pushPartialGames(slots, perSet, perSet);
         pushTiebreak(slots, winner, Math.max(7, loserTb + 2), loserTb);
       } else {
         pushPartialGames(slots, a, b);
@@ -185,9 +227,16 @@ export function synthPoints(input: ScoreInput, config: ScoringConfig): { slots: 
     if (a < 0 || b < 0 || !Number.isInteger(a) || !Number.isInteger(b)) throw new Error("Games must be whole numbers");
     const hi = Math.max(a, b);
     const lo = Math.min(a, b);
-    const ending = (hi >= 6 && hi - lo >= 2) || hi === 7;
+    // Two clear games always ends a set. Everything else about the ceiling
+    // depends on the tiebreak: with one, a live set can never get past N-all,
+    // because N-all starts the breaker and the set ends on the next game. An
+    // ADVANTAGE set has no breaker, so 7-6, 8-7, 12-11 are all perfectly normal
+    // things for a coach to be looking at mid-set — the old ceiling of six
+    // refused to record any of them, in the one mode chosen for long sets.
+    const advantage = config.tiebreakMode === "advantage";
+    const ending = (hi >= perSet && hi - lo >= 2) || (!advantage && hi === perSet + 1);
     if (ending) throw new Error(`${a}-${b} is a finished set — put it in completed sets, not the current set`);
-    if (hi > 6) throw new Error(`Games can't exceed 6 in an unfinished set (got ${a}-${b})`);
+    if (!advantage && hi > perSet) throw new Error(`Games can't exceed ${perSet} in an unfinished set (got ${a}-${b})`);
     pushPartialGames(slots, a, b);
   }
 

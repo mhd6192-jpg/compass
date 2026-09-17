@@ -181,7 +181,10 @@ async function main() {
   check("...including her replacement", new Set(kcRound3.flatMap(occupants)).has(kcSwap.incomingId));
 
   // --- winner court, whose queue is replayed from the entry order ---------------
-  await seed("winner-court", EIGHT, 5);
+  // Nine rounds, not five: the queue has to cycle all the way round before a
+  // duplicated entrant can reach the front, and a five-round night stops three
+  // rounds short of it.
+  await seed("winner-court", EIGHT, 9);
   await playRound(1);
   const hugo = (await prisma.player.findFirst({ where: { name: "Hugo" } }))!;
   const wcSwap = await prisma.$transaction((tx) => replacePlayer(tx, hugo.id, "Nadia", null));
@@ -192,6 +195,53 @@ async function main() {
   check("...and never calls the player who left", wcRows.filter((m) => m.round > 1).every((m) => !occupants(m).includes(hugo.id)));
   check("...while the queue still turns over four at a time", wcRows.filter((m) => m.round === 4).every((m) => new Set(occupants(m)).size === 4));
   check("the stand-in reaches the court in his place", wcRows.filter((m) => m.round > 1).some((m) => occupants(m).includes(wcSwap.incomingId)));
+
+  // Played out to the far end of the queue, not just past the swap.
+  //
+  // `replacePlayer` creates a NEW player row at the same seed, so an unfiltered
+  // roster read comes back one longer than the field: the queue gained a place,
+  // the stand-in stood in it AS WELL AS arriving as the swap, and the duplicate
+  // worked its way to the front over the following rounds. Round 7 was drawn as
+  // "Ana & Ben vs Nadia & Nadia" — three people on a doubles court, her points
+  // counted twice, and the two she displaced never called at all. Stopping at
+  // round 4, as this suite used to, is three rounds short of seeing it.
+  for (let r = 4; r <= 9; r++) await playRound(r);
+  const wcLate = await rows();
+  const wcBad = wcLate.filter((m) => new Set(occupants(m)).size !== 4);
+  check(
+    "winner court never puts the same person on both sides, however long it runs",
+    wcBad.length === 0,
+    wcBad.map((m) => `round ${m.round}`).join(", ")
+  );
+  const everCalled = new Set(wcLate.flatMap(occupants));
+  check("...and everyone entered gets on court", everCalled.size === 8, `${everCalled.size} of 8 played`);
+
+  // --- a mexicano changed before the first point of the evening -----------------
+  //
+  // A redraw deletes every UNTOUCHED round, and before the first point that is
+  // all of them. For a format that derives each round from the last, that used
+  // to leave the draw with no matches at all: every court read "awaiting the
+  // next match" for the rest of the night, the board read 0 of 0, and nothing
+  // recovered it short of wiping the event and retyping the field.
+  await seed("mexicano", EIGHT, 4);
+  const early = (await prisma.player.findFirst({ where: { name: "Eve" } }))!;
+  await prisma.$transaction((tx) => withdrawPlayer(tx, early.id));
+  const afterEarly = await rows();
+  check("a mexicano survives a withdrawal before the first point", afterEarly.length > 0, `${afterEarly.length} matches left`);
+  check("...with a round actually open", afterEarly.some((m) => m.status !== "pending"), afterEarly.map((m) => m.status).join(","));
+  check("...drawn without the player who left", afterEarly.every((m) => !occupants(m).includes(early.id)));
+  check("...and on a court", afterEarly.some((m) => m.courtId !== null), "nothing was called to a court");
+  // And it still plays out from there.
+  await playRound(1);
+  const afterEarlyR2 = (await rows()).filter((m) => m.round === 2);
+  check("...and the night carries on into round 2", afterEarlyR2.length > 0, `${afterEarlyR2.length} matches`);
+
+  // The same before-the-first-point path for a late ARRIVAL.
+  await seed("mexicano", EIGHT, 4);
+  await prisma.$transaction((tx) => addPlayer(tx, "Nadia", null));
+  const afterAdd = await rows();
+  check("a mexicano survives a late arrival before the first point", afterAdd.length > 0, `${afterAdd.length} matches left`);
+  check("...with a round open and courted", afterAdd.some((m) => m.status !== "pending" && m.courtId !== null));
 
   // --- a mexicano, where the next round comes from the standings ----------------
   await seed("mexicano", EIGHT, 4);
@@ -204,6 +254,22 @@ async function main() {
   check("a mexicano redraws without the player who left", mexRound2.every((m) => !occupants(m).includes(cara.id)), "Cara is still being drawn");
   check("...and sits somebody out rather than breaking", mexRound2.length === 1, `${mexRound2.length} matches for seven players`);
   check("...leaving her record alone", mexRows.filter((m) => m.round === 1).some((m) => occupants(m).includes(cara.id)));
+
+  // The progress bar has to be able to reach the end. Eight players filled two
+  // matches a round; seven fill one, and estimating the night from round ONE
+  // then promised twice the matches the event now holds — so the bar stopped
+  // short for the rest of the evening with nothing to explain it.
+  // Round 2 is already played above; carry on to the end of the four scheduled.
+  for (let r = 3; r <= 4; r++) await playRound(r);
+  const mexDone = (await getFullSnapshot(prisma)) as unknown as {
+    progress: { completed: number; total: number; scheduled: number };
+  };
+  check(
+    "a shrunken mexicano still finishes at 100%",
+    mexDone.progress.completed === mexDone.progress.scheduled,
+    `${mexDone.progress.completed} of ${mexDone.progress.scheduled}`
+  );
+  check("...with every match actually played", (await rows()).every((m) => m.status === "completed"));
 
   // --- the boundary: a round under way cannot be redrawn -------------------------
   await seed("americano", EIGHT, 4);

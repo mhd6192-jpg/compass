@@ -44,17 +44,23 @@ export async function POST(req: Request) {
     if (!["standard", "match-tiebreak", "advantage", "race-to-9", "race-to-16"].includes(tiebreakMode)) {
       return NextResponse.json({ error: "Invalid tiebreak mode" }, { status: 400 });
     }
+    // Best-of must be ODD, or "best of" has no meaning: an even number of sets
+    // can be split down the middle and the match has no winner. Seven and nine
+    // are here because a club that asked for custom set lengths asks for long
+    // matches next, and the engine's setsToWin handles any odd number already.
     const bestOf = Number(bestOfSets);
-    if (![1, 3, 5].includes(bestOf)) {
-      return NextResponse.json({ error: "bestOfSets must be 1, 3, or 5" }, { status: 400 });
+    if (!Number.isInteger(bestOf) || bestOf < 1 || bestOf > 9 || bestOf % 2 === 0) {
+      return NextResponse.json({ error: "Best of must be an odd number from 1 to 9" }, { status: 400 });
     }
 
     // The race knobs only mean anything for the points-race formats; for the
     // set-based formats they are stored as 0 ("not configured") so a later
-    // switch of format can't inherit a stale target.
+    // switch of format can't inherit a stale target. The set length is the
+    // mirror image: it means nothing to a race, so a race stores 0 for it.
     let raceTarget = 0;
     let serveEvery = 0;
     let raceWinBy = 0;
+    let gamesPerSet = 0;
     if (isPointsRace(tiebreakMode)) {
       raceTarget = Number(body.raceTarget) || 0;
       serveEvery = Number(body.serveEvery) || 0;
@@ -67,6 +73,11 @@ export async function POST(req: Request) {
       // Win-by-two only means something for "first to N"; the points-total rule
       // already ends on a fixed total, so a margin requirement has nothing to bite on.
       raceWinBy = tiebreakMode === "race-to-16" && Number(body.raceWinBy) === 2 ? 2 : 0;
+    } else {
+      gamesPerSet = Number(body.gamesPerSet) || 0;
+      if (gamesPerSet !== 0 && (!Number.isInteger(gamesPerSet) || gamesPerSet < 2 || gamesPerSet > 9)) {
+        return NextResponse.json({ error: "A set must be first to between 2 and 9 games" }, { status: 400 });
+      }
     }
 
     // Optionally arrange by seed so top seeds land in separate quarters (they only
@@ -87,33 +98,54 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Pick at least one court (numbers 1-12)" }, { status: 400 });
     }
 
+    // Checked BEFORE the seed, with every other rejection. It used to be tested
+    // after the draw had committed, where returning a 400 told the organiser
+    // their tournament had not started when it had — and left them on a form
+    // that could only try again, into a database that now refuses to re-seed.
+    const nextOrganiser = typeof body.newOrganiserPin === "string" ? body.newOrganiserPin.trim() : "";
+    if (nextOrganiser && nextOrganiser.length < 4) {
+      return NextResponse.json({ error: "A new organiser PIN needs at least 4 characters" }, { status: 400 });
+    }
+
     await seedTournament(prisma, orderedNames, {
       bestOfSets: effectiveBestOf,
       tiebreakMode,
       raceTarget,
       serveEvery,
       raceWinBy,
+      gamesPerSet,
       amRounds,
       pin,
       format: fmt,
       discipline: discipline === "singles" ? "singles" : "doubles",
       courtIds: courtIds.length ? courtIds : undefined,
     });
-    // The first event claims the installation, so the door locks behind the
-    // organiser without them configuring anything. A rotation is only honoured
-    // after the current PIN has been verified above.
-    await claimOrganiser(organiserPin);
-    const nextOrganiser = typeof body.newOrganiserPin === "string" ? body.newOrganiserPin.trim() : "";
-    if (nextOrganiser) {
-      if (nextOrganiser.length < 4) {
-        return NextResponse.json({ error: "A new organiser PIN needs at least 4 characters" }, { status: 400 });
-      }
-      await setOrganiserPin(nextOrganiser);
-    }
-    await broadcastSnapshot();
-    getIO()?.emit(EVENTS.TOURNAMENT_STARTED, {});
 
-    return NextResponse.json({ ok: true });
+    // Past this line the draw exists and the request has succeeded. Nothing
+    // below may turn that into a failure, so each step reports what it managed
+    // rather than throwing the whole answer away — the form needs to know
+    // whether the PIN rotation landed, because it tells the organiser so.
+    let organiserPinChanged = false;
+    try {
+      // The first event claims the installation, so the door locks behind the
+      // organiser without them configuring anything. A rotation is only honoured
+      // after the current PIN has been verified above.
+      await claimOrganiser(organiserPin);
+      if (nextOrganiser) {
+        await setOrganiserPin(nextOrganiser);
+        organiserPinChanged = true;
+      }
+    } catch (e) {
+      console.error("Tournament seeded, but the organiser PIN could not be saved:", e);
+    }
+    try {
+      await broadcastSnapshot();
+      getIO()?.emit(EVENTS.TOURNAMENT_STARTED, {});
+    } catch (e) {
+      console.error("Tournament seeded, but the screens could not be told:", e);
+    }
+
+    return NextResponse.json({ ok: true, organiserPinChanged });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to start tournament";
     return NextResponse.json({ error: message }, { status: 400 });

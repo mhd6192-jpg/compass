@@ -73,8 +73,25 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
 
   const lastRound = await tx.match.aggregate({ where: { bracket: "AM" }, _max: { round: true } });
   const played = lastRound._max.round ?? 0;
-  if (played === 0) return []; // nothing seeded yet
   if (played >= (cfg?.amRounds || 0)) return []; // the night is done
+
+  // No rounds at all usually means nothing has been seeded, and there is
+  // genuinely nothing to do. It has one other cause: somebody left or arrived
+  // BEFORE the first point of the evening. A field change redraws every
+  // untouched round, and when nothing has been touched that is all of them — so
+  // for a format that works each round out from the last, the round it would
+  // have worked from has just been deleted, and the draw is left with no
+  // matches at all. Every court then reads "awaiting the next match" for the
+  // rest of the night and no later action recovers it.
+  //
+  // The standings-driven formats can rebuild the opening round from the roster
+  // alone: an empty table ranks everyone by entry order, which is exactly how
+  // round 1 was drawn in the first place. King of the court and winner court
+  // cannot — one needs the rungs, the other the queue as it was entered — which
+  // is precisely why both refuse to let the field change at all, so they never
+  // reach this state and keep the old guard.
+  const canOpenFromRosterAlone = cfg?.format === "mexicano" || cfg?.format === "mixed-mexicano";
+  if (played === 0 && !canOpenFromRosterAlone) return [];
 
   const rows = await tx.match.findMany({ where: { bracket: "AM" }, include: MATCH_INCLUDE });
   if (rows.some((m) => m.status !== "completed")) return [];
@@ -83,11 +100,27 @@ export async function openNextRotatingRound(tx: Tx): Promise<string[]> {
 
   // --- winner court: the winning pair holds, the queue supplies the next ----
   if (cfg?.format === "winner-court") {
-    // Everyone who was ever entered, including anybody who has since been
+    // Everyone who was ever ENTERED, including anybody who has since been
     // replaced. The queue is replayed from results that name the players who
     // actually played, so leaving them in is what keeps the replay honest —
     // the stand-in is swapped in at the end instead.
-    const roster = await tx.player.findMany({ orderBy: { seed: "asc" }, select: { id: true } });
+    //
+    // Which means the stand-ins themselves must be left OUT. `replacePlayer`
+    // creates a new row at the same seed rather than renaming the old one, so a
+    // plain roster query returns one id more than the field has people, the
+    // queue comes back a place too long, and the stand-in sits in it twice —
+    // once as a queued entrant and once as the swap for the player she replaced.
+    // Played forward, that reaches the front as a pair of the same person: three
+    // people on a doubles court, her points counted twice, and the two she
+    // displaced never called at all.
+    const replaced = await tx.player.findMany({
+      where: { replacedById: { not: null } },
+      select: { replacedById: true },
+    });
+    const standIns = new Set(replaced.map((p) => p.replacedById!));
+    const roster = (await tx.player.findMany({ orderBy: { seed: "asc" }, select: { id: true } })).filter(
+      (p) => !standIns.has(p.id)
+    );
     const history: WinnerCourtResult[] = [...rows]
       .sort((a, b) => a.round - b.round)
       .map((m) => {

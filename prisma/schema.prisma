@@ -34,7 +34,14 @@ model TournamentConfig {
   /// Race formats only: the margin needed to take it. 0 or 1 = the point that
   /// reaches the target wins outright (sudden death at target-1 all). 2 = it
   /// must be won by two, so the race carries on past the target like a tiebreak.
-  raceWinBy Int       @default(0)
+  raceWinBy Int @default(0)
+
+  /// Set play only: games needed to take a set. 0 = the standard six, which is
+  /// what every tournament seeded before this existed stores. A short set (4) or
+  /// a pro set (8, 9) is the same rule with a different number: two clear games
+  /// take it, the tiebreak comes at N-all, and its winner finishes on N+1.
+  gamesPerSet Int @default(0)
+
   pin       String    @default("1234")
   startedAt DateTime?
   createdAt DateTime  @default(now())

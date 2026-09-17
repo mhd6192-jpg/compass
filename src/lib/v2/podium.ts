@@ -71,6 +71,27 @@ function groupPodium(matches: MatchDTO[], unit: string): AwardDTO[] {
  * read that way: the headline number is the personal total, with the win/loss
  * record behind it.
  */
+/**
+ * KNOWN LIMITATION, deliberately left as it is.
+ *
+ * A group-ranked format (mixed americano, mixed mexicano) ranks its two groups
+ * separately — that per-group table is the whole reason for running one — but
+ * the podium here is a single combined table, so a stronger group can take
+ * every medal and the other group's winner is never announced.
+ *
+ * Interleaving the two tables so both leaders share first place was tried and
+ * reverted, because `place` is load-bearing in three other places that all
+ * assume it is unique: `buildAwards` picks ONE award per place (so the ceremony
+ * silently dropped the second group again), `FinalStandingsScreen` names
+ * `podium[0]` the tournament champion (so it named the lower-scoring group's
+ * leader), and `archive.finalPlacings` sorts the ARCHIVED standings and every
+ * `MemberResult.rank` by it — durable club records, reordered by a key the
+ * table does not show.
+ *
+ * Announcing two champions is a real feature and worth building; it needs a
+ * decision about what the trophy card says and how many medals each group gets,
+ * and a rank the archive can represent. It is not a one-line change here.
+ */
 function rotatingPodium(matches: MatchDTO[], unit: string): AwardDTO[] {
   // In the grouped formats the group is part of who someone is on the night, so
   // it belongs on the medal line rather than only in the table.

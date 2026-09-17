@@ -91,7 +91,12 @@ function BracketSection({ bracket, matches }: { bracket: BracketCode; matches: M
 
 function RoundRobinContent({ snapshot }: { snapshot: NonNullable<ReturnType<typeof useCompassStore.getState>["snapshot"]> }) {
   const standings = computeStandings(snapshot.matches);
-  const matches = [...snapshot.matches].sort((a, b) => a.posIndex - b.posIndex);
+  // Round, then position. Sorting on position alone dropped the title play-off
+  // — which is round 2, and the only thing that lives there — into the middle
+  // of the group fixtures at whatever posIndex it happened to get, so the match
+  // that decides the tournament read as an ordinary group game halfway down.
+  const matches = [...snapshot.matches].sort((a, b) => a.round - b.round || a.posIndex - b.posIndex);
+  const decider = matches.find((m) => m.round > 1);
 
   return (
     <main className="min-h-screen p-4 max-w-lg mx-auto pb-16">
@@ -133,9 +138,20 @@ function RoundRobinContent({ snapshot }: { snapshot: NonNullable<ReturnType<type
 
       <section className="rounded-2xl border border-court-line bg-court-panel p-4 mb-4">
         <h2 className="font-display uppercase font-bold text-lg mb-1 text-gold">All matches</h2>
-        {matches.map((m) => (
-          <MatchLine key={m.id} match={m} />
-        ))}
+        {matches
+          .filter((m) => m.round === 1)
+          .map((m) => (
+            <MatchLine key={m.id} match={m} />
+          ))}
+        {/* Named, and last. A play-off only exists when the top two finish
+            level, so it is not part of the group at all — it is the thing that
+            settles it. */}
+        {decider && (
+          <>
+            <p className="font-display uppercase text-xs tracking-[0.25em] text-gold/70 mt-4 mb-1">{decider.roundName}</p>
+            <MatchLine key={decider.id} match={decider} />
+          </>
+        )}
       </section>
 
       <div className="text-center mt-6 flex items-center justify-center gap-3 flex-wrap">

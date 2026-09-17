@@ -6,9 +6,20 @@ import { motion } from "framer-motion";
 import ClubLogo from "@/components/shared/ClubLogo";
 import { arrangeDraw } from "@/lib/bracket/seedArrange";
 
-import { entrantWordCap, entrantsArePeople, isPointsRace, isRotatingPartners, isTwoGroupEntry, type TiebreakMode, type TournamentFormat } from "@/lib/types";
+import {
+  entrantWordCap,
+  entrantsArePeople,
+  isPointsRace,
+  isRotatingPartners,
+  isTwoGroupEntry,
+  matchFormatLabel,
+  type TiebreakMode,
+  type TournamentFormat,
+} from "@/lib/types";
 import { MIN_TWO_GROUP_TEAMS, splitGroups, twoGroupMatchCount } from "@/lib/bracket/twoGroup";
-import { FORMAT_FAMILIES, describeField, formatsInFamily, maxRoundsFor, validateField } from "@/lib/bracket/formats";
+import { FORMAT_FAMILIES, courtsUsedBy, describeField, formatsInFamily, maxRoundsFor, validateField } from "@/lib/bracket/formats";
+import { surplusCourtNote } from "@/lib/bracket/courtLoad";
+import { boxText, commitOnBlur, commitWhileTyping, parseSeedInput, sanitizeNumericText } from "@/lib/numericInput";
 
 interface SavedRoster {
   id: string;
@@ -52,7 +63,9 @@ import {
 import {
   defaultWinnerCourtRounds,
   isValidWinnerCourtField,
+  neverPlaying,
   openingRound,
+  roundsForEveryone,
   waitingCount,
   MIN_WINNER_COURT_PLAYERS,
 } from "@/lib/bracket/winnerCourt";
@@ -75,14 +88,14 @@ import {
   MIN_MIXED_TEAM_PLAYERS,
 } from "@/lib/bracket/mixedTeamAmericano";
 
-/** The set-based options never change; the race options describe themselves with the chosen target. */
-function tiebreakOptions(target: number, winBy: 1 | 2): { value: TiebreakMode; title: string; desc: string }[] {
+/** Each option describes itself with the numbers actually chosen — the set length for the set modes, the target for the races. */
+function tiebreakOptions(target: number, winBy: 1 | 2, games: number): { value: TiebreakMode; title: string; desc: string }[] {
   const total = 2 * target - 2;
   return [
     {
       value: "standard",
       title: "Standard tiebreak",
-      desc: "Every set (including the decider) goes to 6 games, win by 2, with a 7-point tiebreak at 6-6.",
+      desc: `Every set (including the decider) goes to ${games} game${games === 1 ? "" : "s"}, win by 2, with a 7-point tiebreak at ${games}-${games}.`,
     },
     {
       value: "match-tiebreak",
@@ -92,7 +105,7 @@ function tiebreakOptions(target: number, winBy: 1 | 2): { value: TiebreakMode; t
     {
       value: "advantage",
       title: "Advantage sets",
-      desc: "No tiebreaks at all — sets play out to a 2-game lead, however long that takes.",
+      desc: `No tiebreaks at all — sets play out to a 2-game lead past ${games}-${games}, however long that takes.`,
     },
     {
       value: "race-to-9",
@@ -112,6 +125,100 @@ function tiebreakOptions(target: number, winBy: 1 | 2): { value: TiebreakMode; t
 
 const RACE_TARGET_PRESETS = [9, 11, 16, 18, 21];
 const SERVE_EVERY_PRESETS = [2, 3, 4, 5];
+const GAMES_PER_SET_PRESETS = [4, 6, 8, 9];
+const ROUNDS_PRESETS = [4, 5, 6, 7, 8, 10];
+/** Best-of has to be odd or the match can end level, so these are all of them up to nine. */
+const BEST_OF_PRESETS = [1, 3, 5, 7, 9];
+
+/**
+ * A row of preset numbers with a box for anything else.
+ *
+ * The box holds the ORGANISER'S TEXT, not the committed number. Binding it
+ * straight to the value — `value={presets.includes(n) ? "" : String(n)}`, clamp
+ * inside onChange — is the obvious way to write this and it makes the control
+ * unusable, which is how all three of these behaved:
+ *
+ *   - typing a number that happens to be a preset blanked the box mid-word,
+ *     because the derived value went back to "";
+ *   - the box could not be cleared: `parseInt("")` is NaN, the guard skipped the
+ *     update, and the old number snapped straight back into the field;
+ *   - clamping every keystroke meant a two-digit number starting below the
+ *     minimum was impossible — typing "18" into the race target gave "1" →
+ *     clamped to 4 → the box now read "4" and there was no way forward.
+ *
+ * So the draft is kept as a string while the field is being edited, the model is
+ * updated only when the text is already a legal value, and the clamp happens
+ * once on blur where the organiser can see it happen.
+ */
+function NumberChoice({
+  value,
+  onChange,
+  presets,
+  min,
+  max,
+  label,
+  chipLabel,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  presets: number[];
+  min: number;
+  max: number;
+  /** Describes the field for screen readers, e.g. "race target". */
+  label: string;
+  chipLabel?: (n: number) => string;
+}) {
+  // The rules themselves live in lib/numericInput.ts, where they can be tested.
+  // This component holds only the draft string.
+  const [draft, setDraft] = useState<string | null>(null);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {presets.map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => {
+            setDraft(null);
+            onChange(n);
+          }}
+          className={`rounded-xl px-4 py-2.5 font-display text-sm border ${
+            value === n ? "bg-gold text-court-bg border-gold font-bold" : "border-court-line text-white/60"
+          }`}
+        >
+          {chipLabel ? chipLabel(n) : n}
+        </button>
+      ))}
+      <label className="flex items-center gap-2 ml-1">
+        <span className="text-white/40 text-xs uppercase tracking-widest">Custom</span>
+        <input
+          aria-label={`Custom ${label}`}
+          value={boxText(draft, value, presets)}
+          onChange={(e) => {
+            const text = sanitizeNumericText(e.target.value);
+            setDraft(text);
+            const n = commitWhileTyping(text, min, max);
+            if (n !== null) onChange(n);
+          }}
+          onBlur={() => {
+            if (draft === null) return;
+            const n = commitOnBlur(draft, min, max);
+            if (n !== null) onChange(n);
+            // Either way the box goes back to mirroring the committed value, so
+            // an abandoned half-typed number never lingers as if it counted.
+            setDraft(null);
+          }}
+          placeholder="…"
+          inputMode="numeric"
+          className="w-16 bg-court-panel2 border border-court-line rounded-lg px-2 py-2 text-sm text-center outline-none focus:ring-2 ring-gold/50"
+        />
+        <span className="text-white/25 text-xs">
+          {min}–{max}
+        </span>
+      </label>
+    </div>
+  );
+}
 
 // The Alhayat draw: pros seeded 1-4, beginners 13-16, the rest unseeded.
 const ALHAYAT_DRAW: { name: string; seed: number | "" }[] = [
@@ -173,10 +280,23 @@ export default function SetupPage() {
   const [raceTarget, setRaceTarget] = useState(16);
   const [raceWinBy, setRaceWinBy] = useState<1 | 2>(1);
   const [serveEvery, setServeEvery] = useState(4);
+  const [gamesPerSet, setGamesPerSet] = useState(6);
+  /**
+   * The set-play scoring the organiser had before a rotating format overwrote
+   * it with a race — so going back to a bracket draw gives it back rather than
+   * leaving them on a race they never chose.
+   */
+  const [setPlayChoice, setSetPlayChoice] = useState<{ tiebreakMode: TiebreakMode; bestOfSets: number; gamesPerSet: number } | null>(null);
   const [pin, setPin] = useState("");
   // Separate from the coach PIN: this one authorises creating and wiping events.
   const [orgPin, setOrgPin] = useState("");
   const [newOrgPin, setNewOrgPin] = useState("");
+  const [changingOrgPin, setChangingOrgPin] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  /** What the server reported it did with the organiser PIN, for the success screen. */
+  const [orgPinChanged, setOrgPinChanged] = useState(false);
+  /** Set when the seed landed but the reply never came back. */
+  const [lostReplyNote, setLostReplyNote] = useState<string | null>(null);
   const [courtIds, setCourtIds] = useState<number[]>([2, 3]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +316,11 @@ export default function SetupPage() {
     setRrNames((prev) => prev.map((n, idx) => (idx === i ? value : n)));
   }
   function loadGroupDraw() {
+    // The example list is pairs ("Alpha/Bravo"), which only reads correctly in
+    // a doubles draw. Loaded into a singles one it put seven slash-separated
+    // names on the scoreboard as if each were a person, so the demo itself
+    // says which it is.
+    setDiscipline("doubles");
     setRrNames(GROUP_DRAW);
     if (!pin) setPin("1234");
   }
@@ -275,6 +400,28 @@ export default function SetupPage() {
     );
   }
 
+  /**
+   * A list that is in strength order, in a format that reads it as membership.
+   *
+   * "Order by past results" is only OFFERED where the order is a ranking, but
+   * an organiser can sort under a mexicano and then switch to a team americano,
+   * and the list comes with them. Those formats take the first half as one side
+   * and the rest as the other, so a sorted list hands every strong player to
+   * team A and the evening is over before it starts. The button cannot warn
+   * about this, because by then it is no longer on screen.
+   *
+   * The alternating `two-group` bracket draw is deliberately not included: it
+   * deals the list out A, B, A, B, so strength order BALANCES it.
+   */
+  const strengthStacked = useMemo(() => {
+    if (!isTwoGroupEntry(format) || standings.size === 0) return false;
+    const ranked = rrNames
+      .map((n) => standings.get(nameKeyOf(n)))
+      .filter((s): s is number => typeof s === "number");
+    if (ranked.length < 4) return false;
+    return ranked.every((s, i) => i === 0 || ranked[i - 1] >= s);
+  }, [format, rrNames, standings]);
+
   /** The names currently typed in, for whichever entry list this format uses. */
   const currentNames = () => (format === "compass" ? names : rrNames).map((n) => n.trim()).filter(Boolean);
 
@@ -285,6 +432,13 @@ export default function SetupPage() {
     if (!label) return setRosterNote("Give the list a name first.");
     if (list.length < 2) return setRosterNote("Enter at least two entrants first.");
     if (!orgPin.trim()) return setRosterNote("Enter the organiser PIN further down the page first.");
+    // Saving under a name that already exists replaces it, and a list is typed
+    // once and reused for months — so say so rather than quietly overwriting
+    // last season's group with tonight's four.
+    const existing = rosters.find((r) => r.label.trim().toLowerCase() === label.toLowerCase());
+    if (existing && !confirm(`"${existing.label}" already exists with ${existing.names.length} entrants. Replace it with these ${list.length}?`)) {
+      return;
+    }
     setRosterBusy(true);
     try {
       const res = await fetch("/api/rosters", {
@@ -311,15 +465,29 @@ export default function SetupPage() {
       // The compass draw is exactly sixteen rows, so pad or trim to fit.
       const filled = [...r.names.slice(0, 16), ...Array(Math.max(0, 16 - r.names.length)).fill("")];
       setNames(filled);
+      // Seeds are POSITIONAL, and the positions now hold different people. A
+      // roster stores only names, so there is nothing to restore — leaving the
+      // previous draw's seeds behind meant row 6 of tonight's list inherited
+      // whoever was seeded 1 last time, and the bracket was arranged around a
+      // seeding the organiser never entered. Both sibling loaders clear them.
+      setSeeds(Array(16).fill(""));
       if (r.names.length !== 16) setRosterNote(`"${r.label}" has ${r.names.length} entrants; a compass draw needs exactly 16.`);
     } else {
       setRrNames(r.names.length ? r.names : [""]);
     }
-    if (!pin) setPin("1234");
+    // No PIN is set here. The demo buttons below may default to 1234 because
+    // their whole purpose is a one-tap runnable draw; loading a saved list is a
+    // real event, and the coach PIN field shows "e.g. 1234" as its placeholder —
+    // so a silently pre-filled 1234 looked exactly like an untouched empty box
+    // and the evening ran on the most guessable PIN in existence.
   }
 
   async function deleteRoster(r: SavedRoster) {
     if (!orgPin.trim()) return setRosterNote("Enter the organiser PIN further down the page first.");
+    // The only irreversible control on this page without a confirmation. The
+    // × sits inches from Load, and a saved list is typed once and reused for
+    // months.
+    if (!confirm(`Delete "${r.label}" (${r.names.length} entrants)? It cannot be brought back.`)) return;
     setRosterBusy(true);
     setRosterNote(null);
     try {
@@ -335,14 +503,21 @@ export default function SetupPage() {
       }
       await refreshRosters();
       setRosterNote(`Deleted "${r.label}".`);
+    } catch {
+      // A dropped connection threw past the `res.ok` check, React swallowed the
+      // rejection, and the × simply did nothing with no message at all.
+      setRosterNote("No connection — that list was not deleted. Try again in a moment.");
     } finally {
       setRosterBusy(false);
     }
   }
 
   function updateSeed(i: number, value: string) {
-    const num = value === "" ? "" : Math.max(1, Math.min(16, parseInt(value, 10) || 0));
-    setSeeds((prev) => prev.map((s, idx) => (idx === i ? (num as number | "") : s)));
+    // null means "not a number" — leave the box exactly as it was, rather than
+    // inventing seed 1 from it. See `parseSeedInput`.
+    const next = parseSeedInput(value);
+    if (next === null) return;
+    setSeeds((prev) => prev.map((s, idx) => (idx === i ? next : s)));
   }
 
   function fillDemo() {
@@ -359,26 +534,82 @@ export default function SetupPage() {
     if (!pin) setPin("1234");
   }
 
-  // Live preview of the East Round of 16 pairings for the chosen order.
-  const previewPairs = useMemo(() => {
+  /**
+   * Live preview of the East Round of 16, and the reason there isn't one.
+   *
+   * The reason used to be thrown away: two players sharing a seed made
+   * `arrangeDraw` throw, the catch returned null, and the whole preview section
+   * simply disappeared — no message, nothing marked, and the refusal ("Two
+   * players share seed 1") arriving only on Start, naming a number but not a
+   * row. So the error is kept, shown next to the seeds, and checked before the
+   * POST, the same shape `describeField` uses for the rotating formats.
+   */
+  const preview = useMemo((): { pairs: [string, string][] | null; error: string | null; duplicates: Set<number> } => {
     const trimmed = names.map((n) => n.trim());
-    if (trimmed.some((n) => !n)) return null;
+
+    // Which seed NUMBERS are used more than once, so the offending boxes can be
+    // marked rather than the organiser hunting sixteen rows for the clash.
+    const seen = new Map<number, number>();
+    for (const s of seeds) if (s !== "") seen.set(s as number, (seen.get(s as number) ?? 0) + 1);
+    const duplicates = new Set([...seen.entries()].filter(([, count]) => count > 1).map(([seed]) => seed));
+    const dupError =
+      arrange && duplicates.size > 0
+        ? `Two entrants share seed ${[...duplicates].sort((a, b) => a - b).join(" and ")} — every seed has to be different, or clear one of them.`
+        : null;
+
+    if (trimmed.some((n) => !n)) return { pairs: null, error: dupError, duplicates };
     let ordered = trimmed;
     if (arrange) {
       try {
         ordered = arrangeDraw(trimmed.map((n, i) => ({ name: n, seed: seeds[i] === "" ? null : (seeds[i] as number) })));
-      } catch {
-        return null;
+      } catch (e) {
+        return { pairs: null, error: dupError ?? (e instanceof Error ? e.message : "These seeds cannot be arranged."), duplicates };
       }
     }
     const pairs: [string, string][] = [];
     for (let i = 0; i < 8; i++) pairs.push([ordered[i * 2], ordered[i * 2 + 1]]);
-    return pairs;
+    return { pairs, error: null, duplicates };
   }, [names, seeds, arrange]);
+  const previewPairs = preview.pairs;
 
   // The americano rotation, previewed from the same generator the seeder uses,
   // so what the organiser reads here is exactly the draw they get.
   const amPlayerCount = rrNames.filter((n) => n.trim()).length;
+
+  /**
+   * Names the club record cannot tell apart.
+   *
+   * `resolveMembers` folds two identical names into one member on purpose — a
+   * draw that entered the same person twice should say so. But two DIFFERENT
+   * people who share a first name get the same treatment silently, and the
+   * second one's night is credited to the first. Deciding that quietly is the
+   * problem; asking is cheap, and the fix is a surname.
+   */
+  const duplicateNames = useMemo(() => {
+    const seen = new Map<string, string>();
+    const clashes: string[] = [];
+    for (const raw of format === "compass" ? names : rrNames) {
+      const key = nameKeyOf(raw);
+      if (!key) continue;
+      if (seen.has(key)) {
+        if (!clashes.includes(seen.get(key)!)) clashes.push(seen.get(key)!);
+      } else {
+        seen.set(key, raw.trim());
+      }
+    }
+    return clashes;
+  }, [names, rrNames, format]);
+  // Courts the chosen format could never fill with this field — see ./courtLoad.
+  const emptyCourtNote = surplusCourtNote(
+    courtsUsedBy(format, amPlayerCount),
+    courtIds,
+    // The compass draw keeps its entrants in a different list; everything else
+    // reads rrNames. Using the wrong one made the note describe a field of zero.
+    format === "compass" ? names.filter((n) => n.trim()).length : amPlayerCount,
+    // A winner court plays one match however many turn up, so "add more
+    // players" is not a remedy there.
+    format !== "winner-court"
+  );
   // A team americano runs out of partner combinations far sooner than a plain
   // one — a team of four has only three — so it gets its own default rather
   // than the generic eight, which would schedule rounds of repeats by default.
@@ -532,12 +763,18 @@ export default function SetupPage() {
     // One rule per format, from the registry — the same sentence the API would
     // return, so the organiser never sees two different explanations.
     if (format === "compass" && trimmed.some((n) => !n)) {
-      setError("All 16 player names must be filled in.");
+      setError(`All 16 ${entrantsLabel.toLowerCase()} must be filled in.`);
       return;
     }
     const invalidField = validateField(format, trimmed.filter(Boolean).length);
     if (invalidField) {
       setError(invalidField);
+      return;
+    }
+    // Raised here rather than left to the API, which can only name the seed —
+    // this one names it while the seed boxes are still on screen and marked.
+    if (format === "compass" && preview.error) {
+      setError(preview.error);
       return;
     }
     if (pin.trim().length < 4) {
@@ -573,17 +810,44 @@ export default function SetupPage() {
           raceTarget,
           serveEvery,
           raceWinBy,
+          gamesPerSet,
           amRounds: amRounds || effectiveRounds,
           pin: pin.trim(),
           organiserPin: orgPin.trim(),
           newOrganiserPin: newOrgPin.trim(),
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to start tournament");
+      setOrgPinChanged(!!data.organiserPinChanged);
       setSuccess(true);
       setStatus("active");
     } catch (e) {
+      // The seed may well have landed. A dropped reply on a venue wifi is
+      // indistinguishable here from a genuine failure, and treating it as a
+      // failure strands the organiser on a form whose only button now fails
+      // for good — the draw exists, so re-seeding is refused as "Tournament
+      // already started". Ask the server what actually happened before saying
+      // anything.
+      const live = await fetch("/api/state")
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      if (live?.tournament?.status && live.tournament.status !== "setup") {
+        setStatus(live.tournament.status);
+        // The draw landed, so show the success screen rather than the
+        // "already active" card — otherwise the one thing the organiser most
+        // needs from this page, the PIN they are now locked to, is never said.
+        // The reply was lost, so whether the rotation landed is unknown; the
+        // honest answer is the one that sends them to check.
+        setOrgPinChanged(false);
+        setLostReplyNote(
+          newOrgPin.trim()
+            ? `The draw started, but the reply was lost, so we cannot tell whether the organiser PIN changed to ${newOrgPin.trim()}. Try the new one first; if it is refused, the old one still works.`
+            : "The draw started, but the reply was lost on the way back. Everything below is live."
+        );
+        setSuccess(true);
+        return;
+      }
       setError(e instanceof Error ? e.message : "Failed to start tournament");
     } finally {
       setSubmitting(false);
@@ -623,26 +887,40 @@ export default function SetupPage() {
                 inputMode="numeric"
                 className="flex-1 min-w-0 bg-court-panel2 border border-court-line rounded-lg px-3 py-2 text-sm outline-none"
               />
+              {/* The most destructive control in the app, and the only write
+                  handler on this page with no try/catch and no in-flight guard:
+                  a dropped connection threw past `res.ok`, the rejection was
+                  swallowed by React, and the button simply did nothing for the
+                  rest of the session with no message at all. */}
               <button
+                disabled={resetBusy}
                 onClick={async () => {
                   setError(null);
-                  const res = await fetch("/api/reset", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ pin: orgPin.trim() }),
-                  });
-                  if (!res.ok) {
-                    const data = await res.json();
-                    setError(data.error || "Failed to reset");
-                    return;
+                  setResetBusy(true);
+                  try {
+                    const res = await fetch("/api/reset", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ pin: orgPin.trim() }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      setError(data.error || "Failed to reset");
+                      return;
+                    }
+                    setStatus("setup");
+                    setNames(Array(16).fill(""));
+                    setRrNames(Array(7).fill(""));
+                    setSeeds(Array(16).fill(""));
+                  } catch {
+                    setError("No connection — nothing was erased. Try again in a moment.");
+                  } finally {
+                    setResetBusy(false);
                   }
-                  setStatus("setup");
-                  setNames(Array(16).fill(""));
-                  setRrNames(Array(7).fill(""));
                 }}
-                className="rounded-lg bg-live text-white text-xs font-bold px-4 py-2 shrink-0"
+                className="rounded-lg bg-live text-white text-xs font-bold px-4 py-2 shrink-0 disabled:opacity-50"
               >
-                Erase &amp; restart
+                {resetBusy ? "Erasing…" : "Erase & restart"}
               </button>
             </div>
             {error && <p className="text-live text-xs mt-2">{error}</p>}
@@ -677,7 +955,20 @@ export default function SetupPage() {
           </p>
           <p className="text-white/70 mb-6">
             Coach PIN: <span className="font-mono font-bold text-gold">{pin}</span>
-            <span className="block text-white/40 text-xs mt-1">Your organiser PIN is unchanged — do not share it with coaches.</span>
+            {/* Said from what the SERVER reported, not from what the form hoped.
+                This line used to claim the organiser PIN was unchanged in every
+                case — including the one where this very request had just
+                changed it, which is how a rotation could happen unnoticed and
+                lock the organiser out of their own event. */}
+            {lostReplyNote && <span className="block text-gold/80 text-xs mt-1">{lostReplyNote}</span>}
+            {orgPinChanged ? (
+              <span className="block text-gold/80 text-xs mt-1">
+                Your organiser PIN is now <span className="font-mono font-bold">{newOrgPin.trim()}</span> — write it down. Do not share
+                either PIN with coaches.
+              </span>
+            ) : (
+              <span className="block text-white/40 text-xs mt-1">Your organiser PIN is unchanged — do not share it with coaches.</span>
+            )}
           </p>
           <div className="flex flex-col gap-3">
             <Link href="/display" className="rounded-xl bg-gold text-court-bg font-display uppercase py-3 font-bold">
@@ -780,15 +1071,60 @@ export default function SetupPage() {
                     key={id}
                     type="button"
                     onClick={() => {
+                      // The compass draw and everything else hold their entrants
+                      // in different state, so switching used to make a filled
+                      // list appear to vanish — and an organiser who had just
+                      // typed sixteen names retyped them. Carry them across
+                      // instead, padding or trimming the way loadRoster does.
+                      if (format === "compass" && id !== "compass") {
+                        const filled = names.map((n) => n.trim()).filter(Boolean);
+                        if (filled.length && rrNames.every((n) => !n.trim())) setRrNames(filled);
+                      } else if (format !== "compass" && id === "compass") {
+                        const filled = rrNames.map((n) => n.trim()).filter(Boolean);
+                        if (filled.length && names.every((n) => !n.trim())) {
+                          setNames([...filled.slice(0, 16), ...Array(Math.max(0, 16 - filled.length)).fill("")]);
+                        }
+                      }
                       setFormat(id);
+                      // "Order by past results" describes the list as it was
+                      // when it was sorted, for the format it was sorted under.
+                      // Left standing across a switch it reassured an organiser
+                      // that a two-group field was sensibly ordered when strength
+                      // order is the one order that stacks every strong player
+                      // into Group A.
+                      setOrderNote(null);
                       // Everything but the bracket draws is scored as a short
                       // race to a points total — that running total IS the
                       // tournament, so sets would make no sense.
-                      if (id === "two-group" || spec.rotatingPartners) {
+                      //
+                      // Applied only when moving from a NON-race setting. Doing
+                      // it on every tap meant idly comparing two rotating
+                      // formats silently threw away a race target the organiser
+                      // had already chosen, putting it back to 16.
+                      const wantsRace = id === "two-group" || !!spec.rotatingPartners;
+                      if (wantsRace && !isPointsRace(tiebreakMode)) {
+                        // Keep what they had, so coming back to a bracket draw
+                        // does not leave them on a race they never picked and
+                        // with their best-of quietly reset to one.
+                        setSetPlayChoice({ tiebreakMode, bestOfSets, gamesPerSet });
                         setTiebreakMode("race-to-16");
                         setBestOfSets(1);
                         if (spec.rotatingPartners) setRaceTarget(16);
+                      } else if (!wantsRace && isPointsRace(tiebreakMode) && setPlayChoice) {
+                        setTiebreakMode(setPlayChoice.tiebreakMode);
+                        setBestOfSets(setPlayChoice.bestOfSets);
+                        setGamesPerSet(setPlayChoice.gamesPerSet);
+                        setSetPlayChoice(null);
                       }
+                      // The discipline is deliberately NOT touched here. Forcing
+                      // it to "doubles" for a rotating format looked harmless —
+                      // four people are on court either way — but the discipline
+                      // control is hidden for those formats, so nothing put it
+                      // back: tapping a rotating format to read its blurb and
+                      // tapping back silently turned a singles draw into a
+                      // doubles one, which stops every entrant being recorded as
+                      // a club member. The scoreboard now works out that a side
+                      // holds two people from the match itself instead.
                     }}
                     className={`text-left rounded-xl border p-3 transition-colors ${
                       format === id ? "border-gold bg-gold/10" : "border-court-line bg-court-panel"
@@ -871,7 +1207,7 @@ export default function SetupPage() {
       {format === "compass" ? (
         <section className="mb-6">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h2 className="font-display uppercase text-lg text-white/80">Players</h2>
+            <h2 className="font-display uppercase text-lg text-white/80">{entrantsLabel}</h2>
             <div className="flex items-center gap-3">
               <button onClick={loadAlhayat} type="button" className="text-xs text-gold underline underline-offset-4">
                 Load Alhayat draw
@@ -895,7 +1231,7 @@ export default function SetupPage() {
                   autoCapitalize="words"
                   autoCorrect="off"
                   spellCheck={false}
-                  placeholder={`${entrantLabel} ${i + 1}`}
+                  placeholder={`${entrantLabel} ${i + 1}${discipline === "doubles" ? " (e.g. Alpha/Bravo)" : ""}`}
                   className="flex-1 min-w-0 bg-court-panel2 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 ring-gold/50"
                 />
                 <input
@@ -903,8 +1239,16 @@ export default function SetupPage() {
                   onChange={(e) => updateSeed(i, e.target.value)}
                   placeholder="seed"
                   inputMode="numeric"
+                  pattern="[0-9]*"
                   disabled={!arrange}
-                  className="w-16 shrink-0 bg-court-panel2 rounded-md px-2 py-2 text-sm text-center outline-none focus:ring-2 ring-gold/50 disabled:opacity-30"
+                  // Only while the seeds are actually being used. With "Arrange
+                  // by seed" off they decide nothing, and marking them left two
+                  // boxes reading as errors with no message anywhere to explain
+                  // them and a Start button that works perfectly well.
+                  aria-invalid={arrange && seeds[i] !== "" && preview.duplicates.has(seeds[i] as number)}
+                  className={`w-16 shrink-0 bg-court-panel2 rounded-md px-2 py-2 text-sm text-center outline-none focus:ring-2 ring-gold/50 disabled:opacity-30 ${
+                    arrange && seeds[i] !== "" && preview.duplicates.has(seeds[i] as number) ? "ring-2 ring-live text-live" : ""
+                  }`}
                 />
               </div>
             ))}
@@ -920,6 +1264,13 @@ export default function SetupPage() {
               </span>
             </span>
           </label>
+          {duplicateNames.length > 0 && (
+            <p className="text-gold/80 text-xs mt-2">
+              {duplicateNames.join(", ")} {duplicateNames.length === 1 ? "is" : "are"} entered twice. If that is the same person playing two
+              slots, carry on. If they are two different people, give one a surname — the club record matches on the name, so otherwise
+              one of them loses the night.
+            </p>
+          )}
         </section>
       ) : (
         <section className="mb-6">
@@ -983,27 +1334,29 @@ export default function SetupPage() {
           >
             + Add {entrantLabel.toLowerCase()}
           </button>
-          {americano ? (
-            // One sentence from the registry: the reason it is illegal, or what
-            // this field will produce. The submit button uses the same rule, so
-            // the two can never say different things.
-            <p className={`text-xs mt-3 ${describeField(format, amPlayerCount).ok ? "text-white/40" : "text-live"}`}>
-              {describeField(format, amPlayerCount).message}
+          {/* One sentence from the registry, for every format alike: the reason
+              this field is illegal, or what it will produce. The submit button
+              reads the same rule, so the two can never say different things.
+
+              The two-group and round-robin branches used to write their own
+              sentence, and both described a field nobody had entered: two-group
+              clamped the count up to its minimum before doing the arithmetic,
+              so four teams were confidently promised the nine matches of six,
+              in the ordinary grey, and the refusal only arrived on Start. */}
+          <p className={`text-xs mt-3 ${describeField(format, amPlayerCount).ok ? "text-white/40" : "text-live"}`}>
+            {describeField(format, amPlayerCount).message}
+          </p>
+          {duplicateNames.length > 0 && (
+            <p className="text-gold/80 text-xs mt-2">
+              {duplicateNames.join(", ")} {duplicateNames.length === 1 ? "is" : "are"} entered twice. If that is the same person playing two
+              slots, carry on. If they are two different people, give one a surname — the club record matches on the name, so otherwise
+              one of them loses the night.
             </p>
-          ) : format === "two-group" ? (
-            <p className="text-white/40 text-xs mt-3">
-              Split into two groups, alternating down this list ({rrNames.filter((n) => n.trim()).length} teams →{" "}
-              {twoGroupMatchCount(Math.max(rrNames.filter((n) => n.trim()).length, MIN_TWO_GROUP_TEAMS))} matches). Each group is a round
-              robin; the top two of each reach the semifinals.
-            </p>
-          ) : (
-            <p className="text-white/40 text-xs mt-3">
-              {/* The FILLED rows, which is what the seeder gets and what the
-                  two-group branch three lines up already uses. Counting the
-                  input rows instead promised matches nobody would play, and
-                  squared the error into the match count. */}
-              Every team plays every other team once ({amPlayerCount} teams →{" "}
-              {(amPlayerCount * (amPlayerCount - 1)) / 2} matches). Standings are ranked by matches won.
+          )}
+          {strengthStacked && (
+            <p className="text-gold/80 text-xs mt-2">
+              This list is in strength order, and this format takes the first half as one side and the rest as the other — so every strong
+              player would land together. Shuffle the halves before starting.
             </p>
           )}
         </section>
@@ -1028,7 +1381,11 @@ export default function SetupPage() {
               : mixedMexicano
               ? "How many times the table is redrawn. Each round is made from the standings at that moment, with every pair still crossing the two groups."
               : winnerCourt
-              ? "How many matches are played in total. Only one match is on at a time, so this is the length of the whole session."
+              ? `How many matches are played in total. Only one match is on at a time, so this is the length of the whole session.${
+                  isValidWinnerCourtField(amPlayerCount)
+                    ? ` The queue moves two at a time, so it takes ${roundsForEveryone(amPlayerCount)} matches before everyone has had a turn.`
+                    : ""
+                }`
               : mixicano
               ? `How many times you change partner across the groups.${
                   isValidMixicanoField(amPlayerCount)
@@ -1051,33 +1408,23 @@ export default function SetupPage() {
                     : ""
                 }`}
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            {[4, 5, 6, 7, 8, 10].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setAmRounds(n)}
-                className={`rounded-xl px-4 py-2.5 font-display text-sm border ${
-                  effectiveRounds === n ? "bg-gold text-court-bg border-gold font-bold" : "border-court-line text-white/60"
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-            <label className="flex items-center gap-2 ml-1">
-              <span className="text-white/40 text-xs uppercase tracking-widest">Custom</span>
-              <input
-                value={[4, 5, 6, 7, 8, 10].includes(effectiveRounds) ? "" : String(effectiveRounds)}
-                onChange={(e) => {
-                  const n = parseInt(e.target.value, 10);
-                  if (Number.isInteger(n)) setAmRounds(Math.max(1, Math.min(MAX_AMERICANO_ROUNDS, n)));
-                }}
-                placeholder="…"
-                inputMode="numeric"
-                className="w-16 bg-court-panel2 border border-court-line rounded-lg px-2 py-2 text-sm text-center outline-none focus:ring-2 ring-gold/50"
-              />
-            </label>
-          </div>
+          <NumberChoice
+            label="number of rounds"
+            value={effectiveRounds}
+            onChange={setAmRounds}
+            presets={ROUNDS_PRESETS}
+            min={1}
+            max={MAX_AMERICANO_ROUNDS}
+          />
+          {/* The one format where the round count decides who plays AT ALL.
+              Everywhere else a short night means fewer matches each; here it
+              means the back of the queue goes home without a game. */}
+          {winnerCourt && isValidWinnerCourtField(amPlayerCount) && neverPlaying(amPlayerCount, effectiveRounds) > 0 && (
+            <p className="text-live text-xs mt-2">
+              {effectiveRounds} match{effectiveRounds === 1 ? "" : "es"} would leave {neverPlaying(amPlayerCount, effectiveRounds)} of the{" "}
+              {amPlayerCount} never on court. {roundsForEveryone(amPlayerCount)} gives everyone a turn.
+            </p>
+          )}
 
           {mtPreview && (
             <div className="mt-4 rounded-xl border border-court-line bg-court-panel p-4">
@@ -1414,19 +1761,23 @@ export default function SetupPage() {
         </section>
       )}
 
-      {format === "compass" && previewPairs && (
+      {format === "compass" && (previewPairs || preview.error) && (
         <section className="mb-6">
           <h2 className="font-display uppercase text-sm text-white/50 mb-2">East Round of 16 preview</h2>
-          <div className="grid sm:grid-cols-2 gap-1.5">
-            {previewPairs.map((p, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-lg border border-court-line bg-court-panel px-3 py-2 text-sm">
-                <span className="text-white/30 font-mono text-xs w-6">M{i + 1}</span>
-                <span className="truncate">{p[0]}</span>
-                <span className="text-white/30 text-xs">vs</span>
-                <span className="truncate">{p[1]}</span>
-              </div>
-            ))}
-          </div>
+          {preview.error ? (
+            <p className="text-live text-xs rounded-lg border border-live/40 bg-court-panel px-3 py-2.5">{preview.error}</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-1.5">
+              {previewPairs!.map((p, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-lg border border-court-line bg-court-panel px-3 py-2 text-sm">
+                  <span className="text-white/30 font-mono text-xs w-6">M{i + 1}</span>
+                  <span className="truncate">{p[0]}</span>
+                  <span className="text-white/30 text-xs">vs</span>
+                  <span className="truncate">{p[1]}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -1438,30 +1789,71 @@ export default function SetupPage() {
             : "How each individual match is scored."}
         </p>
         {!isPointsRace(tiebreakMode) && (
-          <div className="flex gap-2 mb-4">
-            {[1, 3, 5].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setBestOfSets(n)}
-                className={`flex-1 rounded-xl py-3 font-display uppercase text-sm border ${
-                  bestOfSets === n ? "bg-gold text-court-bg border-gold font-bold" : "border-court-line text-white/60"
-                }`}
-              >
-                Best of {n}
-              </button>
-            ))}
+          <div className="mb-4 space-y-4">
+            <div>
+              <p className="font-display uppercase text-sm text-white/80 mb-2">How many sets</p>
+              {/* Chips only, deliberately. Best-of has to be ODD or a match can
+                  finish level, so these five ARE every legal value up to nine —
+                  a Custom box here could only offer numbers the API then
+                  refuses at the moment of Start. */}
+              <div className="flex flex-wrap items-center gap-2">
+                {BEST_OF_PRESETS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setBestOfSets(n)}
+                    className={`rounded-xl px-4 py-2.5 font-display text-sm border ${
+                      bestOfSets === n ? "bg-gold text-court-bg border-gold font-bold" : "border-court-line text-white/60"
+                    }`}
+                  >
+                    Best of {n}
+                  </button>
+                ))}
+              </div>
+              {tiebreakMode === "match-tiebreak" && bestOfSets < 3 && (
+                <p className="text-live text-xs mt-2">
+                  A fast deciding set needs at least three sets — there is no decider in a best of {bestOfSets}. Every screen would say
+                  &ldquo;match tiebreak&rdquo; while an ordinary set was played. Pick Best of 3, or choose the standard tiebreak.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <p className="font-display uppercase text-sm text-white/80 mb-2">Games in a set</p>
+              <p className="text-white/40 text-xs mb-2">
+                Six is a normal set. Four is the short set a club evening usually has room for, and eight or nine is a pro set played as
+                one long set. Whatever you pick, two clear games take it and a tiebreak decides {gamesPerSet}-{gamesPerSet}.
+              </p>
+              <NumberChoice
+                label="games in a set"
+                value={gamesPerSet}
+                onChange={setGamesPerSet}
+                presets={GAMES_PER_SET_PRESETS}
+                min={2}
+                max={9}
+              />
+              <p className="text-white/40 text-xs mt-2">
+                {matchFormatLabel(bestOfSets, { tiebreakMode, gamesPerSet })} — a typical score would be{" "}
+                {gamesPerSet}-{Math.max(0, gamesPerSet - 2)}
+                {bestOfSets > 1 ? `, ${gamesPerSet}-${Math.max(0, gamesPerSet - 4)}` : ""}.
+              </p>
+            </div>
           </div>
         )}
 
         <div className="grid gap-2">
-          {tiebreakOptions(raceTarget, raceWinBy).map((opt) => (
+          {tiebreakOptions(raceTarget, raceWinBy, gamesPerSet).map((opt) => (
             <button
               key={opt.value}
               type="button"
               onClick={() => {
                 setTiebreakMode(opt.value);
                 if (isPointsRace(opt.value)) setBestOfSets(1);
+                // A "fast deciding set" replaces the DECIDER, and a best of one
+                // has none: the engine quietly played an ordinary set while
+                // every screen announced a match tiebreak. Three is the
+                // shortest match the mode means anything in.
+                if (opt.value === "match-tiebreak" && bestOfSets < 3) setBestOfSets(3);
               }}
               className={`text-left rounded-xl border p-3 transition-colors ${
                 tiebreakMode === opt.value ? "border-gold bg-gold/10" : "border-court-line bg-court-panel"
@@ -1481,33 +1873,14 @@ export default function SetupPage() {
           >
             <div>
               <p className="font-display uppercase text-sm text-white/80 mb-2">Race target</p>
-              <div className="flex flex-wrap items-center gap-2">
-                {RACE_TARGET_PRESETS.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setRaceTarget(n)}
-                    className={`rounded-xl px-4 py-2.5 font-display text-sm border ${
-                      raceTarget === n ? "bg-gold text-court-bg border-gold font-bold" : "border-court-line text-white/60"
-                    }`}
-                  >
-                    {n}
-                  </button>
-                ))}
-                <label className="flex items-center gap-2 ml-1">
-                  <span className="text-white/40 text-xs uppercase tracking-widest">Custom</span>
-                  <input
-                    value={RACE_TARGET_PRESETS.includes(raceTarget) ? "" : String(raceTarget)}
-                    onChange={(e) => {
-                      const n = parseInt(e.target.value, 10);
-                      if (Number.isInteger(n)) setRaceTarget(Math.max(4, Math.min(99, n)));
-                    }}
-                    placeholder="…"
-                    inputMode="numeric"
-                    className="w-16 bg-court-panel2 border border-court-line rounded-lg px-2 py-2 text-sm text-center outline-none focus:ring-2 ring-gold/50"
-                  />
-                </label>
-              </div>
+              <NumberChoice
+                label="race target"
+                value={raceTarget}
+                onChange={setRaceTarget}
+                presets={RACE_TARGET_PRESETS}
+                min={4}
+                max={99}
+              />
               <p className="text-white/40 text-xs mt-2">
                 {tiebreakMode === "race-to-16"
                   ? raceWinBy === 2
@@ -1551,33 +1924,15 @@ export default function SetupPage() {
 
             <div className="mt-4 pt-4 border-t border-court-line">
               <p className="font-display uppercase text-sm text-white/80 mb-2">Serve changes every</p>
-              <div className="flex flex-wrap items-center gap-2">
-                {SERVE_EVERY_PRESETS.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setServeEvery(n)}
-                    className={`rounded-xl px-4 py-2.5 font-display text-sm border ${
-                      serveEvery === n ? "bg-gold text-court-bg border-gold font-bold" : "border-court-line text-white/60"
-                    }`}
-                  >
-                    {n} pts
-                  </button>
-                ))}
-                <label className="flex items-center gap-2 ml-1">
-                  <span className="text-white/40 text-xs uppercase tracking-widest">Custom</span>
-                  <input
-                    value={SERVE_EVERY_PRESETS.includes(serveEvery) ? "" : String(serveEvery)}
-                    onChange={(e) => {
-                      const n = parseInt(e.target.value, 10);
-                      if (Number.isInteger(n)) setServeEvery(Math.max(1, Math.min(10, n)));
-                    }}
-                    placeholder="…"
-                    inputMode="numeric"
-                    className="w-16 bg-court-panel2 border border-court-line rounded-lg px-2 py-2 text-sm text-center outline-none focus:ring-2 ring-gold/50"
-                  />
-                </label>
-              </div>
+              <NumberChoice
+                label="serve change"
+                value={serveEvery}
+                onChange={setServeEvery}
+                presets={SERVE_EVERY_PRESETS}
+                min={1}
+                max={10}
+                chipLabel={(n) => `${n} pts`}
+              />
               <p className="text-white/40 text-xs mt-2">
                 Each side serves {serveEvery} point{serveEvery === 1 ? "" : "s"} in a row, then it changes hands. The TVs and coach phones
                 show whose serve it is and how many serves are left.
@@ -1612,6 +1967,14 @@ export default function SetupPage() {
             ? `${courtIds.length} court${courtIds.length > 1 ? "s" : ""}: ${courtIds.map((c) => `Court ${c}`).join(", ")} — matches fill these automatically.`
             : "Pick at least one court."}
         </p>
+        {/* "Fill these automatically" is only true up to a point. A rotating
+            format plays one round at a time and a round is floor(players / 4)
+            matches, so ticking more courts than that leaves the spare ones
+            unused all evening rather than merely quiet between matches. Said
+            here, while it is still one tap to fix. */}
+        {emptyCourtNote && (
+          <p className="text-xs mt-2 text-gold/80">{emptyCourtNote}</p>
+        )}
       </section>
 
       <section className="mb-8">
@@ -1637,10 +2000,14 @@ export default function SetupPage() {
 
         <label className="block">
           <span className="font-display uppercase text-sm text-white/70">Organiser PIN</span>
+          {/* Masked, like the identical field on the restart panel. The setup
+              form is filled in at the desk with players around it, and this is
+              the PIN that wipes events. */}
           <input
             value={orgPin}
             onChange={(e) => setOrgPin(e.target.value)}
             placeholder="only you know this one"
+            type="password"
             inputMode="numeric"
             className="mt-1 w-full bg-court-panel2 border border-gold/30 rounded-lg px-3 py-3 text-sm outline-none focus:ring-2 ring-gold/50"
           />
@@ -1650,7 +2017,23 @@ export default function SetupPage() {
           </span>
         </label>
 
-        <details className="mt-3">
+        {/* Closing this section must forget what was typed in it. A <details>
+            only HIDES its input: an organiser who opened it, typed a new PIN,
+            thought better of it and collapsed the section again still had that
+            value in state, still sent it on submit, and had their organiser PIN
+            rotated to something they had decided against — with no trace of it
+            anywhere on the page, and a success screen that then told them the
+            PIN was unchanged. So the open state is React's, and closing clears
+            the field. */}
+        <details
+          className="mt-3"
+          open={changingOrgPin}
+          onToggle={(e) => {
+            const open = (e.currentTarget as HTMLDetailsElement).open;
+            setChangingOrgPin(open);
+            if (!open) setNewOrgPin("");
+          }}
+        >
           <summary className="text-white/35 text-xs cursor-pointer">Change the organiser PIN</summary>
           <input
             value={newOrgPin}
@@ -1663,6 +2046,12 @@ export default function SetupPage() {
             Enter the current one above and the new one here; it changes when the draw starts. If it is ever
             forgotten, set ORGANISER_PIN on the host to get back in.
           </span>
+          {newOrgPin.trim().length > 0 && (
+            <span className="block text-gold/80 text-xs mt-1.5">
+              On Start, the organiser PIN becomes <span className="font-mono font-bold">{newOrgPin.trim()}</span>. Close this section to
+              leave it as it is.
+            </span>
+          )}
         </details>
       </section>
 

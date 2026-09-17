@@ -172,13 +172,15 @@ export function isPointsRace(mode: TiebreakMode | string | undefined): boolean {
   return POINTS_RACE_MODES.includes(mode as TiebreakMode);
 }
 
-/** The bits of a scoring config the race helpers need — both the server's
+/** The bits of a scoring config the rules helpers need — both the server's
  * ScoringConfig and the serialized MatchStateDTO.config satisfy it. */
 export interface RaceConfigLike {
   tiebreakMode: TiebreakMode | string;
   raceTarget?: number;
   serveEvery?: number;
   raceWinBy?: number;
+  /** Set play only: games needed to take a set. 0/undefined = the standard six. */
+  gamesPerSet?: number;
 }
 
 /**
@@ -211,6 +213,23 @@ export function raceWinByOf(config: RaceConfigLike): 1 | 2 {
   return config.raceWinBy === 2 ? 2 : 1;
 }
 
+/**
+ * Games needed to take a set — six, unless the organiser asked for something else.
+ *
+ * Short sets (first to four) and pro sets (first to eight or nine) are how a
+ * club actually fits set play into an evening, so the number is configurable
+ * rather than baked into the engine. It carries the same 0-means-default
+ * convention as the race options: every tournament seeded before this existed
+ * stores 0 and keeps playing six-game sets, so an old draw's scores stay legal.
+ *
+ * The rest of the set follows from it: two clear games still take it, the
+ * tiebreak still comes at N-all, and the tiebreak winner still ends on N+1.
+ */
+export function gamesPerSetOf(config: RaceConfigLike): number {
+  if (config.gamesPerSet && config.gamesPerSet >= 1) return Math.floor(config.gamesPerSet);
+  return 6;
+}
+
 /** How many points each side serves before it changes hands. 0/undefined = the house default of 4. */
 export function serveEveryOf(config: RaceConfigLike): number {
   if (config.serveEvery && config.serveEvery >= 1) return Math.floor(config.serveEvery);
@@ -240,8 +259,15 @@ export function matchFormatLabel(bestOfSets: number, config: RaceConfigLike): st
     return raceWinByOf(config) === 2 ? `First to ${target}, win by 2` : `First to ${target} points`;
   }
   if (config.tiebreakMode === "race-to-9") return `${raceTotalPoints(config)} points total`;
-  const base = `Best of ${bestOfSets}`;
-  if (config.tiebreakMode === "match-tiebreak") return `${base} · match tiebreak`;
+  // A non-standard set length changes what every score on the wall means, so it
+  // is named before the tiebreak rule rather than left for people to infer from
+  // a 4-2 scoreline.
+  const games = gamesPerSetOf(config);
+  const base = `Best of ${bestOfSets}` + (games === 6 ? "" : ` · first to ${games} game${games === 1 ? "" : "s"}`);
+  // Only claim the match tiebreak where there is a decider for it to replace.
+  // A best of one has none, and the engine plays an ordinary set — so saying
+  // "match tiebreak" on the wall would describe a match nobody is playing.
+  if (config.tiebreakMode === "match-tiebreak") return bestOfSets >= 3 ? `${base} · match tiebreak` : base;
   if (config.tiebreakMode === "advantage") return `${base} · advantage sets`;
   return base;
 }
@@ -342,7 +368,7 @@ export interface PlayerDTO {
 
 export interface MatchStateDTO {
   // derived, event-sourced live score state
-  config: { bestOfSets: number; tiebreakMode: TiebreakMode; raceTarget?: number; serveEvery?: number; raceWinBy?: number };
+  config: { bestOfSets: number; tiebreakMode: TiebreakMode; raceTarget?: number; serveEvery?: number; raceWinBy?: number; gamesPerSet?: number };
   setsWon: [number, number];
   completedSets: Array<{ games: [number, number]; tiebreak?: [number, number] }>;
   currentSet: { games: [number, number] } | null;

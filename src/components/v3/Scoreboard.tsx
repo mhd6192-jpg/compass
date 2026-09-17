@@ -205,7 +205,11 @@ export default function Scoreboard({
   tiebreakMode: string;
   discipline?: string;
 }) {
-  const doubles = discipline !== "singles";
+  // Two people on a side is a fact about the MATCH, not about the event label.
+  // A rotating format enters individuals and hands them a partner every round, so
+  // its sides always hold two names however the discipline is set — reading the
+  // label alone hid the partner on an americano seeded as "singles".
+  const doubles = (match.player1Members?.length ?? 0) === 2 || (match.player2Members?.length ?? 0) === 2 || discipline !== "singles";
 
   // How long they have been out there. The question every spectator asks, and
   // nothing on the court answers it.

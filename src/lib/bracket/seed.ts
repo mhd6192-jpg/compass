@@ -27,6 +27,8 @@ export interface SeedOptions {
   serveEvery?: number;
   /** Margin needed to take a race: 0/1 = sudden death at the target, 2 = win by two. */
   raceWinBy?: number;
+  /** Set play only: games needed to take a set. 0/undefined = the standard six. */
+  gamesPerSet?: number;
   pin: string;
   format?: TournamentFormat;
   discipline?: string;
@@ -213,7 +215,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
             tiebreakMode: opts.tiebreakMode,
             raceTarget: opts.raceTarget ?? 0,
             serveEvery: opts.serveEvery ?? 0,
-          raceWinBy: opts.raceWinBy ?? 0,
+            raceWinBy: opts.raceWinBy ?? 0,
+            gamesPerSet: opts.gamesPerSet ?? 0,
             amRounds,
             pin: opts.pin,
             startedAt: new Date(),
@@ -227,7 +230,8 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
             tiebreakMode: opts.tiebreakMode,
             raceTarget: opts.raceTarget ?? 0,
             serveEvery: opts.serveEvery ?? 0,
-          raceWinBy: opts.raceWinBy ?? 0,
+            raceWinBy: opts.raceWinBy ?? 0,
+            gamesPerSet: opts.gamesPerSet ?? 0,
             amRounds,
             pin: opts.pin,
             startedAt: new Date(),

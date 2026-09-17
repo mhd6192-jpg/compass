@@ -1,4 +1,13 @@
-import { AnimationTier, MatchStateDTO, TiebreakMode, isPointsRace, raceTargetOf, raceTotalPoints, raceWinByOf } from "../types";
+import {
+  AnimationTier,
+  MatchStateDTO,
+  TiebreakMode,
+  gamesPerSetOf,
+  isPointsRace,
+  raceTargetOf,
+  raceTotalPoints,
+  raceWinByOf,
+} from "../types";
 
 export interface ScoringConfig {
   bestOfSets: number; // e.g. 3 or 5 (always odd)
@@ -9,6 +18,8 @@ export interface ScoringConfig {
   serveEvery?: number;
   /** Margin needed to take a race: 1 (sudden death at the target) or 2 (win by two). */
   raceWinBy?: number;
+  /** Games needed to take a set. 0/undefined = the standard six. */
+  gamesPerSet?: number;
 }
 
 interface CompletedSet {
@@ -128,13 +139,17 @@ export function applyPoint(
     return { state: s, tier: "point" };
   }
 
-  // --- tiebreak game at 6-6 within a normal set ---
+  // --- tiebreak game at N-all within a normal set ---
+  const perSet = gamesPerSetOf(config);
+
   if (s.isTiebreakGame) {
     s.curGamePoints[i] += 1;
     const a = s.curGamePoints[i];
     const b = s.curGamePoints[j];
     if (a >= 7 && a - b >= 2) {
-      const games: [number, number] = i === 0 ? [7, 6] : [6, 7];
+      // The breaker is worth one game, so it always finishes N+1 to N — whatever
+      // N is. Writing 7-6 here would have put a six-game score on a short set.
+      const games: [number, number] = i === 0 ? [perSet + 1, perSet] : [perSet, perSet + 1];
       const tb: [number, number] = i === 0 ? [a, b] : [b, a];
       s.sets.push({ games, tiebreak: tb });
       s.setsWon[i] += 1;
@@ -167,7 +182,7 @@ export function applyPoint(
   const gw = s.curSetGames[i];
   const gl = s.curSetGames[j];
 
-  const setWonOutright = gw >= 6 && gw - gl >= 2;
+  const setWonOutright = gw >= perSet && gw - gl >= 2;
   if (setWonOutright) {
     const games: [number, number] = i === 0 ? [gw, gl] : [gl, gw];
     s.sets.push({ games });
@@ -183,7 +198,7 @@ export function applyPoint(
     return { state: s, tier: "set" };
   }
 
-  if (config.tiebreakMode !== "advantage" && gw === 6 && gl === 6) {
+  if (config.tiebreakMode !== "advantage" && gw === perSet && gl === perSet) {
     s.isTiebreakGame = true;
   }
 
@@ -255,6 +270,7 @@ export function toDTO(state: EngineState, config: ScoringConfig): MatchStateDTO 
       ...(config.raceTarget ? { raceTarget: config.raceTarget } : {}),
       ...(config.serveEvery ? { serveEvery: config.serveEvery } : {}),
       ...(config.raceWinBy ? { raceWinBy: config.raceWinBy } : {}),
+      ...(config.gamesPerSet ? { gamesPerSet: config.gamesPerSet } : {}),
     },
     setsWon: state.setsWon,
     completedSets: state.sets,

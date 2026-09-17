@@ -23,11 +23,32 @@ export async function POST(req: Request) {
     // `skipArchive` is for the rare deliberate discard.
     const archivedId = body.skipArchive === true ? null : await archiveCurrentTournament(prisma, body.archiveLabel);
 
-    await prisma.pointEvent.deleteMany({});
-    await prisma.match.deleteMany({});
-    await prisma.player.deleteMany({});
-    await prisma.court.deleteMany({});
-    await prisma.tournamentConfig.deleteMany({});
+    // One transaction, not five statements. A connection dropped between them
+    // left the most destructive operation in the app half-done — a config row
+    // still saying "active" with no players and no matches behind it, which
+    // every screen reads as a live tournament that cannot be played or reseeded.
+    //
+    // `resetV2State` stays OUTSIDE it. It tolerates a database that has never
+    // had the v2 tables pushed, by catching the "no such relation" error — but
+    // inside a transaction that error has already aborted the whole thing, so
+    // catching it achieves nothing: the COMMIT becomes a silent ROLLBACK and
+    // the wipe is undone while the route still answers ok. Out here the catch
+    // means what it says, and the wipe above has already been committed.
+    //
+    // The timeout is generous on purpose: this runs straight after archiving,
+    // and deletes an evening of point events over a connection that may be
+    // waking from scale-to-zero. Prisma's 5s default is not enough for that,
+    // and a P2028 here reads to the organiser as a failed reset.
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.pointEvent.deleteMany({});
+        await tx.match.deleteMany({});
+        await tx.player.deleteMany({});
+        await tx.court.deleteMany({});
+        await tx.tournamentConfig.deleteMany({});
+      },
+      { maxWait: 10_000, timeout: 30_000 }
+    );
     await resetV2State(prisma);
     await broadcastSnapshot();
     return NextResponse.json({ ok: true, archivedId });

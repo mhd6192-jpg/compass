@@ -14,6 +14,7 @@
  * the worst possible failure on a screen nobody can reach.
  */
 import type { MatchDTO } from "../types";
+import { simultaneousMatches, surplusCourts } from "../bracket/courtLoad";
 
 /** What the coach controls: is this court on air, and with which match. */
 export type StoredCourtStage = "idle" | "live";
@@ -96,6 +97,16 @@ export interface CourtView {
   /** Winner screen: the award currently being held on the TV. */
   winnerName: string | null;
   loserName: string | null;
+  /**
+   * This court gets no match tonight at all — not "none right now".
+   *
+   * A rotating format runs one round at a time and a round holds only
+   * `floor(players / 4)` matches, so a venue that ticked more courts than that
+   * has some standing empty from the first ball to the last. The idle screen
+   * said "awaiting the next match" on them regardless, which reads as a fault
+   * rather than as arithmetic.
+   */
+  unusedAllNight: boolean;
 }
 
 /** The match sitting in a court's "current" slot, if any. */
@@ -120,11 +131,16 @@ export function resolveCourtScreen(args: {
   matches: MatchDTO[];
   allPlayed: boolean;
   ceremony: CeremonyDTO;
+  /** Every court in play. Omitted, no court is ever reported as unused. */
+  courtIds?: number[];
 }): CourtView {
-  const { courtId, stage, matches, allPlayed, ceremony } = args;
+  const { courtId, stage, matches, allPlayed, ceremony, courtIds } = args;
   const upcoming = currentOnCourt(matches, courtId);
   const onDeck = nextOnCourt(matches, courtId);
-  const base = { match: null, upcoming, onDeck, winnerName: null, loserName: null };
+  const unusedAllNight = courtIds
+    ? surplusCourts(simultaneousMatches(matches), courtIds).includes(courtId)
+    : false;
+  const base = { match: null, upcoming, onDeck, winnerName: null, loserName: null, unusedAllNight };
 
   if (ceremony.stage !== "idle") {
     return { ...base, screen: "ceremony" };

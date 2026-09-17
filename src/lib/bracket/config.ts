@@ -12,5 +12,6 @@ export async function getScoringConfig(client: Prisma.TransactionClient | Prisma
     raceTarget: cfg.raceTarget || undefined,
     serveEvery: cfg.serveEvery || undefined,
     raceWinBy: cfg.raceWinBy || undefined,
+    gamesPerSet: cfg.gamesPerSet || undefined,
   };
 }

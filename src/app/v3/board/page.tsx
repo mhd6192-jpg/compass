@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { matchFormatLabel } from "@/lib/types";
+import { gamesPerSetOf, matchFormatLabel } from "@/lib/types";
 import V3Gate from "@/components/v3/V3Gate";
 import CeremonyScreen from "@/components/v3/CeremonyScreen";
 import V3Standings from "@/components/v3/V3Standings";
@@ -16,9 +16,21 @@ import { serveInfo } from "@/lib/scoring/serve";
 import { Ball } from "@/components/v3/ServeIndicator";
 
 /** ClubLogo already prints the club name, so the headline says what is being played. */
-function formatLabel(t: { tiebreakMode: string; raceTarget?: number }): string {
+function formatLabel(t: {
+  tiebreakMode: string;
+  raceTarget?: number;
+  bestOfSets?: number;
+  gamesPerSet?: number;
+}): string {
   if (t.tiebreakMode === "race-to-16" || t.tiebreakMode === "race-to-9") return matchFormatLabel(1, t);
-  if (t.tiebreakMode === "match-tiebreak") return "Match tiebreak";
+  // Set play: say the set length whenever it is not the six a spectator assumes.
+  // A finished 4-1 on a court column reads as an abandoned six-game set unless
+  // the wall has already said the sets are first to four. `matchFormatLabel` is
+  // the one place that sentence is written, and it also knows not to promise a
+  // match tiebreak in a best of one, where there is no decider to replace.
+  const games = gamesPerSetOf(t);
+  if (games !== 6 && t.bestOfSets) return matchFormatLabel(t.bestOfSets, t);
+  if (t.tiebreakMode === "match-tiebreak") return (t.bestOfSets ?? 3) >= 3 ? "Match tiebreak" : "Live scores";
   if (t.tiebreakMode === "advantage") return "Advantage sets";
   return "Live scores";
 }

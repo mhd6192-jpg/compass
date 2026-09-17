@@ -139,6 +139,7 @@ export async function getFullSnapshot(prisma: PrismaClient) {
     raceTarget: configRow?.raceTarget || undefined,
     serveEvery: configRow?.serveEvery || undefined,
     raceWinBy: configRow?.raceWinBy || undefined,
+    gamesPerSet: configRow?.gamesPerSet || undefined,
   };
 
   const matches = await prisma.match.findMany({
@@ -162,7 +163,14 @@ export async function getFullSnapshot(prisma: PrismaClient) {
   // Kept separate from `total`, which several screens compare against
   // `completed` to decide the evening is over. That comparison is right as it
   // stands: the last scheduled round opens no successor, so the rows do run out.
-  const perRound = matchDTOs.filter((m) => m.round === 1).length;
+  //
+  // Read off the LATEST round, not the first. The field can shrink mid-event —
+  // somebody leaves a mexicano and the redraw fits seven players into one match
+  // where eight filled two — and estimating from round one then multiplied a
+  // match count the event no longer has, so the bar stopped short of the end
+  // for the rest of the night and never said why.
+  const latestRound = matchDTOs.reduce((max, m) => Math.max(max, m.round), 0);
+  const perRound = matchDTOs.filter((m) => m.round === latestRound).length;
   const scheduledRounds = configRow?.amRounds ?? 0;
   const scheduled =
     isDerivedRounds(configRow?.format) && scheduledRounds > 0 && perRound > 0
@@ -179,6 +187,7 @@ export async function getFullSnapshot(prisma: PrismaClient) {
       raceTarget: config.raceTarget ?? 0,
       serveEvery: config.serveEvery ?? 0,
       raceWinBy: config.raceWinBy ?? 0,
+      gamesPerSet: config.gamesPerSet ?? 0,
       amRounds: configRow?.amRounds ?? 0,
     },
     courts,

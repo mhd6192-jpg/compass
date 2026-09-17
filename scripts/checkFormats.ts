@@ -71,13 +71,33 @@ for (const id of FORMAT_IDS) {
 // a field it rejects must be one that would have thrown.
 const gens: Partial<Record<TournamentFormat, (n: number) => unknown>> = {
   americano: (n) => generateAmericano(n, 3),
+  // A mixed americano IS an americano — it delegates to the same generator, and
+  // was the one rotating format missing from this sweep. Its validator had no
+  // upper bound, so 34 players passed the form, the API and the seeder and then
+  // threw inside the transaction. The sweep stopped at 33, one short of it.
+  "mixed-americano": (n) => generateAmericano(n, 3),
   "team-americano": (n) => generateTeamAmericano(n, 2),
   mixicano: (n) => generateMixicano(n, 2),
   "mixed-team-americano": (n) => generateMixedTeamAmericano(n, 2),
 };
+// The two directions are not equally serious, and conflating them hid a real
+// bug behind a rule that was deliberate.
+//
+//   accepted but throws — always a defect. The form said yes, the API said yes,
+//     the seeder said yes, and then the generator threw inside the transaction.
+//   rejected but works — a format rule stricter than its generator, which is
+//     normal: a mixed americano needs even halves, and nothing in the americano
+//     generator cares about that. Recorded so a NEW one has to be deliberate.
+// Only formats that ACTUALLY have a gap belong here. An entry for one that does
+// not is worse than no entry: it pre-authorises a gap nobody has looked at, so
+// a later change that narrowed the rule by accident would be waved through.
+const STRICTER_THAN_GENERATOR: Partial<Record<TournamentFormat, string>> = {
+  "mixed-americano": "an odd field cannot split into two equal groups",
+};
 for (const [id, gen] of Object.entries(gens) as Array<[TournamentFormat, (n: number) => unknown]>) {
-  let mismatch = "";
-  for (let n = 1; n <= 33; n++) {
+  let promised = "";
+  let stricter = 0;
+  for (let n = 1; n <= 48; n++) {
     const accepted = validateField(id, n) === null;
     let works = true;
     try {
@@ -85,9 +105,19 @@ for (const [id, gen] of Object.entries(gens) as Array<[TournamentFormat, (n: num
     } catch {
       works = false;
     }
-    if (accepted !== works) mismatch ||= `n=${n}: registry ${accepted ? "accepts" : "rejects"}, generator ${works ? "works" : "throws"}`;
+    if (accepted && !works) promised ||= `n=${n}: the registry accepts a field the generator throws on`;
+    if (!accepted && works) stricter++;
   }
-  check(`${id}: the validator agrees with the generator at every size`, mismatch === "", mismatch);
+  check(`${id}: never accepts a field its generator cannot schedule`, promised === "", promised);
+  // Both directions are asserted, so neither an unexplained narrowing nor a
+  // stale entry for a format that no longer has a gap can sit here unnoticed.
+  check(
+    `${id}: a rule stricter than its generator is declared, and only where there is one`,
+    (stricter > 0) === (STRICTER_THAN_GENERATOR[id] !== undefined),
+    stricter > 0
+      ? `${stricter} sizes rejected but UNDECLARED — say why in STRICTER_THAN_GENERATOR`
+      : `declared "${STRICTER_THAN_GENERATOR[id]}" but the validator rejects nothing the generator accepts`
+  );
 }
 
 // --- the bug that keeps happening: defaults that schedule repeats ------------

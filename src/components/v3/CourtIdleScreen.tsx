@@ -7,7 +7,16 @@ import ClubLogo, { ClubMark } from "@/components/shared/ClubLogo";
 import { BRACKET_STYLE } from "@/lib/bracketStyle";
 import type { MatchDTO } from "@/lib/types";
 
-function UpcomingCard({ courtLabel, match }: { courtLabel: string; match: MatchDTO | null }) {
+function UpcomingCard({
+  courtLabel,
+  match,
+  unused,
+}: {
+  courtLabel: string;
+  match: MatchDTO | null;
+  /** This court plays nothing tonight — see `unusedAllNight` in lib/v2/stage. */
+  unused: boolean;
+}) {
   if (!match) {
     return (
       <div className="rounded-3xl border border-court-line bg-court-panel flex flex-col items-center justify-center gap-[1.5vh] py-[4vh]">
@@ -15,8 +24,13 @@ function UpcomingCard({ courtLabel, match }: { courtLabel: string; match: MatchD
           <ClubMark size={54} />
         </span>
         <p className="font-display uppercase tracking-[0.3em] text-white/40" style={{ fontSize: "clamp(0.7rem, 1.4vw, 1.4rem)" }}>
-          {courtLabel} — awaiting the next match
+          {unused ? `${courtLabel} is not in tonight's rotation` : `${courtLabel} — awaiting the next match`}
         </p>
+        {unused && (
+          <p className="text-white/30 text-center max-w-[70%]" style={{ fontSize: "clamp(0.6rem, 1.1vw, 1.1rem)" }}>
+            The field fills fewer courts than were picked at setup, so every match is on the others.
+          </p>
+        )}
       </div>
     );
   }
@@ -80,6 +94,7 @@ export default function CourtIdleScreen({
   tiebreakMode,
   discipline,
   progress,
+  unused = false,
 }: {
   courtLabel: string;
   upcoming: MatchDTO | null;
@@ -91,6 +106,8 @@ export default function CourtIdleScreen({
   /** Singles or doubles — decides what the screen calls an entrant. */
   discipline?: string;
   progress: { completed: number; total: number };
+  /** True when this court gets no match all evening, not merely none right now. */
+  unused?: boolean;
 }) {
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-court-bg">
@@ -108,7 +125,7 @@ export default function CourtIdleScreen({
 
       <main className="flex-1 min-h-0 flex flex-col gap-[2vh] px-[3vw] py-[2vh]">
         <div className="shrink-0">
-          <UpcomingCard courtLabel={courtLabel} match={upcoming} />
+          <UpcomingCard courtLabel={courtLabel} match={upcoming} unused={unused} />
           {onDeck && (
             <p className="mt-[1.2vh] text-white/35 truncate" style={{ fontSize: "clamp(0.65rem, 1.2vw, 1.2rem)" }}>
               <span className="font-display uppercase tracking-[0.3em] text-gold/50 mr-[1vw]">Then</span>
