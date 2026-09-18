@@ -53,7 +53,7 @@ export async function computeStateRev(prisma: PrismaClient): Promise<string> {
       (select md5(coalesce(string_agg(id || ':' || stage || ':' || rev || ':' || cursor, ',' order by id), '')) from "Ceremony") as ceremony,
       (select md5(coalesce(string_agg(
          id || ':' || status || ':' || format || ':' || discipline || ':' || "bestOfSets" || ':' || "tiebreakMode"
-            || ':' || "raceTarget" || ':' || "serveEvery" || ':' || "raceWinBy" || ':' || "gamesPerSet" || ':' || "amRounds",
+            || ':' || "raceTarget" || ':' || "serveEvery" || ':' || "raceWinBy" || ':' || "gamesPerSet" || ':' || "goldenPoint" || ':' || "amRounds",
          ',' order by id), '')) from "TournamentConfig") as config
   `);
 

@@ -182,6 +182,7 @@ function CoachConsole({ courtId }: { courtId: number }) {
       // A rotating format played as sets can have a set length of its own, and the
       // console predicts "does this tap end the match" from this very config.
       gamesPerSet: snapshot.tournament.gamesPerSet || undefined,
+      goldenPoint: snapshot.tournament.goldenPoint || undefined,
     }),
     [
       snapshot.tournament.bestOfSets,
@@ -190,6 +191,7 @@ function CoachConsole({ courtId }: { courtId: number }) {
       snapshot.tournament.serveEvery,
       snapshot.tournament.raceWinBy,
       snapshot.tournament.gamesPerSet,
+      snapshot.tournament.goldenPoint,
     ]
   );
 

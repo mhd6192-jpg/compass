@@ -21,6 +21,7 @@ function formatLabel(t: {
   raceTarget?: number;
   bestOfSets?: number;
   gamesPerSet?: number;
+  goldenPoint?: boolean;
 }): string {
   if (t.tiebreakMode === "race-to-16" || t.tiebreakMode === "race-to-9") return matchFormatLabel(1, t);
   // Set play: say the set length whenever it is not the six a spectator assumes.
@@ -28,8 +29,10 @@ function formatLabel(t: {
   // the wall has already said the sets are first to four. `matchFormatLabel` is
   // the one place that sentence is written, and it also knows not to promise a
   // match tiebreak in a best of one, where there is no decider to replace.
+  // Anything the players need to know before they walk on: a set length that is
+  // not the assumed six, or no deuce — which changes how every 40-40 is played.
   const games = gamesPerSetOf(t);
-  if (games !== 6 && t.bestOfSets) return matchFormatLabel(t.bestOfSets, t);
+  if ((games !== 6 || t.goldenPoint) && t.bestOfSets) return matchFormatLabel(t.bestOfSets, t);
   if (t.tiebreakMode === "match-tiebreak") return (t.bestOfSets ?? 3) >= 3 ? "Match tiebreak" : "Live scores";
   if (t.tiebreakMode === "advantage") return "Advantage sets";
   return "Live scores";

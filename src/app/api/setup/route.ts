@@ -61,6 +61,7 @@ export async function POST(req: Request) {
     let serveEvery = 0;
     let raceWinBy = 0;
     let gamesPerSet = 0;
+    let goldenPoint = false;
     if (isPointsRace(tiebreakMode)) {
       raceTarget = Number(body.raceTarget) || 0;
       serveEvery = Number(body.serveEvery) || 0;
@@ -78,6 +79,8 @@ export async function POST(req: Request) {
       if (gamesPerSet !== 0 && (!Number.isInteger(gamesPerSet) || gamesPerSet < 2 || gamesPerSet > 9)) {
         return NextResponse.json({ error: "A set must be first to between 2 and 9 games" }, { status: 400 });
       }
+      // No deuce. A race has no games in it, so it has no deuce to remove.
+      goldenPoint = body.goldenPoint === true;
     }
 
     // Optionally arrange by seed so top seeds land in separate quarters (they only
@@ -114,6 +117,7 @@ export async function POST(req: Request) {
       serveEvery,
       raceWinBy,
       gamesPerSet,
+      goldenPoint,
       amRounds,
       pin,
       format: fmt,

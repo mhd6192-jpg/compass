@@ -186,7 +186,7 @@ function finalPlacings(
  */
 export async function buildArchive(prisma: PrismaClient, label?: string): Promise<ArchivePayload | null> {
   const snapshot = (await getFullSnapshot(prisma)) as unknown as {
-    tournament: { format: string; bestOfSets: number; tiebreakMode: string; raceTarget?: number; serveEvery?: number; raceWinBy?: number; gamesPerSet?: number };
+    tournament: { format: string; bestOfSets: number; tiebreakMode: string; raceTarget?: number; serveEvery?: number; raceWinBy?: number; gamesPerSet?: number; goldenPoint?: boolean };
     matches: MatchDTO[];
   };
 

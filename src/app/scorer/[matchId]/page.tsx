@@ -49,6 +49,7 @@ function ScoringContent() {
       serveEvery: snapshot.tournament.serveEvery || undefined,
       raceWinBy: snapshot.tournament.raceWinBy || undefined,
       gamesPerSet: snapshot.tournament.gamesPerSet || undefined,
+      goldenPoint: snapshot.tournament.goldenPoint || undefined,
     }),
     [
       snapshot.tournament.bestOfSets,
@@ -57,6 +58,7 @@ function ScoringContent() {
       snapshot.tournament.serveEvery,
       snapshot.tournament.raceWinBy,
       snapshot.tournament.gamesPerSet,
+      snapshot.tournament.goldenPoint,
     ]
   );
 

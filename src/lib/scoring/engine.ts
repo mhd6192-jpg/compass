@@ -3,6 +3,7 @@ import {
   MatchStateDTO,
   TiebreakMode,
   gamesPerSetOf,
+  goldenPointOf,
   isPointsRace,
   raceTargetOf,
   raceTotalPoints,
@@ -20,6 +21,8 @@ export interface ScoringConfig {
   raceWinBy?: number;
   /** Games needed to take a set. 0/undefined = the standard six. */
   gamesPerSet?: number;
+  /** No deuce: at 40-40 the next point takes the game (the padel golden point). */
+  goldenPoint?: boolean;
 }
 
 interface CompletedSet {
@@ -172,7 +175,10 @@ export function applyPoint(
   s.curGamePoints[i] += 1;
   const a = s.curGamePoints[i];
   const b = s.curGamePoints[j];
-  const wonGame = a >= 4 && a - b >= 2;
+  // With no deuce, a game is simply first to four points: 40-0, 40-15 and 40-30
+  // finish exactly as they always did, and the only case that changes is 40-40,
+  // where one more point takes it instead of running to advantage.
+  const wonGame = a >= 4 && (goldenPointOf(config) || a - b >= 2);
   if (!wonGame) {
     return { state: s, tier: "point" };
   }
@@ -271,6 +277,7 @@ export function toDTO(state: EngineState, config: ScoringConfig): MatchStateDTO 
       ...(config.serveEvery ? { serveEvery: config.serveEvery } : {}),
       ...(config.raceWinBy ? { raceWinBy: config.raceWinBy } : {}),
       ...(config.gamesPerSet ? { gamesPerSet: config.gamesPerSet } : {}),
+      ...(config.goldenPoint ? { goldenPoint: true } : {}),
     },
     setsWon: state.setsWon,
     completedSets: state.sets,

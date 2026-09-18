@@ -61,11 +61,16 @@ check("a value under the minimum is not committed while typing", commitWhileTypi
 // =============================================================================
 // Leaving the box
 // =============================================================================
-check("blur clamps above the maximum", commitOnBlur("150", RACE.min, RACE.max) === 99);
-check("blur clamps below the minimum", commitOnBlur("2", RACE.min, RACE.max) === 4);
 check("blur commits a legal value unchanged", commitOnBlur("18", RACE.min, RACE.max) === 18);
 check("blur on an empty box keeps the committed value", commitOnBlur("", RACE.min, RACE.max) === null);
 check("blur on letters keeps the committed value", commitOnBlur("abc", RACE.min, RACE.max) === null);
+// The reported bug, in its second disguise. Clamping on blur put a number in
+// the box that nobody had typed — a half-finished "1" became the minimum, 4,
+// the instant the organiser looked away.
+check("blur NEVER promotes a half-typed value to the minimum", commitOnBlur("1", RACE.min, RACE.max) === null);
+check("blur NEVER demotes an over-large value to the maximum", commitOnBlur("150", RACE.min, RACE.max) === null);
+check("...so nothing out of range is ever committed", ["0", "1", "2", "3", "100", "999"].every((t) => commitOnBlur(t, RACE.min, RACE.max) === null));
+check("...while the bounds themselves still commit", commitOnBlur("4", RACE.min, RACE.max) === 4 && commitOnBlur("99", RACE.min, RACE.max) === 99);
 
 // =============================================================================
 // What the box shows when nobody is editing it
@@ -97,7 +102,7 @@ const FIELDS = [
 for (const f of FIELDS) {
   const below = commitOnBlur(String(f.min - 1), f.min, f.max);
   const above = commitOnBlur(String(f.max + 1), f.min, f.max);
-  check(`${f.what}: blur never lands outside ${f.min}-${f.max}`, below === f.min && above === f.max, `${below}/${above}`);
+  check(`${f.what}: blur refuses anything outside ${f.min}-${f.max}`, below === null && above === null, `${below}/${above}`);
   check(`${f.what}: the bounds themselves are legal`, commitWhileTyping(String(f.min), f.min, f.max) === f.min && commitWhileTyping(String(f.max), f.min, f.max) === f.max);
 }
 

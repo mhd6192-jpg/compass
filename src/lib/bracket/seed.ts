@@ -29,6 +29,8 @@ export interface SeedOptions {
   raceWinBy?: number;
   /** Set play only: games needed to take a set. 0/undefined = the standard six. */
   gamesPerSet?: number;
+  /** Set play only: no deuce — at 40-40 the next point takes the game. */
+  goldenPoint?: boolean;
   pin: string;
   format?: TournamentFormat;
   discipline?: string;
@@ -217,6 +219,7 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
             serveEvery: opts.serveEvery ?? 0,
             raceWinBy: opts.raceWinBy ?? 0,
             gamesPerSet: opts.gamesPerSet ?? 0,
+            goldenPoint: opts.goldenPoint ?? false,
             amRounds,
             pin: opts.pin,
             startedAt: new Date(),
@@ -232,6 +235,7 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
             serveEvery: opts.serveEvery ?? 0,
             raceWinBy: opts.raceWinBy ?? 0,
             gamesPerSet: opts.gamesPerSet ?? 0,
+            goldenPoint: opts.goldenPoint ?? false,
             amRounds,
             pin: opts.pin,
             startedAt: new Date(),

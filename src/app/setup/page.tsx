@@ -281,6 +281,8 @@ export default function SetupPage() {
   const [raceWinBy, setRaceWinBy] = useState<1 | 2>(1);
   const [serveEvery, setServeEvery] = useState(4);
   const [gamesPerSet, setGamesPerSet] = useState(6);
+  // No deuce at 40-40 — the padel golden point, and how the club actually plays.
+  const [goldenPoint, setGoldenPoint] = useState(false);
   /**
    * The set-play scoring the organiser had before a rotating format overwrote
    * it with a race — so going back to a bracket draw gives it back rather than
@@ -811,6 +813,7 @@ export default function SetupPage() {
           serveEvery,
           raceWinBy,
           gamesPerSet,
+          goldenPoint,
           amRounds: amRounds || effectiveRounds,
           pin: pin.trim(),
           organiserPin: orgPin.trim(),
@@ -1833,10 +1836,38 @@ export default function SetupPage() {
                 max={9}
               />
               <p className="text-white/40 text-xs mt-2">
-                {matchFormatLabel(bestOfSets, { tiebreakMode, gamesPerSet })} — a typical score would be{" "}
+                {matchFormatLabel(bestOfSets, { tiebreakMode, gamesPerSet, goldenPoint })} — a typical score would be{" "}
                 {gamesPerSet}-{Math.max(0, gamesPerSet - 2)}
                 {bestOfSets > 1 ? `, ${gamesPerSet}-${Math.max(0, gamesPerSet - 4)}` : ""}.
               </p>
+            </div>
+
+            <div>
+              <p className="font-display uppercase text-sm text-white/80 mb-2">Deuce</p>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {(
+                  [
+                    { value: false, title: "Advantage", desc: "40-40 goes to deuce, and the game runs on until someone leads by two." },
+                    {
+                      value: true,
+                      title: "Golden point (no deuce)",
+                      desc: "40-40 is decided by the very next point. Every game is first to four, so nothing can run away with the evening.",
+                    },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => setGoldenPoint(opt.value)}
+                    className={`text-left rounded-xl border p-3 transition-colors ${
+                      goldenPoint === opt.value ? "border-gold bg-gold/10" : "border-court-line bg-court-panel2"
+                    }`}
+                  >
+                    <p className="font-display uppercase text-sm mb-1">{opt.title}</p>
+                    <p className="text-white/45 text-xs leading-relaxed">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

@@ -42,6 +42,11 @@ model TournamentConfig {
   /// take it, the tiebreak comes at N-all, and its winner finishes on N+1.
   gamesPerSet Int @default(0)
 
+  /// Set play only: no deuce. At 40-40 the next point takes the game — the
+  /// padel golden point, and how most club play is actually scored. False is
+  /// the ordinary advantage game, which is what every older event stored.
+  goldenPoint Boolean @default(false)
+
   pin       String    @default("1234")
   startedAt DateTime?
   createdAt DateTime  @default(now())

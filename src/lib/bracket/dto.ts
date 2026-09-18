@@ -140,6 +140,7 @@ export async function getFullSnapshot(prisma: PrismaClient) {
     serveEvery: configRow?.serveEvery || undefined,
     raceWinBy: configRow?.raceWinBy || undefined,
     gamesPerSet: configRow?.gamesPerSet || undefined,
+    goldenPoint: configRow?.goldenPoint || undefined,
   };
 
   const matches = await prisma.match.findMany({
@@ -188,6 +189,7 @@ export async function getFullSnapshot(prisma: PrismaClient) {
       serveEvery: config.serveEvery ?? 0,
       raceWinBy: config.raceWinBy ?? 0,
       gamesPerSet: config.gamesPerSet ?? 0,
+      goldenPoint: config.goldenPoint ?? false,
       amRounds: configRow?.amRounds ?? 0,
     },
     courts,

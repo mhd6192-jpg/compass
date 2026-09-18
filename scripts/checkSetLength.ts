@@ -278,5 +278,91 @@ check("tally: set play still counts games", tallyUnit("standard").short === "gms
   check("an explicit 6 scores identically to no setting at all", JSON.stringify(a) === JSON.stringify(b));
 }
 
+// --- no deuce: the golden point ------------------------------------------
+//
+// How the club actually plays. The ONLY thing it changes is 40-40: every other
+// game score finishes exactly as it always did, which is what makes it safe to
+// turn on for an evening already half-played.
+{
+  const golden = cfg({ goldenPoint: true });
+  const advantage = cfg();
+
+  /** Plays one game point by point and reports the games won at the end. */
+  const oneGame = (config: ScoringConfig, pattern: (1 | 2)[]) => {
+    let s = createInitialState(config);
+    for (const w of pattern) s = applyPoint(s, w, config).state;
+    return s;
+  };
+
+  // 40-0, 40-15, 40-30 are untouched.
+  for (const [name, pat] of [
+    ["40-0", [1, 1, 1, 1] as (1 | 2)[]],
+    ["40-15", [1, 1, 1, 2, 1] as (1 | 2)[]],
+    ["40-30", [1, 1, 1, 2, 2, 1] as (1 | 2)[]],
+  ] as const) {
+    const g = oneGame(golden, pat);
+    const a = oneGame(advantage, pat);
+    check(`golden: ${name} finishes the same as it always did`, g.curSetGames.join("-") === a.curSetGames.join("-") && g.curSetGames[0] === 1, `${g.curSetGames.join("-")} vs ${a.curSetGames.join("-")}`);
+  }
+
+  // 40-40 is the one that changes.
+  const deuceThenOne: (1 | 2)[] = [1, 2, 1, 2, 1, 2, 1];
+  const g = oneGame(golden, deuceThenOne);
+  const a = oneGame(advantage, deuceThenOne);
+  check("golden: the point after 40-40 takes the game", g.curSetGames.join("-") === "1-0", g.curSetGames.join("-"));
+  check("advantage: the same point only makes it Ad", a.curSetGames.join("-") === "0-0" && a.curGamePoints.join("-") === "4-3", a.curGamePoints.join("-"));
+
+  // Under golden point a game can never go past four points.
+  let s = createInitialState(golden);
+  const seq: (1 | 2)[] = [1, 2, 1, 2, 1, 2, 2];
+  let maxPts = 0;
+  for (const w of seq) {
+    s = applyPoint(s, w, golden).state;
+    maxPts = Math.max(maxPts, s.curGamePoints[0], s.curGamePoints[1]);
+  }
+  check("golden: no game ever exceeds four points", maxPts <= 4, String(maxPts));
+  check("golden: the 40-40 point can be won by either side", s.curSetGames.join("-") === "0-1", s.curSetGames.join("-"));
+
+  // A whole set still ends the way a set ends.
+  const set = playGames(golden, alternate(5, 5).concat([1, 1]));
+  check("golden: a set still needs two clear games", set.sets[0]?.games.join("-") === "7-5", set.sets[0]?.games.join("-"));
+
+  // Tiebreaks have no deuce to remove, so they are unaffected.
+  let tb = playGames(golden, alternate(6, 6));
+  check("golden: the breaker still starts at 6-6", tb.isTiebreakGame);
+  for (let p = 0; p < 6; p++) tb = applyPoint(tb, 1, golden).state;
+  for (let p = 0; p < 6; p++) tb = applyPoint(tb, 2, golden).state;
+  check("golden: a 6-6 breaker is still win by two, not first to seven", tb.sets.length === 0, `${tb.curGamePoints.join("-")}`);
+  tb = applyPoint(tb, 1, golden).state;
+  tb = applyPoint(tb, 1, golden).state;
+  check("golden: ...and ends on two clear", tb.sets[0]?.games.join("-") === "7-6", tb.sets[0]?.games.join("-"));
+
+  // Off by default, so nothing already stored changes.
+  check("no setting means advantage, as before", gamesPerSetOf({ tiebreakMode: "standard" }) === 6 && cfg().goldenPoint === undefined);
+  const long = Array.from({ length: 300 }, (_, i) => ((i % 3 === 0 ? 2 : 1) as 1 | 2));
+  check(
+    "an explicit goldenPoint:false scores identically to no setting",
+    JSON.stringify(computeMatchState(long, cfg({ bestOfSets: 3 }))) ===
+      JSON.stringify(computeMatchState(long, cfg({ bestOfSets: 3, goldenPoint: false })))
+  );
+}
+
+// --- what the screens say about it ----------------------------------------
+check(
+  "label: golden point is named",
+  matchFormatLabel(1, { tiebreakMode: "standard", goldenPoint: true }) === "Best of 1 · golden point",
+  matchFormatLabel(1, { tiebreakMode: "standard", goldenPoint: true })
+);
+check(
+  "label: with a short set too",
+  matchFormatLabel(1, { tiebreakMode: "standard", gamesPerSet: 4, goldenPoint: true }) === "Best of 1 · first to 4 games · golden point",
+  matchFormatLabel(1, { tiebreakMode: "standard", gamesPerSet: 4, goldenPoint: true })
+);
+check(
+  "label: advantage says nothing extra",
+  matchFormatLabel(1, { tiebreakMode: "standard" }) === "Best of 1",
+  matchFormatLabel(1, { tiebreakMode: "standard" })
+);
+
 console.log(failures ? `\n${failures} CHECK(S) FAILED` : "\nALL CHECKS PASSED");
 process.exit(failures ? 1 : 0);

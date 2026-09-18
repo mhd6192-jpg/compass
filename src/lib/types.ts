@@ -181,6 +181,8 @@ export interface RaceConfigLike {
   raceWinBy?: number;
   /** Set play only: games needed to take a set. 0/undefined = the standard six. */
   gamesPerSet?: number;
+  /** Set play only: no deuce — at 40-40 the next point takes the game. */
+  goldenPoint?: boolean;
 }
 
 /**
@@ -230,6 +232,22 @@ export function gamesPerSetOf(config: RaceConfigLike): number {
   return 6;
 }
 
+/**
+ * No deuce: at 40-40 the next point takes the game.
+ *
+ * The padel "golden point", and how most club play is actually scored — an
+ * advantage game can run for ten minutes and a social evening does not have
+ * ten minutes. With it on, a game is simply first to four points: 40-0, 40-15
+ * and 40-30 finish as they always did, and 40-40 is decided by one more rather
+ * than running to advantage.
+ *
+ * Only ordinary games are affected. A tiebreak is already first-to-seven win by
+ * two and a match tiebreak first-to-ten, and neither has a deuce to remove.
+ */
+export function goldenPointOf(config: RaceConfigLike): boolean {
+  return config.goldenPoint === true;
+}
+
 /** How many points each side serves before it changes hands. 0/undefined = the house default of 4. */
 export function serveEveryOf(config: RaceConfigLike): number {
   if (config.serveEvery && config.serveEvery >= 1) return Math.floor(config.serveEvery);
@@ -263,7 +281,12 @@ export function matchFormatLabel(bestOfSets: number, config: RaceConfigLike): st
   // is named before the tiebreak rule rather than left for people to infer from
   // a 4-2 scoreline.
   const games = gamesPerSetOf(config);
-  const base = `Best of ${bestOfSets}` + (games === 6 ? "" : ` · first to ${games} game${games === 1 ? "" : "s"}`);
+  const base =
+    `Best of ${bestOfSets}` +
+    (games === 6 ? "" : ` · first to ${games} game${games === 1 ? "" : "s"}`) +
+    // Worth saying on the wall: it changes how every 40-40 is played, and a
+    // player walking on needs to know before it happens rather than after.
+    (goldenPointOf(config) ? " · golden point" : "");
   // Only claim the match tiebreak where there is a decider for it to replace.
   // A best of one has none, and the engine plays an ordinary set — so saying
   // "match tiebreak" on the wall would describe a match nobody is playing.
@@ -368,7 +391,7 @@ export interface PlayerDTO {
 
 export interface MatchStateDTO {
   // derived, event-sourced live score state
-  config: { bestOfSets: number; tiebreakMode: TiebreakMode; raceTarget?: number; serveEvery?: number; raceWinBy?: number; gamesPerSet?: number };
+  config: { bestOfSets: number; tiebreakMode: TiebreakMode; raceTarget?: number; serveEvery?: number; raceWinBy?: number; gamesPerSet?: number; goldenPoint?: boolean };
   setsWon: [number, number];
   completedSets: Array<{ games: [number, number]; tiebreak?: [number, number] }>;
   currentSet: { games: [number, number] } | null;

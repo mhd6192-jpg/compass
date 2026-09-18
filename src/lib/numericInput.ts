@@ -43,13 +43,21 @@ export function commitWhileTyping(text: string, min: number, max: number): numbe
 /**
  * What to commit when the field is left, or null to keep the current value.
  *
- * This is where clamping belongs — once, visibly, after the organiser has
- * finished typing, rather than on every keystroke.
+ * Nothing out of range is ever committed — not even clamped into range. The
+ * first version of this clamped on blur, which sounds helpful and is not: a
+ * half-typed "1" on the way to 18 became the minimum, 4, and the box then read
+ * "4" — a number the organiser never typed, appearing the moment they looked
+ * away. It is the same surprise the per-keystroke clamp caused, just moved
+ * later.
+ *
+ * So an illegal value is simply refused, the box goes back to showing the
+ * committed one, and the range hint beside it says why. Nothing on this form
+ * ever displays a number nobody chose.
  */
 export function commitOnBlur(text: string, min: number, max: number): number | null {
   const n = parseInt(text, 10);
   if (!Number.isInteger(n)) return null;
-  return Math.max(min, Math.min(max, n));
+  return n >= min && n <= max ? n : null;
 }
 
 /**
