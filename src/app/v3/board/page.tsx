@@ -413,6 +413,8 @@ function Board() {
           </div>
           <div className="w-px h-[5vh] bg-white/10" />
           <Clock now={now} />
+          <div className="w-px h-[5vh] bg-white/10" />
+          <PlayerQr size={54} />
         </div>
       </header>
 
@@ -458,61 +460,17 @@ function Board() {
       {/* The standings strip has to be tall enough for a row somebody can read
           from across the room. At 26vh a full field came out at 9-11px, which
           is a picture of a table rather than a table. */}
-      <section className="relative shrink-0 h-[36vh] px-[2.5vw] pb-[1.8vh] flex gap-[1.4vw]">
-        <div className="flex-1 min-w-0 flex">
-          <V3Standings
-            matches={snapshot.matches}
-            title="Standings"
-            format={snapshot.tournament.format}
-            tiebreakMode={snapshot.tournament.tiebreakMode}
-          />
-        </div>
-
-        <div className="w-[25vw] shrink-0 rounded-2xl border border-white/10 bg-court-panel/80 px-[1.3vw] py-[1.4vh] flex flex-col overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-          <div className="flex items-baseline justify-between shrink-0 mb-[0.8vh]">
-            <h2 className="font-display uppercase text-gold" style={{ fontSize: "clamp(0.7rem, 1.4vw, 1.5rem)" }}>
-              Coming up
-            </h2>
-            {venue.queue.length > 0 && (
-              <span className="font-display uppercase tracking-[0.2em] text-white/35" style={{ fontSize: "clamp(0.45rem, 0.75vw, 0.8rem)" }}>
-                {venue.queue.length} waiting
-              </span>
-            )}
-          </div>
-          {/* Whole rows only. `auto-fill` makes as many rows of this height
-              as the space holds; everything past them lands in zero-height
-              implicit rows and is clipped, so the list never ends on half a
-              name the way a plain overflow did in a laptop window. */}
-          <div
-            className="flex-1 min-h-0 grid overflow-hidden"
-            style={{ gridTemplateRows: "repeat(auto-fill, 3.8vh)", gridAutoRows: "0px", rowGap: "0.5vh" }}
-          >
-            {venue.queue.slice(0, 6).map((m, i) => {
-              const s = BRACKET_STYLE[m.bracket];
-              return (
-                <div key={m.id} className="flex items-center gap-[0.7vw] min-w-0 rounded-lg border border-white/[0.06] bg-white/[0.02] px-[0.7vw] overflow-hidden">
-                  <span className="font-display tabular-nums text-white/30 shrink-0" style={{ fontSize: "clamp(0.5rem, 0.9vw, 0.95rem)" }}>
-                    {i + 1}
-                  </span>
-                  <p className="flex-1 min-w-0 truncate font-display uppercase font-bold text-white/80" style={{ fontSize: "clamp(0.55rem, 1vw, 1.05rem)" }}>
-                    {m.player1?.name ?? "TBD"} <span className="text-gold/60 font-normal">v</span> {m.player2?.name ?? "TBD"}
-                  </p>
-                  <span className={`shrink-0 font-display uppercase tracking-[0.15em] ${s.text} opacity-80`} style={{ fontSize: "clamp(0.42rem, 0.7vw, 0.75rem)" }}>
-                    {m.roundName}
-                  </span>
-                </div>
-              );
-            })}
-            {venue.queue.length === 0 && (
-              <p className="text-white/35" style={{ fontSize: "clamp(0.55rem, 1vw, 1.05rem)" }}>
-                Every playable match is on court.
-              </p>
-            )}
-          </div>
-          <div className="shrink-0 mt-[0.8vh] pt-[0.9vh] border-t border-white/[0.07]">
-            <PlayerQr size={92} />
-          </div>
-        </div>
+      {/* The whole width, and enough height for every team of every group on
+          one screen: the queue that used to sit beside it is on each court
+          card's footer already, and the table is what people walk over to
+          read. */}
+      <section className="relative shrink-0 h-[40vh] px-[2.5vw] pb-[1.8vh] flex">
+        <V3Standings
+          matches={snapshot.matches}
+          title="Standings"
+          format={snapshot.tournament.format}
+          tiebreakMode={snapshot.tournament.tiebreakMode}
+        />
       </section>
     </div>
   );
