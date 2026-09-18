@@ -30,12 +30,12 @@ function race16(lo: number) {
 const player = (id: string) => ({ id, name: id, seed: 0, createdAt: new Date() });
 
 let seq = 0;
-function row(bracket: string, p1: string | null, p2: string | null, winner: string | null, lo = 5): Row {
+function row(bracket: string, p1: string | null, p2: string | null, winner: string | null, lo = 5, round = 1): Row {
   seq++;
   return {
     id: `${bracket}${seq}`,
     bracket,
-    round: 1,
+    round,
     posIndex: seq,
     player1Id: p1,
     player2Id: p2,
@@ -51,7 +51,8 @@ function row(bracket: string, p1: string | null, p2: string | null, winner: stri
     feedWinnerSlot: null,
     feedLoserMatchId: null,
     feedLoserSlot: null,
-    isBracketFinal: bracket === "F",
+    // The third-place play-off is round 2 of F, and is NOT the bracket final.
+    isBracketFinal: bracket === "F" && round === 1,
     forcedEnd: false,
     forcedEndReason: null,
     startedAt: winner ? new Date() : null,
@@ -205,6 +206,80 @@ async function main() {
     check("podium 1st is the final winner", podium[0]?.name === "A2" && podium[0].detail === "Champion", JSON.stringify(podium[0]));
     check("podium 2nd is the beaten finalist", podium[1]?.name === "A1", JSON.stringify(podium[1]));
     check("beaten semifinalists come next", [podium[2]?.name, podium[3]?.name].sort().join(",") === "B1,B2", `${podium[2]?.name},${podium[3]?.name}`);
+  }
+
+
+  // --- the optional third-place play-off -------------------------------------
+  {
+    const without = generateTwoGroup(8);
+    const with3rd = generateTwoGroup(8, true);
+    check("off by default: no third-place match is drawn", without.filter((n) => n.bracket === "F").length === 1);
+    check("on: the F bracket gains one row", with3rd.filter((n) => n.bracket === "F").length === 2);
+    check("...and it is exactly one extra match", with3rd.length === without.length + 1, `${with3rd.length} vs ${without.length}`);
+    check(
+      "...counted in the preview total",
+      twoGroupMatchCount(8, true) === twoGroupMatchCount(8) + 1,
+      `${twoGroupMatchCount(8, true)} vs ${twoGroupMatchCount(8)}`
+    );
+
+    const playoff = with3rd.find((n) => n.key === "F-1")!;
+    check("the play-off is round 2 of F", playoff.bracket === "F" && playoff.round === 2, `${playoff.bracket} r${playoff.round}`);
+    check("...and is never the bracket final", playoff.isBracketFinal === false);
+    check("...so the title match is still the only bracket final", with3rd.filter((n) => n.isBracketFinal).length === 1);
+
+    // Fed by the LOSERS of the two semifinals — the one thing that makes it a
+    // third-place match rather than a second final.
+    const semis = with3rd.filter((n) => n.bracket === "SF");
+    check("both semifinals feed their loser into it", semis.every((n) => n.feedLoserKey === "F-1"), semis.map((n) => String(n.feedLoserKey)).join(","));
+    check("...into different slots", new Set(semis.map((n) => n.feedLoserSlot)).size === 2, semis.map((n) => String(n.feedLoserSlot)).join(","));
+    check("...while their winners still feed the final", semis.every((n) => n.feedWinnerKey === "F-0"));
+    check("without it, no semifinal feeds a loser anywhere", without.filter((n) => n.bracket === "SF").every((n) => n.feedLoserKey === undefined));
+
+    let bad = "";
+    for (let n = MIN_TWO_GROUP_TEAMS; n <= 24; n++) {
+      const nodes = generateTwoGroup(n, true);
+      if (nodes.filter((x) => x.bracket === "F").length !== 2) bad ||= `n=${n} finals`;
+      if (nodes.filter((x) => x.isBracketFinal).length !== 1) bad ||= `n=${n} bracketFinal`;
+      if (nodes.length !== twoGroupMatchCount(n, true)) bad ||= `n=${n} count`;
+    }
+    check("every legal field draws one final and one play-off", bad === "", bad);
+  }
+
+  // --- the podium reads third and fourth off the play-off ---------------------
+  {
+    seq = 0;
+    const rows: Row[] = [
+      row("SF", "A1", "B2", "A1"),
+      row("SF", "B1", "A2", "B1"),
+      row("F", "A1", "B1", "A1"),
+      row("F", "B2", "A2", "A2", 5, 2), // the play-off: A2 beats B2 for third
+    ];
+    const podium = computePodium(rows.map((r) => buildMatchDTO(r, CONFIG)), "two-group", "race-to-16");
+    const at = (place: number) => podium.find((a) => a.place === place);
+    check("champion is the winner of the FINAL, not of the play-off", at(1)?.name === "A1", at(1)?.name);
+    check("finalist is second", at(2)?.name === "B1", at(2)?.name);
+    check("third is the play-off winner", at(3)?.name === "A2", `${at(3)?.name} (${at(3)?.detail})`);
+    check("fourth is the play-off loser", at(4)?.name === "B2", `${at(4)?.name} (${at(4)?.detail})`);
+    check("...and both are named as such", at(3)?.detail === "Third place" && at(4)?.detail === "Fourth place", `${at(3)?.detail}/${at(4)?.detail}`);
+    check("every podium place is still distinct", new Set(podium.map((a) => a.place)).size === podium.length);
+  }
+
+  // --- without a play-off, nothing changes ------------------------------------
+  {
+    seq = 0;
+    const rows: Row[] = [
+      row("SF", "A1", "B2", "A1"),
+      row("SF", "B1", "A2", "B1"),
+      row("F", "A1", "B1", "A1"),
+    ];
+    const podium = computePodium(rows.map((r) => buildMatchDTO(r, CONFIG)), "two-group", "race-to-16");
+    const at = (place: number) => podium.find((a) => a.place === place);
+    check("no play-off: champion unchanged", at(1)?.name === "A1", at(1)?.name);
+    check(
+      "no play-off: the beaten semifinalists share the places behind",
+      at(3)?.detail === "Semifinalist" && at(4)?.detail === "Semifinalist",
+      `${at(3)?.detail}/${at(4)?.detail}`
+    );
   }
 
   console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);

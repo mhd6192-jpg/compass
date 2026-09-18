@@ -283,6 +283,8 @@ export default function SetupPage() {
   const [gamesPerSet, setGamesPerSet] = useState(6);
   // No deuce at 40-40 — the padel golden point, and how the club actually plays.
   const [goldenPoint, setGoldenPoint] = useState(false);
+  // Two groups only: the beaten semifinalists meet to settle third.
+  const [thirdPlace, setThirdPlace] = useState(false);
   /**
    * The set-play scoring the organiser had before a rotating format overwrote
    * it with a race — so going back to a bracket draw gives it back rather than
@@ -814,6 +816,7 @@ export default function SetupPage() {
           raceWinBy,
           gamesPerSet,
           goldenPoint,
+          thirdPlace,
           amRounds: amRounds || effectiveRounds,
           pin: pin.trim(),
           organiserPin: orgPin.trim(),
@@ -1761,6 +1764,17 @@ export default function SetupPage() {
               </div>
             ))}
           </div>
+
+          <label className="flex items-start gap-3 mt-3 rounded-xl border border-court-line bg-court-panel p-3 cursor-pointer">
+            <input type="checkbox" checked={thirdPlace} onChange={(e) => setThirdPlace(e.target.checked)} className="mt-1" />
+            <span>
+              <span className="font-display uppercase text-sm">Play a third-place match</span>
+              <span className="block text-white/50 text-xs mt-0.5">
+                The two beaten semifinalists meet to settle third and fourth — one extra match, on court after the semifinals. Without it
+                they share the places behind the finalists, because nothing separates them.
+              </span>
+            </span>
+          </label>
         </section>
       )}
 

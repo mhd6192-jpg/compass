@@ -231,9 +231,14 @@ export default function V3Standings({
         // smallest size there is — but it still pages rather than clips.
         size = largest(MIN_FONT, LEGIBLE_FONT, (px) => roomFor(px) >= MIN_ROWS_PER_PAGE) ?? MIN_FONT;
       }
-      const fits = roomFor(size);
+      const fits = Math.max(1, Math.min(longest, roomFor(size)));
       list.style.fontSize = `${size}px`;
-      setPerPage(Math.max(1, Math.min(longest, fits)));
+      // Level pages. Five names in a box that holds four used to turn as
+      // "1–4 of 5" and then "5–5 of 5": one name alone in an empty panel for
+      // eight seconds, which reads as the table having broken. Spread across
+      // the same number of pages evenly, it is 3 and 2.
+      const pageCount = Math.ceil(longest / fits);
+      setPerPage(Math.ceil(longest / pageCount));
     };
 
     measure();
@@ -267,8 +272,8 @@ export default function V3Standings({
   const shown = pages > 1 ? perPage : longest;
 
   return (
-    <div className="rounded-2xl border border-court-line bg-court-panel px-[2vw] py-[2vh] flex-1 min-h-0 flex flex-col overflow-hidden">
-      <div className="flex items-baseline justify-between gap-3 mb-[1.4vh] shrink-0">
+    <div className="rounded-2xl border border-white/10 bg-court-panel/80 px-[1.6vw] py-[1.4vh] flex-1 min-h-0 flex flex-col overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <div className="flex items-baseline justify-between gap-3 mb-[0.9vh] shrink-0">
         <h2 className="font-display uppercase text-gold" style={{ fontSize: "clamp(1rem, 2.2vw, 2.4rem)" }}>
           {title}
         </h2>

@@ -38,6 +38,8 @@ export interface SeedOptions {
   amRounds?: number;
   /** Court numbers this tournament runs on, e.g. [1,2] or [2,3,4]. */
   courtIds?: number[];
+  /** Two groups only: draw a third-place play-off between the beaten semifinalists. */
+  thirdPlace?: boolean;
 }
 
 export async function seedTournament(client: PrismaClient, names: string[], opts: SeedOptions) {
@@ -168,7 +170,7 @@ export async function seedTournament(client: PrismaClient, names: string[], opts
         format === "compass"
           ? generateSkeleton(players.map((p) => p.id))
           : format === "two-group"
-          ? generateTwoGroup(players.length)
+          ? generateTwoGroup(players.length, opts.thirdPlace === true)
           : generateRoundRobin(players.length);
       const keyToId = new Map<string, string>();
 

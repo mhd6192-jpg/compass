@@ -362,7 +362,9 @@ export const ROUND_NAMES: Record<BracketCode, string[]> = {
   GA: ["Group A"],
   GB: ["Group B"],
   SF: ["Semifinal"],
-  F: ["Final"],
+  // Round 2 only exists when the organiser asked for a third-place play-off,
+  // the same shape as the round robin's deciding final above.
+  F: ["Final", "Third place"],
   // Named per round at render time ("Round 3 of 8"), so no fixed list here.
   AM: [],
 };

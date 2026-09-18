@@ -8,6 +8,7 @@
  */
 import { computeStandings, computeTeamStandings } from "../standings";
 import { mixicanoGroupName } from "../bracket/mixicano";
+import { isThirdPlaceRow } from "../bracket/twoGroup";
 import { BRACKET_LABELS, BracketCode, MatchDTO, isRotatingPartners, isTeamScored, tallyUnit } from "../types";
 import type { AwardDTO } from "./stage";
 
@@ -127,11 +128,24 @@ function twoGroupPodium(matches: MatchDTO[], unit: string): AwardDTO[] {
     out.push({ place: out.length + 1, playerId, name, detail });
   };
 
-  const final = matches.find((m) => m.bracket === "F" && m.status === "completed" && m.winnerId);
+  // `isBracketFinal`, not just the bracket. The F bracket holds a second row
+  // when a third-place play-off was drawn, and picking the first F match found
+  // would have crowned whoever won THAT as champion.
+  const final = matches.find((m) => m.bracket === "F" && m.isBracketFinal && m.status === "completed" && m.winnerId);
   const sides = final ? sidesOf(final) : null;
   if (sides) {
     push(sides.winner.id, sides.winner.name, "Champion");
     push(sides.loser.id, sides.loser.name, "Finalist");
+  }
+
+  // Third and fourth are settled on court when the play-off was played, and
+  // only then. Without one the two beaten semifinalists share the places behind
+  // the finalists, because nothing separated them.
+  const playoff = matches.find((m) => isThirdPlaceRow(m) && m.status === "completed" && m.winnerId);
+  const playoffSides = playoff ? sidesOf(playoff) : null;
+  if (playoffSides) {
+    push(playoffSides.winner.id, playoffSides.winner.name, "Third place");
+    push(playoffSides.loser.id, playoffSides.loser.name, "Fourth place");
   }
   for (const semi of matches.filter((m) => m.bracket === "SF" && m.status === "completed" && m.loserId)) {
     const s = sidesOf(semi);

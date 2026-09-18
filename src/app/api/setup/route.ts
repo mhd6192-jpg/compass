@@ -123,6 +123,8 @@ export async function POST(req: Request) {
       format: fmt,
       discipline: discipline === "singles" ? "singles" : "doubles",
       courtIds: courtIds.length ? courtIds : undefined,
+      // Two groups only; every other format ignores it.
+      thirdPlace: fmt === "two-group" && body.thirdPlace === true,
     });
 
     // Past this line the draw exists and the request has succeeded. Nothing

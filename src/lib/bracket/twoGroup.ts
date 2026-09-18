@@ -9,8 +9,8 @@ export interface TwoGroupNode {
   initialPlayerSeeds?: [number, number];
   feedWinnerKey?: string;
   feedWinnerSlot?: 1 | 2;
-  feedLoserKey?: undefined;
-  feedLoserSlot?: undefined;
+  feedLoserKey?: string;
+  feedLoserSlot?: 1 | 2;
 }
 
 /** Fewer than this and the group stage eliminates nobody — both teams in a
@@ -58,7 +58,7 @@ function groupFixtures(bracket: BracketCode, members: number[]): TwoGroupNode[] 
  * groups have finished, so their players are filled in later by
  * `ensureSemifinals` — only the semi-to-final wiring can be fixed up front.
  */
-export function generateTwoGroup(teamCount: number): TwoGroupNode[] {
+export function generateTwoGroup(teamCount: number, thirdPlace = false): TwoGroupNode[] {
   if (teamCount < MIN_TWO_GROUP_TEAMS) {
     throw new Error(`Two groups needs at least ${MIN_TWO_GROUP_TEAMS} teams, got ${teamCount}`);
   }
@@ -66,15 +66,48 @@ export function generateTwoGroup(teamCount: number): TwoGroupNode[] {
   return [
     ...groupFixtures("GA", a),
     ...groupFixtures("GB", b),
-    { key: "SF-0", bracket: "SF", round: 1, posIndex: 0, isBracketFinal: false, feedWinnerKey: "F-0", feedWinnerSlot: 1 },
-    { key: "SF-1", bracket: "SF", round: 1, posIndex: 1, isBracketFinal: false, feedWinnerKey: "F-0", feedWinnerSlot: 2 },
+    {
+      key: "SF-0",
+      bracket: "SF",
+      round: 1,
+      posIndex: 0,
+      isBracketFinal: false,
+      feedWinnerKey: "F-0",
+      feedWinnerSlot: 1,
+      // The beaten semifinalists meet each other, when the organiser asked for
+      // it. Wired here rather than filled in later like the semifinals, because
+      // unlike qualifying it needs no table: whoever loses a semifinal plays.
+      ...(thirdPlace ? { feedLoserKey: "F-1" as const, feedLoserSlot: 1 as const } : {}),
+    },
+    {
+      key: "SF-1",
+      bracket: "SF",
+      round: 1,
+      posIndex: 1,
+      isBracketFinal: false,
+      feedWinnerKey: "F-0",
+      feedWinnerSlot: 2,
+      ...(thirdPlace ? { feedLoserKey: "F-1" as const, feedLoserSlot: 2 as const } : {}),
+    },
     { key: "F-0", bracket: "F", round: 1, posIndex: 0, isBracketFinal: true },
+    // Round 2 of the F bracket, exactly as the round robin puts its deciding
+    // play-off in round 2 of RR: an extra match that only exists when the
+    // format calls for one. `isBracketFinal` stays false, so nothing mistakes
+    // it for the title match — the championship celebration is keyed on that.
+    ...(thirdPlace
+      ? [{ key: "F-1", bracket: "F" as const, round: 2, posIndex: 1, isBracketFinal: false }]
+      : []),
   ];
 }
 
+/** The third-place play-off, when one was drawn. Round 2 of F, and only ever one. */
+export function isThirdPlaceRow(m: { bracket: string; round: number }): boolean {
+  return m.bracket === "F" && m.round > 1;
+}
+
 /** How many matches an N-team two-group draw produces, for the setup preview. */
-export function twoGroupMatchCount(teamCount: number): number {
+export function twoGroupMatchCount(teamCount: number, thirdPlace = false): number {
   const [a, b] = splitGroups(teamCount);
   const rr = (n: number) => (n * (n - 1)) / 2;
-  return rr(a.length) + rr(b.length) + 3;
+  return rr(a.length) + rr(b.length) + (thirdPlace ? 4 : 3);
 }
